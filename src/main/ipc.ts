@@ -5,6 +5,8 @@ import { join } from "node:path";
 
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
+import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
+import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
@@ -13,6 +15,8 @@ import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
 
 let root: string | null = null;
+
+export const getWorkspaceRoot = () => root;
 let watcher: FSWatcher | null = null;
 const indexer = new NoteIndexer();
 const searcher = new NoteSearcher();
@@ -76,6 +80,22 @@ export async function registerIpc() {
     indexer.renameWithLinks(requireRoot(), path, newName),
   );
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
+  ipcMain.handle(IPC.attachmentsList, () => listAttachments(requireRoot()));
+  ipcMain.handle(IPC.attachmentsPick, async (event) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = {
+      title: "첨부할 파일 선택",
+      properties: ["openFile", "multiSelections"] as Array<"openFile" | "multiSelections">,
+      filters: [{ name: "이미지, 영상, 오디오, PDF", extensions: ATTACHMENT_EXTENSIONS }],
+    };
+    const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    if (picked.canceled) return { imported: [], skipped: [] };
+    return importFiles(requireRoot(), picked.filePaths);
+  });
+  ipcMain.handle(IPC.attachmentsSave, (_e, name: string, data: Uint8Array) => saveAttachment(requireRoot(), String(name), data));
+  ipcMain.handle(IPC.attachmentsReveal, (_e, path: string) => {
+    shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
+  });
   ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 
   registerAiIpc(requireRoot);

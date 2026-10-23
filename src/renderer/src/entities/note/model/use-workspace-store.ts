@@ -1,3 +1,4 @@
+import { isAttachmentPath, type AttachmentMeta } from "@shared/attachments";
 import type { NoteMeta, NotesChangedEvent } from "@shared/types";
 import { toast } from "sonner";
 import { create } from "zustand";
@@ -39,6 +40,8 @@ interface WorkspaceState {
   ready: boolean;
   root: string | null;
   notes: NoteMeta[];
+  /** 작업 폴더 안의 모든 첨부 파일(이미지, 영상 등) */
+  attachments: AttachmentMeta[];
   activePath: string | null;
   query: string;
   collapsedFolders: Record<string, boolean>;
@@ -48,7 +51,8 @@ interface WorkspaceState {
   init: () => Promise<() => void>;
   chooseFolder: () => Promise<void>;
   useDefaultFolder: () => Promise<void>;
-  refresh: () => Promise<void>;
+  /** 글 목록을 다시 읽는다. 첨부 파일 목록은 `attachments: false`면 건너뛴다 (글만 저장됐을 때). */
+  refresh: (options?: { attachments?: boolean }) => Promise<void>;
   openNote: (path: string | null) => Promise<void>;
   openLink: (target: string) => Promise<void>;
   createNote: (folder?: string, title?: string) => Promise<void>;
@@ -60,7 +64,7 @@ interface WorkspaceState {
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   async function loadWorkspace(root: string | null) {
-    set({ root, notes: [], activePath: null });
+    set({ root, notes: [], attachments: [], activePath: null });
     if (!root) return;
     await get().refresh();
     const { notes } = get();
@@ -73,6 +77,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     ready: false,
     root: null,
     notes: [],
+    attachments: [],
     activePath: null,
     query: "",
     collapsedFolders: {},
@@ -87,7 +92,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({ ready: true });
 
       const unsubscribe = api.onNotesChanged((event: NotesChangedEvent) => {
-        void get().refresh();
+        void get().refresh({ attachments: event.paths.some(isAttachmentPath) });
         set((state) => ({ externalChange: { paths: event.paths, seq: (state.externalChange?.seq ?? 0) + 1 } }));
       });
       return unsubscribe;
@@ -104,11 +109,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       await loadWorkspace(root);
     },
 
-    refresh: async () => {
+    refresh: async ({ attachments: withAttachments = true } = {}) => {
       try {
-        const notes = await api.notes.list();
+        const [notes, attachments] = await Promise.all([
+          api.notes.list(),
+          withAttachments ? api.attachments.list().catch(() => [] as AttachmentMeta[]) : Promise.resolve(null),
+        ]);
         set((state) => ({
           notes,
+          attachments: attachments ?? state.attachments,
           // 열어 둔 글이 밖에서 지워졌으면 선택을 푼다.
           activePath: state.activePath && notes.some((note) => note.path === state.activePath) ? state.activePath : null,
         }));

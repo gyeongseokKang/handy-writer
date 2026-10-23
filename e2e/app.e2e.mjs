@@ -384,6 +384,194 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(gitSettings[ws]?.autoCommitMinutes === 10, "자동 커밋 간격이 사용자 설정 파일에 저장된다");
   assert(!fs.existsSync(path.join(ws, ".handy-writer", "git-settings.json")), "컴퓨터별 설정은 작업 폴더(git) 안에 들어가지 않는다");
 
+  // 첨부 탭: 이미지와 영상 보기, 라벨과 크기 고치기
+  const fixture = (name) => path.join(ROOT, "e2e", "fixtures", name);
+  fs.mkdirSync(path.join(ws, "attachments"), { recursive: true });
+  fs.copyFileSync(fixture("photo.png"), path.join(ws, "attachments", "사진 1.png"));
+  fs.copyFileSync(fixture("clip.webm"), path.join(ws, "attachments", "영상.webm"));
+  const attachNote = path.join(ws, "첨부 테스트.md");
+  fs.writeFileSync(
+    attachNote,
+    "# 첨부 테스트\n\n![[사진 1.png|여행 사진|240]]\n\n![[영상.webm]]\n\n![없는 파일](attachments/missing.png)\n\n![](attachments/사진%201.png)\n",
+  );
+  await sleep(1200);
+  await page.click("nav[aria-label='글 목록'] >> text=첨부 테스트");
+  await page.waitForSelector(".note-prose [data-embed-view='image']");
+
+  // 에디터 안에서 그려진 모습
+  await page.waitForFunction(
+    () => [...document.querySelectorAll(".note-prose .embed img")].every((i) => i.complete && i.naturalWidth > 0) && document.querySelectorAll(".note-prose .embed img").length >= 2,
+    null,
+    { timeout: 8000 },
+  );
+  const shown = await page.evaluate(() => {
+    const img = document.querySelector(".note-prose .embed img");
+    const video = document.querySelector(".note-prose video");
+    return {
+      src: img?.getAttribute("src"),
+      natural: img?.naturalWidth,
+      width: Math.round(img?.getBoundingClientRect().width ?? 0),
+      caption: document.querySelector(".note-prose .embed-caption")?.textContent,
+      videoMeta: video ? { ready: video.readyState, w: video.videoWidth } : null,
+      missing: document.querySelectorAll(".note-prose .embed-missing").length,
+      embedCount: document.querySelectorAll(".note-prose .embed").length,
+    };
+  });
+  assert(shown.src?.startsWith("handy-asset://vault/attachments/") && shown.natural === 120, `작업 폴더의 이미지가 handy-asset 프로토콜로 표시된다 (${shown.src})`);
+  assert(shown.width === 240, `글에 적은 너비(240)대로 표시된다 (${shown.width}px)`);
+  assert(shown.caption === "여행 사진", "라벨이 이미지 아래 캡션으로 보인다");
+  assert(
+    await page.evaluate(() => {
+      const imgs = [...document.querySelectorAll(".note-prose .embed img")];
+      const last = imgs[imgs.length - 1];
+      return Math.abs(last.getBoundingClientRect().width - last.closest("p").getBoundingClientRect().width) <= 1;
+    }),
+    "크기를 적지 않은 이미지는 기본으로 글 폭 100%로 보인다",
+  );
+  assert(shown.missing === 1, "없는 파일은 '파일을 찾을 수 없어요'로 표시된다");
+  await page.waitForFunction(() => (document.querySelector(".note-prose video")?.readyState ?? 0) >= 1, null, { timeout: 8000 });
+  assert(await page.evaluate(() => document.querySelector(".note-prose video").videoWidth === 64), "영상 메타데이터를 읽어 재생할 수 있다");
+  await page.screenshot({ path: path.join(OUT, "13-attachments-editor.png") });
+
+  // 프로토콜 보안과 Range 요청 (화면의 fetch는 CSP로 막혀 있으므로, 같은 핸들러를 메인 프로세스에서 호출한다)
+  const probe = await app.evaluate(async ({ net }) => {
+    const get = async (url, headers) => {
+      try {
+        const r = await net.fetch(url, { headers });
+        return { status: r.status, length: (await r.arrayBuffer()).byteLength, range: r.headers.get("content-range"), type: r.headers.get("content-type") };
+      } catch (e) {
+        return { status: "error", message: String(e) };
+      }
+    };
+    return {
+      whole: await get("handy-asset://vault/attachments/%EC%98%81%EC%83%81.webm"),
+      range: await get("handy-asset://vault/attachments/%EC%98%81%EC%83%81.webm", { Range: "bytes=0-9" }),
+      outOfRange: await get("handy-asset://vault/attachments/%EC%98%81%EC%83%81.webm", { Range: "bytes=999999-" }),
+      traversal: await get("handy-asset://vault/..%2F..%2Fetc%2Fpasswd.png"),
+      note: await get("handy-asset://vault/%EC%B2%A8%EB%B6%80%20%ED%85%8C%EC%8A%A4%ED%8A%B8.md"),
+      other: await get("handy-asset://other/attachments/a.png"),
+    };
+  });
+  assert(probe.whole.status === 200 && probe.whole.type === "video/webm" && probe.whole.length > 1000, `영상 전체 요청에 올바른 형식으로 답한다 (${JSON.stringify(probe.whole)})`);
+  assert(probe.range.status === 206 && probe.range.length === 10 && /^bytes 0-9\//.test(probe.range.range), `영상 Range 요청에 206으로 일부만 답한다 (${JSON.stringify(probe.range)})`);
+  assert(probe.outOfRange.status === 416, `범위를 벗어난 Range는 416이다 (${probe.outOfRange.status})`);
+  assert(probe.traversal.status !== 200 && probe.note.status === 403 && probe.other.status === 404, `작업 폴더 밖, 글(.md), 다른 호스트는 열 수 없다 (${probe.traversal.status}/${probe.note.status}/${probe.other.status})`);
+
+  // 패널: 처음에는 모두 접혀 있고, 눌러야 펼쳐진다
+  await page.getByRole("tab", { name: /^첨부/ }).click();
+  await page.waitForSelector("ul[aria-label='첨부 목록'] > li");
+  assert((await page.locator("ul[aria-label='첨부 목록'] > li").count()) === 4, "첨부 탭에 이 글의 이미지, 영상, 없는 파일, 마크다운 이미지가 모두 나열된다");
+  assert(
+    (await page.locator("ul[aria-label='첨부 목록'] button[aria-expanded='true']").count()) === 0 && (await page.locator("input[aria-label='라벨']").count()) === 0,
+    "첨부는 처음에 모두 접혀 있고 입력창이 보이지 않는다",
+  );
+  const card = page.locator("li[aria-label='사진 1.png']").first();
+  assert((await card.innerText()).includes("여행 사진"), "접힌 줄에 파일 이름과 라벨이 보인다");
+  await page.screenshot({ path: path.join(OUT, "14-attachments-collapsed.png") });
+
+  await card.getByRole("button").first().click();
+  assert((await card.locator("input[aria-label='라벨']").inputValue()) === "여행 사진", "펼치면 라벨을 고칠 수 있다");
+  assert(!(await card.locator("input[aria-label='너비']").isVisible()), "기본 정보에는 라벨만 있고 크기 입력은 '크기 조정' 안에 접혀 있다");
+  assert((await card.innerText()).includes("이미지") && (await card.innerText()).includes("120×80"), "종류와 원본 크기가 보인다");
+  await card.locator("summary", { hasText: "크기 조정" }).click();
+  assert((await card.locator("input[aria-label='너비']").inputValue()) === "240", "크기 조정을 열면 현재 너비가 채워진다");
+  await page.screenshot({ path: path.join(OUT, "14-attachments-panel.png") });
+
+  const noteText = () => fs.readFileSync(attachNote, "utf8");
+  await card.locator("input[aria-label='라벨']").fill("새 여행 사진");
+  await sleep(1800);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진|240]]"), "라벨을 고치면 글(.md)에 `![[파일|라벨|너비]]`로 저장된다");
+  await card.locator("input[aria-label='너비']").fill("300");
+  await sleep(1800);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진|300]]"), "너비를 고치면 글에 반영된다");
+  assert((await page.evaluate(() => Math.round(document.querySelector(".note-prose .embed img").getBoundingClientRect().width))) === 300, "에디터의 이미지 크기도 바로 바뀐다");
+  await card.getByRole("button", { name: /작게/ }).click();
+  await sleep(1500);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진|200]]"), "프리셋(작게 200)을 누르면 너비가 200이 된다");
+  await card.getByRole("button", { name: "기본값(100%)" }).click();
+  await sleep(1500);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진]]"), "기본값(100%)을 누르면 크기 표시가 사라진다");
+  assert(
+    await page.evaluate(() => {
+      const img = document.querySelector(".note-prose .embed img");
+      return Math.abs(img.getBoundingClientRect().width - img.closest("p").getBoundingClientRect().width) <= 1;
+    }),
+    "크기를 정하지 않으면 이미지가 글 폭 100%로 보인다",
+  );
+  await card.locator("input[aria-label='너비']").fill("100");
+  await sleep(1500);
+  await card.getByRole("checkbox", { name: "비율 유지" }).uncheck();
+  await sleep(1500);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진|100x67]]"), "비율 유지를 끄면 현재 비율의 높이(67)가 정해져 `100x67`로 저장된다");
+  await card.locator("input[aria-label='높이']").fill("40");
+  await sleep(1800);
+  assert(noteText().includes("![[사진 1.png|새 여행 사진|100x40]]"), "높이를 직접 고칠 수 있다");
+
+  await card.locator("input[aria-label='라벨']").fill("2024");
+  await sleep(1000);
+  assert((await card.getByText("숫자만으로는 라벨을 만들 수 없어요").count()) === 1 && noteText().includes("|새 여행 사진|"), "숫자만 있는 라벨은 거부하고 기존 라벨을 유지한다");
+
+  const mdCard = page.locator("ul[aria-label='첨부 목록'] > li").nth(3);
+  await mdCard.getByRole("button").first().click();
+  await mdCard.locator("summary", { hasText: "크기 조정" }).click();
+  await mdCard.locator("input[aria-label='라벨']").fill("마크다운 사진");
+  await mdCard.locator("input[aria-label='너비']").fill("150");
+  await sleep(1800);
+  assert(noteText().includes("![마크다운 사진|150](attachments/사진%201.png)"), "일반 마크다운 이미지는 그 문법(`![라벨|너비](경로)`)을 유지한 채 고쳐진다");
+
+  const missingCard = page.locator("li[aria-label='attachments/missing.png']");
+  await missingCard.getByRole("button").first().click();
+  await missingCard.getByRole("button", { name: /글에서 제거/ }).click();
+  await sleep(1500);
+  assert(!noteText().includes("missing.png") && (await page.locator("ul[aria-label='첨부 목록'] > li").count()) === 3, "글에서 제거하면 글과 목록에서 빠진다");
+  assert(fs.existsSync(path.join(ws, "attachments", "사진 1.png")), "글에서 제거해도 파일은 삭제되지 않는다");
+
+  // 첨부 추가 (파일 선택 창), 붙여넣기, 끌어다 놓기
+  await app.evaluate(({ dialog }, files) => {
+    dialog.showOpenDialog = async () => ({ canceled: false, filePaths: files });
+  }, [fixture("square.png")]);
+  await page.click(".note-prose > p >> nth=0");
+  await page.getByRole("button", { name: "첨부 추가" }).click();
+  await page.waitForFunction(() => document.querySelectorAll("ul[aria-label='첨부 목록'] > li").length === 4, null, { timeout: 8000 });
+  await sleep(1500);
+  assert(fs.existsSync(path.join(ws, "attachments", "square.png")) && noteText().includes("![[square.png]]"), "첨부 추가: 파일이 attachments/ 로 복사되고 글에 임베드가 들어간다");
+  assert(fs.existsSync(fixture("square.png")), "원본 파일은 그대로 남는다");
+  await page.getByRole("button", { name: "첨부 추가" }).click();
+  await sleep(2000);
+  assert(fs.existsSync(path.join(ws, "attachments", "square 1.png")) && noteText().includes("![[square 1.png]]"), "같은 이름을 또 추가하면 `square 1.png`로 겹치지 않게 저장한다");
+
+  const pngBase64 = fs.readFileSync(fixture("photo.png")).toString("base64");
+  await page.click(".note-prose > p:last-of-type");
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const data = new DataTransfer();
+    data.items.add(new File([bytes], "image.png", { type: "image/png" }));
+    document.querySelector(".ProseMirror").dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true, cancelable: true }));
+  }, pngBase64);
+  await page.waitForFunction(() => document.querySelectorAll("ul[aria-label='첨부 목록'] > li").length === 6, null, { timeout: 8000 });
+  await sleep(1500);
+  const pasted = fs.readdirSync(path.join(ws, "attachments")).filter((n) => n.startsWith("Pasted image "));
+  assert(pasted.length === 1 && noteText().includes(`![[${pasted[0]}]]`), `이미지를 붙여넣으면 'Pasted image 날짜.png'로 저장되고 글에 들어간다 (${pasted[0]})`);
+
+  await page.evaluate((b64) => {
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const data = new DataTransfer();
+    data.items.add(new File([bytes], "끌어온 그림.png", { type: "image/png" }));
+    const rect = document.querySelector(".ProseMirror").getBoundingClientRect();
+    document.querySelector(".ProseMirror").dispatchEvent(new DragEvent("drop", { dataTransfer: data, clientX: rect.left + 20, clientY: rect.top + 20, bubbles: true, cancelable: true }));
+  }, pngBase64);
+  await page.waitForFunction(() => document.querySelectorAll("ul[aria-label='첨부 목록'] > li").length === 7, null, { timeout: 8000 });
+  await sleep(1500);
+  assert(fs.existsSync(path.join(ws, "attachments", "끌어온 그림.png")) && noteText().includes("![[끌어온 그림.png]]"), "끌어다 놓은 파일은 원래 이름으로 저장되고 놓은 자리에 들어간다");
+
+  await page.click(".note-prose > p:last-of-type");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/이미지");
+  await page.waitForSelector("[role='listbox'] [role='option']:has-text('이미지·영상·파일')");
+  console.log("ok  : 슬래시 메뉴에 '이미지·영상·파일'이 있다");
+  await page.keyboard.press("Escape");
+
   assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.length ? JSON.stringify(logs) : ""}`);
   await app.close();
 })().catch((e) => { console.error("SCRIPT ERROR", e); process.exit(1); });

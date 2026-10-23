@@ -11,7 +11,7 @@ let editor: Editor;
 function mount(markdown: string) {
   editor = new Editor({
     element: document.createElement("div"),
-    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {} }),
+    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {}, renderEmbeds: false }),
     content: markdown,
     contentType: "markdown",
   });

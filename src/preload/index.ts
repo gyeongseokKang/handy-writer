@@ -22,6 +22,12 @@ const api: HandyApi = {
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),
   },
+  attachments: {
+    list: () => ipcRenderer.invoke(IPC.attachmentsList),
+    pick: () => ipcRenderer.invoke(IPC.attachmentsPick),
+    save: (name, data) => ipcRenderer.invoke(IPC.attachmentsSave, name, data),
+    reveal: (path) => ipcRenderer.invoke(IPC.attachmentsReveal, path),
+  },
   search: {
     query: (query) => ipcRenderer.invoke(IPC.searchQuery, query),
   },

@@ -9,7 +9,7 @@ import { createExtensions } from "./create-extensions";
 function roundTrip(markdown: string) {
   const editor = new Editor({
     element: document.createElement("div"),
-    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {} }),
+    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {}, renderEmbeds: false }),
     content: markdown,
     contentType: "markdown",
   });
@@ -33,7 +33,7 @@ describe("직접 타이핑한 [[위키링크]]", () => {
   it("끝까지 입력하면 `[[`나 `]]` 글자가 남지 않고 링크 노드 하나가 된다", () => {
     const editor = new Editor({
       element: document.createElement("div"),
-      extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {} }),
+      extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {}, renderEmbeds: false }),
       content: "",
       contentType: "markdown",
     });

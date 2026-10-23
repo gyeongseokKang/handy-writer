@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
+import { useEmbedStore } from "@/entities/note/model/use-embed-store";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
@@ -99,6 +100,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         setStatus("saved");
+        useEmbedStore.getState().setItems(useEditorBridge.getState().bridge?.listEmbeds() ?? []);
         if (raw === "") editor.commands.focus("start");
         // 검색 결과에서 열었으면 찾은 단어로 이동
         const find = useUiStore.getState().pendingFind;
@@ -122,8 +124,18 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
     if (!editor) return;
     const bridge = createEditorBridge(editor, () => nameRef.current);
     useEditorBridge.getState().setBridge(bridge);
+    // 첨부 패널이 보여줄 임베드 목록을 글이 바뀔 때마다 갱신한다.
+    const syncEmbeds = () => useEmbedStore.getState().setItems(bridge.listEmbeds());
+    syncEmbeds();
+    editor.on("update", syncEmbeds);
+    editor.on("create", syncEmbeds);
     return () => {
-      if (useEditorBridge.getState().bridge === bridge) useEditorBridge.getState().setBridge(null);
+      editor.off("update", syncEmbeds);
+      editor.off("create", syncEmbeds);
+      if (useEditorBridge.getState().bridge === bridge) {
+        useEditorBridge.getState().setBridge(null);
+        useEmbedStore.getState().setItems([]);
+      }
     };
   }, [editor]);
 
@@ -168,6 +180,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         frontmatterRef.current = frontmatter;
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
+        useEmbedStore.getState().setItems(useEditorBridge.getState().bridge?.listEmbeds() ?? []);
         toast.info("다른 곳에서 바뀐 내용을 불러왔어요.");
       })
       .catch(() => {});

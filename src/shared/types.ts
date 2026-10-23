@@ -1,4 +1,5 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
+import type { AttachmentMeta } from "./attachments";
 import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
@@ -13,6 +14,12 @@ export interface NoteMeta {
 }
 
 /** 글 하나의 링크와 태그 정보. 백링크, 태그 목록, 그래프를 만드는 재료다. */
+export interface AttachmentImportResult {
+  imported: AttachmentMeta[];
+  /** 지원하지 않는 형식이라 건너뛴 파일 이름 */
+  skipped: string[];
+}
+
 export interface NoteIndexEntry {
   path: string;
   name: string;
@@ -53,6 +60,14 @@ export interface HandyApi {
   };
   index: {
     get: () => Promise<NoteIndexEntry[]>;
+  };
+  attachments: {
+    list: () => Promise<AttachmentMeta[]>;
+    /** 파일 선택 창을 열고, 고른 파일을 작업 폴더의 attachments/ 로 복사한다. 취소하면 빈 결과 */
+    pick: () => Promise<AttachmentImportResult>;
+    /** 붙여넣거나 끌어다 놓은 파일의 내용을 attachments/ 에 저장한다. */
+    save: (name: string, data: Uint8Array) => Promise<AttachmentMeta>;
+    reveal: (path: string) => Promise<void>;
   };
   search: {
     query: (query: string) => Promise<SearchResult[]>;
@@ -95,6 +110,10 @@ export const IPC = {
   notesRemove: "notes:remove",
   indexGet: "index:get",
   searchQuery: "search:query",
+  attachmentsList: "attachments:list",
+  attachmentsPick: "attachments:pick",
+  attachmentsSave: "attachments:save",
+  attachmentsReveal: "attachments:reveal",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
   gitStatus: "git:status",

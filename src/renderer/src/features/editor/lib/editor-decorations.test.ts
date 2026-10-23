@@ -16,6 +16,7 @@ function mount(markdown: string, overrides: { isResolved?: (t: string) => boolea
       onNavigate: () => {},
       isResolved: overrides.isResolved ?? (() => true),
       onTagClick: overrides.onTagClick ?? (() => {}),
+      renderEmbeds: false,
     }),
     content: markdown,
     contentType: "markdown",

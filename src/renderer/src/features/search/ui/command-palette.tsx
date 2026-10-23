@@ -42,11 +42,15 @@ export function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null);
   const requestRef = useRef(0);
 
+  // 입력값은 열 때가 아니라 닫을 때 비운다. 열자마자 빨리 입력한 글자가 지워지지 않게 한다.
   useEffect(() => {
-    if (!open) return;
-    setQuery("");
-    setSelected(0);
-    inputRef.current?.focus();
+    if (open) {
+      inputRef.current?.focus();
+    } else {
+      setQuery("");
+      setResultsQuery("");
+      setSelected(0);
+    }
   }, [open]);
 
   const recent = useMemo(

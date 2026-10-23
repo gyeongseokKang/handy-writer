@@ -6,6 +6,7 @@ import {
   Heading1,
   Heading2,
   Heading3,
+  ImagePlus,
   Info,
   List,
   ListChecks,
@@ -15,6 +16,8 @@ import {
   Quote,
   Table2,
 } from "lucide-react";
+
+import { attachFromDialog } from "@/entities/note/model/attach-files";
 
 import { createSuggestionRender, type SuggestionItem } from "./suggestion-render";
 
@@ -98,6 +101,16 @@ const ENTRIES: SlashEntry[] = [
     keywords: ["code", "codeblock", "코드"],
     icon: <Code2 className="size-4" />,
     run: (editor, range) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
+  },
+  {
+    title: "이미지·영상·파일",
+    description: "파일을 골라 첨부해요",
+    keywords: ["image", "img", "video", "file", "attach", "photo", "pdf", "이미지", "사진", "영상", "첨부", "파일"],
+    icon: <ImagePlus className="size-4" />,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).run();
+      void attachFromDialog();
+    },
   },
   {
     title: "구분선",

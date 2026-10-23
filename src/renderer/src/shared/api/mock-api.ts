@@ -117,6 +117,12 @@ export function createMockApi(): HandyApi {
           ...parseNote(content),
         })),
     },
+    attachments: {
+      list: async () => [],
+      pick: async () => ({ imported: [], skipped: [] }),
+      save: async (name) => ({ path: `attachments/${name}`, name, kind: "image", size: 0, mtime: Date.now() }),
+      reveal: async () => {},
+    },
     search: {
       query: async (query) =>
         searchNotes(

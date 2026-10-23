@@ -12,6 +12,18 @@ export interface EditorContext {
   to: number;
 }
 
+/** 글에 들어 있는 이미지·영상 등 임베드 하나 (패널에서 라벨과 크기를 고친다) */
+export interface EmbedItem {
+  uid: string;
+  target: string;
+  label: string;
+  width: number | null;
+  height: number | null;
+  syntax: "wiki" | "markdown";
+}
+
+export type EmbedPatch = Partial<Pick<EmbedItem, "label" | "width" | "height">>;
+
 export type ApplyResult = "ok" | "changed";
 
 export interface EditorBridge {
@@ -20,6 +32,13 @@ export interface EditorBridge {
   replace: (context: EditorContext, markdown: string) => ApplyResult;
   /** 지금 커서가 있는 블록 바로 아래에 새 블록으로 넣는다. */
   insertBelowCursor: (markdown: string) => void;
+  listEmbeds: () => EmbedItem[];
+  updateEmbed: (uid: string, patch: EmbedPatch) => boolean;
+  removeEmbed: (uid: string) => boolean;
+  /** 해당 임베드를 선택하고 그 위치로 스크롤한다. */
+  focusEmbed: (uid: string) => boolean;
+  /** 대상 이름들을 임베드로 삽입한다. pos가 없으면 커서 위치에 넣는다. */
+  insertEmbeds: (targets: string[], pos?: number) => void;
   /** 글에서 처음 나오는 단어를 선택하고 그 위치로 스크롤한다. 없으면 false */
   findAndSelect: (term: string) => boolean;
 }

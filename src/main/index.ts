@@ -1,7 +1,10 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "node:path";
 
-import { registerIpc } from "./ipc";
+import { handleAssetProtocol, registerAssetScheme } from "./asset-protocol";
+import { getWorkspaceRoot, registerIpc } from "./ipc";
+
+registerAssetScheme();
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -34,6 +37,7 @@ function createWindow() {
 
 app.whenReady().then(async () => {
   await registerIpc();
+  handleAssetProtocol(getWorkspaceRoot);
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
