@@ -1,4 +1,5 @@
 import type { AiEvent } from "@shared/ai";
+import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
@@ -44,6 +45,24 @@ export function createMockApi(): HandyApi {
   const listeners = new Set<(event: NotesChangedEvent) => void>();
   const aiListeners = new Set<(event: AiEvent) => void>();
   let rules = "";
+  const gitListeners = new Set<(event: GitEvent) => void>();
+  let gitSettings: GitSettings = { ...DEFAULT_GIT_SETTINGS };
+  let gitStatus: GitStatus = {
+    installed: true,
+    isRepo: true,
+    branch: "main",
+    upstream: "origin/main",
+    ahead: 1,
+    behind: 0,
+    hasRemote: true,
+    merging: false,
+    changes: [
+      { path: "시작하기.md", kind: "modified" },
+      { path: "새 아이디어.md", kind: "untracked" },
+    ],
+    lastCommit: { subject: "handy-writer: 2026-10-22 18:30", time: Date.now() - 3_600_000 },
+  };
+  const emitGit = () => gitListeners.forEach((listener) => listener({ kind: "status", status: gitStatus }));
   const emit = (...paths: string[]) => listeners.forEach((listener) => listener({ paths }));
 
   return {
@@ -100,6 +119,34 @@ export function createMockApi(): HandyApi {
       get: async () => rules,
       set: async (content) => {
         rules = content;
+      },
+    },
+    git: {
+      status: async () => gitStatus,
+      init: async () => gitStatus,
+      setRemote: async () => gitStatus,
+      commit: async () => {
+        const nothing = gitStatus.changes.length === 0;
+        gitStatus = { ...gitStatus, changes: [], ahead: nothing ? gitStatus.ahead : gitStatus.ahead + 1 };
+        emitGit();
+        return nothing ? { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." } : { outcome: "committed", message: "변경을 커밋했어요." };
+      },
+      pull: async () => ({ outcome: "up-to-date", message: "이미 최신이에요." }),
+      push: async () => {
+        gitStatus = { ...gitStatus, ahead: 0 };
+        emitGit();
+        return { outcome: "pushed", message: "원격 저장소에 올렸어요." };
+      },
+      sync: async () => {
+        gitStatus = { ...gitStatus, changes: [], ahead: 0 };
+        emitGit();
+        return { outcome: "synced", message: "동기화했어요 (커밋 → 푸시)" };
+      },
+      getSettings: async () => gitSettings,
+      setSettings: async (settings) => (gitSettings = settings),
+      onEvent: (listener) => {
+        gitListeners.add(listener);
+        return () => gitListeners.delete(listener);
       },
     },
     ai: {

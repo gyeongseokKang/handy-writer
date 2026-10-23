@@ -5,6 +5,7 @@ import { join } from "node:path";
 
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
+import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
@@ -13,6 +14,7 @@ import { watchNotes } from "./watcher";
 let root: string | null = null;
 let watcher: FSWatcher | null = null;
 const indexer = new NoteIndexer();
+const gitIpc = createGitIpc(requireRoot);
 
 function requireRoot() {
   if (!root) throw new Error("작업 폴더가 선택되지 않았어요.");
@@ -33,6 +35,7 @@ async function setRoot(next: string): Promise<WorkspaceInfo> {
   await mkdir(next, { recursive: true });
   root = next;
   indexer.setRoot(next);
+  gitIpc.onRootChanged(next);
   await saveWorkspaceRoot(next);
   startWatching();
   return { root };
@@ -41,6 +44,7 @@ async function setRoot(next: string): Promise<WorkspaceInfo> {
 export async function registerIpc() {
   root = await loadWorkspaceRoot();
   indexer.setRoot(root);
+  gitIpc.onRootChanged(root);
   startWatching();
 
   ipcMain.handle(IPC.workspaceGet, (): WorkspaceInfo => ({ root }));
@@ -69,5 +73,6 @@ export async function registerIpc() {
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
 
   registerAiIpc(requireRoot);
+  gitIpc.register();
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
 }

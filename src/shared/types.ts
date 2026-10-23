@@ -1,4 +1,5 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
+import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
 export interface NoteMeta {
   /** 작업 폴더 기준 상대 경로 (POSIX 구분자, .md 포함) */
@@ -56,6 +57,18 @@ export interface HandyApi {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
   };
+  git: {
+    status: () => Promise<GitStatus>;
+    init: () => Promise<GitStatus>;
+    setRemote: (url: string) => Promise<GitStatus>;
+    commit: (message: string) => Promise<GitOpResult>;
+    pull: () => Promise<GitOpResult>;
+    push: () => Promise<GitOpResult>;
+    sync: () => Promise<GitOpResult>;
+    getSettings: () => Promise<GitSettings>;
+    setSettings: (settings: GitSettings) => Promise<GitSettings>;
+    onEvent: (listener: (event: GitEvent) => void) => () => void;
+  };
   ai: {
     status: () => Promise<AiStatus>;
     /** 실행을 시작하고 runId를 돌려준다. 결과는 onEvent로 흘러온다. */
@@ -79,6 +92,16 @@ export const IPC = {
   indexGet: "index:get",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
+  gitStatus: "git:status",
+  gitInit: "git:init",
+  gitSetRemote: "git:set-remote",
+  gitCommit: "git:commit",
+  gitPull: "git:pull",
+  gitPush: "git:push",
+  gitSync: "git:sync",
+  gitGetSettings: "git:get-settings",
+  gitSetSettings: "git:set-settings",
+  gitEvent: "git:event",
   aiStatus: "ai:status",
   aiRun: "ai:run",
   aiCancel: "ai:cancel",

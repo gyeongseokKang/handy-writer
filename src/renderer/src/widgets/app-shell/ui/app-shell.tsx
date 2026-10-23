@@ -69,7 +69,7 @@ export function AppShell() {
           <EmptyEditor />
         )}
       </main>
-      {view === "editor" && rightPanelOpen && activePath && <RightPanel />}
+      {view === "editor" && rightPanelOpen && <RightPanel />}
     </div>
   );
 }

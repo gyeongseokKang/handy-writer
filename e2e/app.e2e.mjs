@@ -5,6 +5,7 @@ import { _electron as electron } from "playwright-core";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 
 const electronPath = createRequire(import.meta.url)("electron");
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -28,7 +29,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const aiLog = path.join(ud, "fake-claude.log");
   const app = await electron.launch({
     executablePath: electronPath,
-    env: { ...process.env, HANDY_WRITER_CLAUDE_PATH: path.join(ROOT, "e2e", "fake-claude.mjs"), FAKE_CLAUDE_LOG: aiLog },
+    env: { ...process.env, GIT_AUTHOR_NAME: "테스터", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "테스터", GIT_COMMITTER_EMAIL: "t@example.com", HANDY_WRITER_CLAUDE_PATH: path.join(ROOT, "e2e", "fake-claude.mjs"), FAKE_CLAUDE_LOG: aiLog },
     args: [ROOT, "--no-sandbox", "--disable-gpu", `--user-data-dir=${ud}`],
   });
   const logs = [];
@@ -280,6 +281,81 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
   console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");
   await page.getByRole("button", { name: "닫기" }).click();
+
+  // Git 연동
+  const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
+  const gitEnv = { GIT_AUTHOR_NAME: "테스터", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "테스터", GIT_COMMITTER_EMAIL: "t@example.com" };
+  Object.assign(process.env, gitEnv);
+  const remote = path.join(ud, "remote.git");
+  git(ud, "init", "--bare", "-b", "main", remote);
+
+  await page.getByRole("tab", { name: "Git" }).click();
+  await page.getByRole("button", { name: "git 저장소 만들기" }).click();
+  await page.waitForSelector("ul[aria-label='변경된 파일']");
+  assert(fs.existsSync(path.join(ws, ".git")), "Git 탭에서 저장소를 만들 수 있다");
+  await page.screenshot({ path: path.join(OUT, "10-git-panel.png") });
+
+  await page.fill("input[aria-label='커밋 메시지']", "첫 커밋");
+  await page.getByRole("button", { name: "커밋", exact: true }).click();
+  await page.waitForSelector("text=변경된 파일이 없어요", { timeout: 8000 });
+  assert(git(ws, "log", "--format=%s") === "첫 커밋", "입력한 메시지로 커밋하고 변경 목록이 비워진다");
+  await page.waitForSelector("button[aria-label='Git 상태']:has-text('main')");
+  console.log("ok  : 사이드바 아래에 브랜치 상태가 보인다");
+
+  await page.fill("input[aria-label='원격 저장소 주소']", remote);
+  await page.getByRole("button", { name: "연결", exact: true }).click();
+  await page.getByRole("button", { name: "동기화" }).click();
+  await page.waitForSelector("text=동기화했어요", { timeout: 15000 });
+  assert(execFileSync("git", ["--git-dir", remote, "log", "--format=%s", "main"], { encoding: "utf8" }).trim() === "첫 커밋", "동기화로 원격 저장소에 첫 푸시가 된다");
+
+  // 글을 고치면 사이드바에 변경 점이 생기고, 커밋하면 사라진다
+  await page.click("nav[aria-label='글 목록'] >> text=오늘");
+  await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("오늘의 일기"));
+  await page.click(".note-prose > p >> nth=0");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" 추가");
+  await page.waitForSelector("nav[aria-label='글 목록'] [aria-label='git 변경됨']", { timeout: 8000 });
+  console.log("ok  : 고친 글에 변경 표시가 생긴다");
+  await page.getByRole("button", { name: "커밋", exact: true }).click();
+  await page.waitForFunction(() => document.querySelectorAll("nav[aria-label='글 목록'] [aria-label='git 변경됨']").length === 0, null, { timeout: 8000 });
+  console.log("ok  : 커밋하면 변경 표시가 사라진다");
+  await page.getByRole("button", { name: "푸시", exact: true }).click();
+  await sleep(1500);
+
+  // 다른 기기(B)의 변경 가져오기
+  const clone = path.join(ud, "clone-b");
+  git(ud, "clone", remote, clone);
+  fs.writeFileSync(path.join(clone, "B가 만든 글.md"), "다른 기기에서 쓴 글\n");
+  git(clone, "add", "-A");
+  git(clone, "commit", "-m", "B에서 추가");
+  git(clone, "push");
+  await page.getByRole("button", { name: "가져오기" }).click();
+  await page.waitForSelector("nav[aria-label='글 목록'] >> text=B가 만든 글", { timeout: 15000 });
+  assert(fs.readFileSync(path.join(ws, "B가 만든 글.md"), "utf8") === "다른 기기에서 쓴 글\n", "원격의 새 글을 가져와 목록에 나타난다");
+
+  // 충돌: 글은 그대로 두고 알려준다
+  fs.writeFileSync(path.join(clone, "일기", "오늘.md"), "B 버전\n");
+  git(clone, "commit", "-am", "B가 오늘 수정");
+  git(clone, "push");
+  fs.writeFileSync(path.join(ws, "일기", "오늘.md"), "A 버전\n");
+  await sleep(800);
+  await page.fill("input[aria-label='커밋 메시지']", "A가 오늘 수정");
+  await page.getByRole("button", { name: "커밋", exact: true }).click();
+  await sleep(1500);
+  await page.getByRole("button", { name: "가져오기" }).click();
+  await page.waitForSelector("text=합치지 못했어요", { timeout: 15000 });
+  const mine = fs.readFileSync(path.join(ws, "일기", "오늘.md"), "utf8");
+  assert(mine === "A 버전\n", `충돌해도 글에 충돌 표시가 남지 않고 내 버전이 그대로다 (${JSON.stringify(mine)})`);
+  assert(git(ws, "status", "--porcelain") === "", "충돌 뒤에도 작업 폴더가 깨끗한 상태로 되돌아간다");
+  await page.screenshot({ path: path.join(OUT, "11-git-conflict.png") });
+
+  // 자동 커밋 설정은 컴퓨터별 설정 파일에 저장된다
+  await page.locator("summary", { hasText: "자동화 설정" }).click();
+  await page.selectOption("select[aria-label='자동 커밋 간격']", "10");
+  await sleep(800);
+  const gitSettings = JSON.parse(fs.readFileSync(path.join(ud, "git-settings.json"), "utf8"));
+  assert(gitSettings[ws]?.autoCommitMinutes === 10, "자동 커밋 간격이 사용자 설정 파일에 저장된다");
+  assert(!fs.existsSync(path.join(ws, ".handy-writer", "git-settings.json")), "컴퓨터별 설정은 작업 폴더(git) 안에 들어가지 않는다");
 
   assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.length ? JSON.stringify(logs) : ""}`);
   await app.close();

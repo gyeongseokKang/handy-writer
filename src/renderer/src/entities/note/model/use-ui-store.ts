@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 type MainView = "editor" | "graph";
 type SidebarView = "notes" | "tags";
-type RightTab = "links" | "ai";
+type RightTab = "links" | "ai" | "git";
 
 interface UiState {
   view: MainView;

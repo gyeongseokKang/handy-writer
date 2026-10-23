@@ -32,7 +32,7 @@ export function LinksPanel() {
   const outgoing = useMemo(() => (entry ? outgoingOf(entries, entry) : []), [entries, entry]);
   const nameByPath = useMemo(() => new Map(entries.map((e) => [e.path, e.name])), [entries]);
 
-  if (!activePath) return null;
+  if (!activePath) return <p className="p-4 text-sm text-muted-foreground">글을 선택하면 태그와 링크가 보여요.</p>;
 
   return (
     <div aria-label="연결 정보" role="region" className="flex flex-col divide-y">

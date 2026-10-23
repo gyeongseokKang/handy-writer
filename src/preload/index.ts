@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 
 import type { AiEvent } from "../shared/ai";
+import type { GitEvent } from "../shared/git";
 import { IPC, type HandyApi, type NotesChangedEvent } from "../shared/types";
 
 const api: HandyApi = {
@@ -24,6 +25,22 @@ const api: HandyApi = {
   rules: {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
+  },
+  git: {
+    status: () => ipcRenderer.invoke(IPC.gitStatus),
+    init: () => ipcRenderer.invoke(IPC.gitInit),
+    setRemote: (url) => ipcRenderer.invoke(IPC.gitSetRemote, url),
+    commit: (message) => ipcRenderer.invoke(IPC.gitCommit, message),
+    pull: () => ipcRenderer.invoke(IPC.gitPull),
+    push: () => ipcRenderer.invoke(IPC.gitPush),
+    sync: () => ipcRenderer.invoke(IPC.gitSync),
+    getSettings: () => ipcRenderer.invoke(IPC.gitGetSettings),
+    setSettings: (settings) => ipcRenderer.invoke(IPC.gitSetSettings, settings),
+    onEvent: (listener) => {
+      const handler = (_e: unknown, event: GitEvent) => listener(event);
+      ipcRenderer.on(IPC.gitEvent, handler);
+      return () => ipcRenderer.removeListener(IPC.gitEvent, handler);
+    },
   },
   ai: {
     status: () => ipcRenderer.invoke(IPC.aiStatus),

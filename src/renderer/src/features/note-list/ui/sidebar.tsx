@@ -1,5 +1,6 @@
-import { FolderOpen, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
+import { FolderOpen, GitBranch, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
 
+import { useGitStore } from "@/entities/git/model/use-git-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { TagList } from "@/features/tag-browser/ui/tag-list";
@@ -21,6 +22,9 @@ export function Sidebar() {
   const setSidebarView = useUiStore((state) => state.setSidebarView);
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
+
+  const gitStatus = useGitStore((state) => state.status);
+  const setRightTab = useUiStore((state) => state.setRightTab);
 
   const folderName = root?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
@@ -90,6 +94,24 @@ export function Sidebar() {
       <div className="min-h-0 flex-1 overflow-y-auto">
         {sidebarView === "notes" ? <NoteTree /> : <TagList />}
       </div>
+
+      {gitStatus?.isRepo && (
+        <button
+          type="button"
+          onClick={() => setRightTab("git")}
+          title="Git 패널 열기"
+          aria-label="Git 상태"
+          className="flex items-center gap-2 border-t px-4 py-2 text-left text-xs text-muted-foreground hover:bg-accent/70"
+        >
+          <GitBranch className="size-3.5 shrink-0" />
+          <span className="truncate">{gitStatus.branch ?? "HEAD"}</span>
+          <span className="ml-auto flex shrink-0 items-center gap-2">
+            {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
+            {gitStatus.ahead > 0 && <span>↑{gitStatus.ahead}</span>}
+            {gitStatus.behind > 0 && <span>↓{gitStatus.behind}</span>}
+          </span>
+        </button>
+      )}
 
       <button
         type="button"

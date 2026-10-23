@@ -4,11 +4,11 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 
+import { loginShellPath } from "../shell-env";
 import { SYSTEM_PROMPT } from "../../shared/ai-prompt";
 import type { AiStatus } from "../../shared/ai";
 
 const RUN_TIMEOUT_MS = 180_000;
-const PATH_MARKER = "__HANDY_WRITER_PATH__";
 
 export type StreamPiece = { kind: "delta"; text: string } | { kind: "result"; text: string; isError: boolean };
 
@@ -34,21 +34,6 @@ export function parseStreamLine(line: string): StreamPiece | null {
     return { kind: "result", text: String(record["result"] ?? ""), isError: record["is_error"] === true };
   }
   return null;
-}
-
-let loginPathPromise: Promise<string> | null = null;
-
-/** macOS에서 Dock으로 연 앱은 터미널의 PATH를 물려받지 못해서, 로그인 셸의 PATH를 따로 읽는다. */
-function loginShellPath(): Promise<string> {
-  if (process.platform === "win32") return Promise.resolve(process.env["PATH"] ?? "");
-  loginPathPromise ??= new Promise((resolve) => {
-    const shell = process.env["SHELL"] || "/bin/sh";
-    execFile(shell, ["-lc", `printf "${PATH_MARKER}%s${PATH_MARKER}" "$PATH"`], { timeout: 5000 }, (error, stdout) => {
-      const match = new RegExp(`${PATH_MARKER}(.*)${PATH_MARKER}`, "s").exec(stdout);
-      resolve(!error && match?.[1] ? match[1] : "");
-    });
-  });
-  return loginPathPromise;
 }
 
 async function searchPath(): Promise<string[]> {

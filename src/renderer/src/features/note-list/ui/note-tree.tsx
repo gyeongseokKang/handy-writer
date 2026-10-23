@@ -2,6 +2,7 @@ import type { NoteMeta } from "@shared/types";
 import { ChevronRight, FileText, FolderPlus, Trash2 } from "lucide-react";
 import { useMemo } from "react";
 
+import { useGitStore } from "@/entities/git/model/use-git-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -41,6 +42,7 @@ function NoteRow({ note, depth }: { note: NoteMeta; depth: number }) {
   const active = useWorkspaceStore((state) => state.activePath === note.path);
   const openNote = useWorkspaceStore((state) => state.openNote);
   const removeNote = useWorkspaceStore((state) => state.removeNote);
+  const changeKind = useGitStore((state) => state.changedByPath[note.path]);
 
   return (
     <div
@@ -57,6 +59,14 @@ function NoteRow({ note, depth }: { note: NoteMeta; depth: number }) {
       >
         <FileText className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate">{note.name}</span>
+        {changeKind && (
+          <span
+            role="img"
+            aria-label="git 변경됨"
+            title="커밋하지 않은 변경이 있어요"
+            className={cn("ml-auto size-1.5 shrink-0 rounded-full", changeKind === "untracked" || changeKind === "added" ? "bg-emerald-500" : "bg-amber-500")}
+          />
+        )}
       </button>
       <button
         type="button"
