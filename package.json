@@ -17,7 +17,8 @@
     "build:linux": "pnpm build && electron-builder --linux",
     "test": "vitest run",
     "test:e2e": "node e2e/app.e2e.mjs",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "test:e2e:ime": "node e2e/ime.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

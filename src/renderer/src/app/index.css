@@ -189,3 +189,11 @@
 }
 .note-prose .embed-chip { background: var(--accent); color: var(--accent-foreground); cursor: pointer; }
 .note-prose .embed-missing { border: 1px dashed var(--muted-foreground); color: var(--muted-foreground); }
+
+/* 맞춤법 표시 */
+.note-prose .spell-error {
+  text-decoration: underline wavy oklch(0.65 0.2 25);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 4px;
+  cursor: pointer;
+}

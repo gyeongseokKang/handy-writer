@@ -6,17 +6,21 @@ import { toast } from "sonner";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
+import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
+import { issueKey } from "@shared/spellcheck";
 import { registerFlusher } from "@/shared/lib/pending-saves";
 
 import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
+import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { NoteTitle } from "./note-title";
+import { SpellPopover } from "./spell-popover";
 
 const SAVE_DELAY_MS = 600;
 
@@ -42,9 +46,17 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
 
+  const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
+
   const extensions = useMemo(
     () =>
       createExtensions({
+        spell: {
+          isEnabled: () => useSpellStore.getState().enabled,
+          isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
+          onCount: (count) => useSpellStore.getState().setCount(count),
+          onSelect: setSpellTarget,
+        },
         getNoteNames: () => useWorkspaceStore.getState().notes.map((note) => note.name),
         onNavigate: (target) => void useWorkspaceStore.getState().openLink(target),
         isResolved: (target) => useNoteIndexStore.getState().resolve(target) !== null,
@@ -139,6 +151,26 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
     };
   }, [editor]);
 
+  // 맞춤법 표시를 켜고 끄거나 낱말을 무시하면 밑줄을 다시 계산
+  const spellEnabled = useSpellStore((state) => state.enabled);
+  const spellIgnored = useSpellStore((state) => state.ignored);
+  const spellCount = useSpellStore((state) => state.count);
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
+  }, [editor, spellEnabled, spellIgnored]);
+  useEffect(() => () => useSpellStore.getState().setCount(0), []);
+
+  const applySpell = () => {
+    if (!editor || !spellTarget) return;
+    const { issue, from, to } = spellTarget;
+    // 밑줄을 누른 뒤에 글이 바뀌었으면 엉뚱한 곳을 고치지 않는다.
+    if (to <= editor.state.doc.content.size && editor.state.doc.textBetween(from, to, undefined, "\uFFFC") === issue.text) {
+      editor.view.dispatch(editor.state.tr.insertText(issue.replacement, from, to));
+      editor.view.focus();
+    }
+    setSpellTarget(null);
+  };
+
   // 색인이 바뀌면(글이 생기거나 지워지면) 없는 글로 가는 링크 표시를 다시 계산
   const indexEntries = useNoteIndexStore((state) => state.entries);
   useEffect(() => {
@@ -207,8 +239,29 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         </div>
       </div>
       <BubbleToolbar editor={editor} />
-      <footer className="flex items-center justify-between border-t px-6 py-1.5 text-xs text-muted-foreground">
-        <span>{linkTargetToName(name)}</span>
+      {spellTarget && (
+        <SpellPopover
+          target={spellTarget}
+          onApply={applySpell}
+          onIgnore={() => {
+            useSpellStore.getState().ignore(issueKey(spellTarget.issue));
+            setSpellTarget(null);
+          }}
+          onClose={() => setSpellTarget(null)}
+        />
+      )}
+      <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
+        <span className="truncate">{linkTargetToName(name)}</span>
+        <button
+          type="button"
+          onClick={() => useSpellStore.getState().setEnabled(!spellEnabled)}
+          aria-pressed={spellEnabled}
+          aria-label={spellEnabled ? "맞춤법 표시 끄기" : "맞춤법 표시 켜기"}
+          title="자주 틀리는 표기에 밑줄을 그어요 (눌러서 켜고 끄기)"
+          className="ml-auto rounded px-1.5 py-0.5 hover:bg-accent"
+        >
+          {spellEnabled ? (spellCount > 0 ? `맞춤법 ${spellCount}` : "맞춤법 ✓") : "맞춤법 끔"}
+        </button>
         <span role="status">{STATUS_LABEL[status]}</span>
       </footer>
     </div>

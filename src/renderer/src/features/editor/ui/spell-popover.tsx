@@ -1,0 +1,62 @@
+import { issueKey } from "@shared/spellcheck";
+import { useEffect, useRef } from "react";
+
+import { Button } from "@/shared/ui/button";
+
+import type { SpellTarget } from "../lib/spell-check";
+
+interface SpellPopoverProps {
+  target: SpellTarget;
+  onApply: () => void;
+  onIgnore: () => void;
+  onClose: () => void;
+}
+
+const MARGIN = 8;
+
+/** 밑줄 친 낱말을 눌렀을 때 뜨는 작은 창. 고친 낱말로 바꾸거나 무시할 수 있다. */
+export function SpellPopover({ target, onApply, onIgnore, onClose }: SpellPopoverProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  const { issue, rect } = target;
+
+  useEffect(() => {
+    const onMouseDown = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) onClose();
+    };
+    const onKeyDown = (event: KeyboardEvent) => event.key === "Escape" && onClose();
+    document.addEventListener("mousedown", onMouseDown, true);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("mousedown", onMouseDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [onClose]);
+
+  const left = Math.max(MARGIN, Math.min(rect.left, window.innerWidth - 280 - MARGIN));
+
+  return (
+    <div
+      ref={ref}
+      role="dialog"
+      aria-label="맞춤법 제안"
+      data-spell-key={issueKey(issue)}
+      style={{ position: "fixed", left, top: rect.bottom + 6, zIndex: 50 }}
+      className="w-70 space-y-2 rounded-lg border bg-card p-3 shadow-lg"
+    >
+      <p className="text-sm">
+        <span className="text-muted-foreground line-through">{issue.text}</span>
+        <span className="mx-1.5 text-muted-foreground">→</span>
+        <span className="font-semibold">{issue.replacement}</span>
+      </p>
+      <p className="text-xs text-muted-foreground">{issue.hint}</p>
+      <div className="flex gap-2">
+        <Button size="sm" onMouseDown={(event) => event.preventDefault()} onClick={onApply}>
+          바꾸기
+        </Button>
+        <Button size="sm" variant="ghost" onMouseDown={(event) => event.preventDefault()} onClick={onIgnore}>
+          무시
+        </Button>
+      </div>
+    </div>
+  );
+}

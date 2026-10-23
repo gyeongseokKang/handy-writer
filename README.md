@@ -14,6 +14,7 @@ pnpm typecheck    # 타입 체크
 pnpm test         # 단위 테스트 (vitest)
 pnpm build        # 프로덕션 빌드
 pnpm test:e2e     # 빌드된 앱을 실제 Electron으로 띄우는 E2E (먼저 pnpm build, 리눅스는 xvfb-run -a 필요)
+pnpm test:e2e:ime # 한글 조합 입력(IME)과 맞춤법 표시 E2E (실제 composition 이벤트를 흘려보냄)
 pnpm build:mac    # 맥 설치 파일 (dmg)
 pnpm build:win    # 윈도우 설치 파일
 pnpm build:linux  # 리눅스 설치 파일

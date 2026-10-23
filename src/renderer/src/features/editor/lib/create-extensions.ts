@@ -10,15 +10,18 @@ import { AttachmentDrop } from "./attachment-drop";
 import { Callout } from "./callout";
 import { Embed } from "./embed";
 import { SlashCommand } from "./slash-command";
+import { SpellCheck, type SpellCheckOptions } from "./spell-check";
 import { TagHighlight, type TagHighlightOptions } from "./tag-highlight";
 import { WikiLink, type WikiLinkOptions } from "./wiki-link";
 
 export interface EditorCallbacks extends WikiLinkOptions, TagHighlightOptions {
+  /** 맞춤법 표시 설정. 없으면 맞춤법 표시를 끈다 (테스트용) */
+  spell?: SpellCheckOptions;
   /** false면 임베드를 화면용 컴포넌트 없이 문서로만 다룬다 (테스트용) */
   renderEmbeds?: boolean;
 }
 
-export function createExtensions({ onTagClick, renderEmbeds = true, ...wikiLink }: EditorCallbacks): Extensions {
+export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wikiLink }: EditorCallbacks): Extensions {
   return [
     StarterKit.configure({
       // 밑줄은 마크다운에 없는 서식이라 쓰지 않는다.
@@ -43,5 +46,6 @@ export function createExtensions({ onTagClick, renderEmbeds = true, ...wikiLink 
     Callout,
     SlashCommand,
     AttachmentDrop,
+    ...(spell ? [SpellCheck.configure(spell)] : []),
   ];
 }
