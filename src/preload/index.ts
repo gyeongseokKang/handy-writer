@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type { AiEvent } from "../shared/ai";
 import type { GitEvent } from "../shared/git";
+import type { UpdateState } from "../shared/update";
 import { IPC, type HandyApi, type NotesChangedEvent } from "../shared/types";
 
 const api: HandyApi = {
@@ -38,6 +39,16 @@ const api: HandyApi = {
   },
   spell: {
     check: (text) => ipcRenderer.invoke(IPC.spellCheck, text),
+  },
+  update: {
+    getState: () => ipcRenderer.invoke(IPC.updateGet),
+    check: () => ipcRenderer.invoke(IPC.updateCheck),
+    install: () => ipcRenderer.invoke(IPC.updateInstall),
+    onState: (listener) => {
+      const handler = (_e: unknown, state: UpdateState) => listener(state);
+      ipcRenderer.on(IPC.updateState, handler);
+      return () => ipcRenderer.removeListener(IPC.updateState, handler);
+    },
   },
   rules: {
     get: () => ipcRenderer.invoke(IPC.rulesGet),

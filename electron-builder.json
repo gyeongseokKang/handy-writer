@@ -3,7 +3,10 @@
   "productName": "Handy Writer",
   "files": ["out/**/*", "package.json"],
   "directories": { "output": "dist" },
-  "mac": { "target": ["dmg"] },
+  "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+  "publish": [{ "provider": "github", "owner": "gyeongseokKang", "repo": "handy-writer", "releaseType": "release" }],
+  "mac": { "target": ["dmg", "zip"], "category": "public.app-category.productivity" },
   "win": { "target": ["nsis"] },
-  "linux": { "target": ["AppImage"] }
+  "nsis": { "oneClick": true, "perMachine": false },
+  "linux": { "target": ["AppImage"], "category": "Office" }
 }

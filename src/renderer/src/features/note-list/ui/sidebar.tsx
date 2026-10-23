@@ -1,5 +1,6 @@
 import { FolderOpen, GitBranch, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
 
+import { UpdateRow } from "./update-row";
 import { useGitStore } from "@/entities/git/model/use-git-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
@@ -115,6 +116,8 @@ export function Sidebar() {
           </span>
         </button>
       )}
+
+      <UpdateRow />
 
       <button
         type="button"

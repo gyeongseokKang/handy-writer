@@ -3,6 +3,7 @@ import { join } from "node:path";
 
 import { handleAssetProtocol, registerAssetScheme } from "./asset-protocol";
 import { getWorkspaceRoot, registerIpc } from "./ipc";
+import { startAutoUpdate } from "./auto-update";
 
 registerAssetScheme();
 
@@ -39,6 +40,7 @@ app.whenReady().then(async () => {
   await registerIpc();
   handleAssetProtocol(getWorkspaceRoot);
   createWindow();
+  startAutoUpdate();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });

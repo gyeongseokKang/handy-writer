@@ -1,6 +1,7 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { OnlineSpellResult } from "./online-spell";
+import type { UpdateState } from "./update";
 import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
@@ -85,6 +86,14 @@ export interface HandyApi {
     /** 다음·네이버 맞춤법 검사기로 문단을 검사한다. 오프라인이면 status가 offline이다. */
     check: (text: string) => Promise<OnlineSpellResult>;
   };
+  update: {
+    getState: () => Promise<UpdateState>;
+    /** 새 버전이 있는지 확인한다(있으면 알아서 내려받는다). */
+    check: () => Promise<UpdateState>;
+    /** 내려받은 새 버전으로 앱을 다시 시작한다. */
+    install: () => Promise<void>;
+    onState: (listener: (state: UpdateState) => void) => () => void;
+  };
   rules: {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
@@ -124,6 +133,10 @@ export const IPC = {
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",
+  updateGet: "update:get",
+  updateCheck: "update:check",
+  updateInstall: "update:install",
+  updateState: "update:state",
   templatesList: "templates:list",
   templatesSave: "templates:save",
   templatesRemove: "templates:remove",

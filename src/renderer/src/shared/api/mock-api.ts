@@ -6,6 +6,8 @@ import { BUILTIN_TEMPLATES } from "@shared/templates";
 import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
+const UNSUPPORTED = { status: "unsupported" as const, reason: "브라우저 미리보기에서는 업데이트를 쓸 수 없어요" };
+
 const SEED: Record<string, string> = {
   "시작하기.md": `---
 tags: [가이드]
@@ -122,6 +124,12 @@ export function createMockApi(): HandyApi {
       list: async () => BUILTIN_TEMPLATES,
       save: async (template) => template,
       remove: async () => {},
+    },
+    update: {
+      getState: async () => UNSUPPORTED,
+      check: async () => UNSUPPORTED,
+      install: async () => {},
+      onState: () => () => {},
     },
     spell: { check: async () => ({ status: "offline" as const, typos: [] }) },
     attachments: {

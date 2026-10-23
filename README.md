@@ -94,6 +94,14 @@ src/
 - 커밋하는 사람 정보(`user.name`, `user.email`)는 git 설정을 따라요.
 - 작업 폴더가 더 큰 저장소의 하위 폴더여도 그 폴더 안의 변경만 다뤄요.
 
+## 설치 파일과 자동 업데이트
+
+- 설치 파일: `pnpm build:mac`(dmg+zip), `pnpm build:win`(nsis), `pnpm build:linux`(AppImage). 결과는 `dist/`에 생겨요. 각 운영체제에서 빌드해야 해요.
+- 배포: `package.json`의 `version`을 올리고 `v0.2.0` 같은 태그를 푸시하면 `.github/workflows/release.yml`이 세 운영체제 설치 파일을 만들어 GitHub Release에 올려요.
+- 업데이트: 설치한 앱은 시작 15초 뒤와 6시간마다 새 버전을 확인하고 자동으로 내려받아, 사이드바 아래에 '다시 시작해서 설치'를 보여줘요(안 눌러도 앱을 끌 때 설치). 개발 모드와 AppImage가 아닌 리눅스 실행에서는 꺼져 있어요.
+- 주의: 업데이트 피드는 `gyeongseokKang/handy-writer`의 GitHub Release예요. **저장소가 private이면 앱이 피드를 읽지 못해요.** 저장소를 public으로 바꾸거나, 설치 파일만 올리는 public 저장소를 따로 만들어 `electron-builder.json`의 `publish`를 바꿔야 해요(앱에 토큰을 넣지 마세요).
+- 주의: macOS는 코드 서명·공증이 없으면 자동 업데이트가 동작하지 않고 처음 실행 때 경고가 떠요. Windows는 서명이 없어도 업데이트되지만 SmartScreen 경고가 떠요. 서명 인증서는 아직 설정하지 않았어요.
+
 ## 로드맵
 
 - [x] 앱 셸, 파일 기반 저장
