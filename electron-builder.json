@@ -1,0 +1,9 @@
+{
+  "appId": "com.handy.writer",
+  "productName": "Handy Writer",
+  "files": ["out/**/*", "package.json"],
+  "directories": { "output": "dist" },
+  "mac": { "target": ["dmg"] },
+  "win": { "target": ["nsis"] },
+  "linux": { "target": ["AppImage"] }
+}
