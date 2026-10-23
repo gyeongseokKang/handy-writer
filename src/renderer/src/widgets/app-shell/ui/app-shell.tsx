@@ -6,6 +6,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
+import { TemplateDialogs } from "@/features/templates/ui/template-dialogs";
 import { CommandPalette } from "@/features/search/ui/command-palette";
 import { Button } from "@/shared/ui/button";
 
@@ -86,6 +87,7 @@ export function AppShell() {
       </main>
       {view === "editor" && rightPanelOpen && <RightPanel />}
       <CommandPalette />
+      <TemplateDialogs />
     </div>
   );
 }

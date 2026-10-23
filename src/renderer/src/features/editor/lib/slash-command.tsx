@@ -8,6 +8,7 @@ import {
   Heading3,
   ImagePlus,
   Info,
+  LayoutTemplate,
   List,
   ListChecks,
   ListOrdered,
@@ -18,6 +19,8 @@ import {
 } from "lucide-react";
 
 import { attachFromDialog } from "@/entities/note/model/attach-files";
+import { useTemplateDialogStore } from "@/entities/template/model/use-template-dialog-store";
+import { useTemplateStore } from "@/entities/template/model/use-template-store";
 
 import { createSuggestionRender, type SuggestionItem } from "./suggestion-render";
 
@@ -129,10 +132,25 @@ const ENTRIES: SlashEntry[] = [
   },
 ];
 
-export function filterSlashEntries(query: string) {
+/** 저장된 템플릿을 슬래시 메뉴 항목으로 만든다. 고르면 입력 창이 열린다. */
+function templateEntries(): SlashEntry[] {
+  return useTemplateStore.getState().templates.map((template) => ({
+    title: template.name,
+    description: `템플릿 블록${template.description ? ` · ${template.description}` : ""}`,
+    keywords: [template.id.toLowerCase(), "template", "템플릿", "블록"],
+    icon: <LayoutTemplate className="size-4" />,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).run();
+      useTemplateDialogStore.getState().openNew(template.id);
+    },
+  }));
+}
+
+export function filterSlashEntries(query: string, extra: SlashEntry[] = []) {
+  const all = [...ENTRIES, ...extra];
   const needle = query.trim().toLowerCase();
-  if (!needle) return ENTRIES;
-  return ENTRIES.filter(
+  if (!needle) return all;
+  return all.filter(
     (entry) => entry.title.toLowerCase().includes(needle) || entry.keywords.some((keyword) => keyword.includes(needle)),
   );
 }
@@ -146,10 +164,13 @@ export const SlashCommand = Extension.create({
         editor: this.editor,
         pluginKey: new PluginKey("slashCommandSuggestion"),
         char: "/",
-        allow: ({ state }) => !state.selection.$from.parent.type.spec.code,
+        // 템플릿 이름에는 공백이 있다(더 알아보기). 다만 `/ 구분`처럼 슬래시 바로 뒤에 공백이 오면 메뉴가 아니라 일반 글이다.
+        allowSpaces: true,
+        allow: ({ state, range }) =>
+          !state.selection.$from.parent.type.spec.code && !/^\/\s/.test(state.doc.textBetween(range.from, range.to, "\n", "\uFFFC")),
         items: ({ query }) =>
-          filterSlashEntries(query).map((entry) => ({
-            id: entry.title,
+          filterSlashEntries(query, templateEntries()).map((entry) => ({
+            id: `${entry.title}:${entry.description}`,
             title: entry.title,
             description: entry.description,
             icon: entry.icon,

@@ -24,6 +24,17 @@ export interface EmbedItem {
 
 export type EmbedPatch = Partial<Pick<EmbedItem, "label" | "width" | "height">>;
 
+/** 템플릿 블록의 속성 (글에는 콜아웃 + 메타데이터 주석으로 저장된다) */
+export interface TemplateBlockAttrs {
+  templateId: string;
+  style: string;
+  title: string;
+  inputs: Record<string, string>;
+  extra: string;
+  web: boolean;
+  scope: "selection" | "paragraph" | "section" | "note" | "none";
+}
+
 export type ApplyResult = "ok" | "changed";
 
 export interface EditorBridge {
@@ -39,6 +50,15 @@ export interface EditorBridge {
   focusEmbed: (uid: string) => boolean;
   /** 대상 이름들을 임베드로 삽입한다. pos가 없으면 커서 위치에 넣는다. */
   insertEmbeds: (targets: string[], pos?: number) => void;
+  /** 템플릿이 참고할 본문 (선택한 글, 현재 문단, 현재 섹션, 글 전체). 이미 있는 템플릿 블록은 뺀다. */
+  getTemplateContext: (scope: TemplateBlockAttrs["scope"]) => string;
+  /** 선택한 글 (없으면 빈 문자열) */
+  getSelectionText: () => string;
+  /** 지금 커서가 있는 블록 아래에 템플릿 블록을 넣고 uid를 돌려준다. */
+  insertTemplateBlock: (attrs: TemplateBlockAttrs, markdown: string) => string;
+  getTemplateBlock: (uid: string) => { attrs: TemplateBlockAttrs; markdown: string } | null;
+  /** 블록의 속성과 내용을 새로 바꾼다 (다시 생성). 없는 uid면 false */
+  replaceTemplateBlock: (uid: string, attrs: TemplateBlockAttrs, markdown: string) => boolean;
   /** 글에서 처음 나오는 단어를 선택하고 그 위치로 스크롤한다. 없으면 false */
   findAndSelect: (term: string) => boolean;
 }

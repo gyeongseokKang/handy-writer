@@ -40,7 +40,7 @@ export function compositionSteps(syllable) {
 }
 
 /** 작업 폴더와 사용자 데이터 폴더를 만들고 앱을 띄운다. `files`는 { 상대경로: 내용 } */
-export async function launchApp({ files = {}, open } = {}) {
+export async function launchApp({ files = {}, open, env: extraEnv = {} } = {}) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ws-"));
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ud-"));
   fs.writeFileSync(path.join(ud, "config.json"), JSON.stringify({ workspaceRoot: ws }));
@@ -49,10 +49,11 @@ export async function launchApp({ files = {}, open } = {}) {
     fs.writeFileSync(path.join(ws, rel), content);
   }
 
+  const aiLog = path.join(ud, "fake-claude.log");
   const app = await electron.launch({
     executablePath: electronPath,
     args: [ROOT, "--no-sandbox", "--disable-gpu", `--user-data-dir=${ud}`],
-    env: { ...process.env, HANDY_WRITER_CLAUDE_PATH: path.join(ROOT, "e2e", "fake-claude.mjs") },
+    env: { ...process.env, HANDY_WRITER_CLAUDE_PATH: path.join(ROOT, "e2e", "fake-claude.mjs"), FAKE_CLAUDE_LOG: aiLog, ...extraEnv },
   });
   const page = await app.firstWindow();
   const logs = [];
@@ -92,5 +93,8 @@ export async function launchApp({ files = {}, open } = {}) {
       document.querySelector(sel).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", keyCode: 229, isComposing: true, bubbles: true, cancelable: true }));
     }, selector);
 
-  return { app, page, ws, ud, logs, ime, composingEnter, close: () => app.close() };
+  /** 가짜 claude가 받은 호출 기록 (인자와 stdin) */
+  const aiCalls = () => (fs.existsSync(aiLog) ? fs.readFileSync(aiLog, "utf8").trim().split("\n").filter(Boolean).map((line) => JSON.parse(line)) : []);
+
+  return { app, page, ws, ud, logs, ime, composingEnter, aiCalls, close: () => app.close() };
 }

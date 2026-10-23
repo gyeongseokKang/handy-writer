@@ -1,21 +1,18 @@
 import type { AiEvent, AiStatus, AiTask } from "@shared/ai";
-import { splitFrontmatter } from "@shared/frontmatter";
 import { toast } from "sonner";
 import { create } from "zustand";
 
-import { outgoingOf } from "@/entities/note-index/lib/derive";
-import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
+import { collectReferences } from "@/entities/note/model/use-reference-store";
 import { useEditorBridge, type EditorContext } from "@/entities/note/model/use-editor-bridge";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
-
-const MAX_REFERENCES = 5;
 
 export const TASK_LABEL: Record<AiTask, string> = {
   proofread: "맞춤법 교정",
   polish: "다듬기",
   continue: "이어쓰기",
   custom: "지시대로 처리",
+  template: "템플릿 블록",
 };
 
 type Phase = "idle" | "running" | "done" | "error";
@@ -30,17 +27,17 @@ interface RunState {
   context: EditorContext | null;
   /** 요청한 글. 다른 글로 옮겨가면 적용하지 않는다. */
   notePath: string | null;
+  /** 도구를 쓰는 동안의 상태 문구 (예: 웹 검색 중…) */
+  status: string;
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "" };
 
 interface AiState {
   status: AiStatus | null;
   rules: string;
   rulesSaved: string;
   instruction: string;
-  referencePaths: string[];
-  includeLinked: boolean;
   run: RunState;
 
   refreshStatus: () => Promise<void>;
@@ -48,9 +45,6 @@ interface AiState {
   setRules: (rules: string) => void;
   saveRules: () => Promise<void>;
   setInstruction: (instruction: string) => void;
-  addReference: (path: string) => void;
-  removeReference: (path: string) => void;
-  setIncludeLinked: (value: boolean) => void;
   start: (task: AiTask) => Promise<void>;
   cancel: () => Promise<void>;
   apply: (mode: "replace" | "below") => void;
@@ -67,32 +61,11 @@ export function tidyOutput(text: string) {
   return text.replace(/^\s*\n/, "").replace(/\s+$/, "");
 }
 
-async function collectReferences(extraPaths: string[]) {
-  const { notes, activePath } = useWorkspaceStore.getState();
-  const { entries } = useNoteIndexStore.getState();
-  const paths = [...extraPaths];
-  if (useAiStore.getState().includeLinked && activePath) {
-    const entry = entries.find((e) => e.path === activePath);
-    if (entry) for (const link of outgoingOf(entries, entry)) if (link.path) paths.push(link.path);
-  }
-  const unique = [...new Set(paths)].filter((path) => path !== activePath).slice(0, MAX_REFERENCES);
-  const references = await Promise.all(
-    unique.map(async (path) => {
-      const name = notes.find((note) => note.path === path)?.name ?? path;
-      const raw = await api.notes.read(path).catch(() => "");
-      return { name, content: splitFrontmatter(raw).body };
-    }),
-  );
-  return references.filter((ref) => ref.content.trim() !== "");
-}
-
 export const useAiStore = create<AiState>((set, get) => ({
   status: null,
   rules: "",
   rulesSaved: "",
   instruction: "",
-  referencePaths: [],
-  includeLinked: false,
   run: IDLE_RUN,
 
   refreshStatus: async () => {
@@ -125,9 +98,6 @@ export const useAiStore = create<AiState>((set, get) => ({
   },
 
   setInstruction: (instruction) => set({ instruction }),
-  addReference: (path) => set((s) => ({ referencePaths: s.referencePaths.includes(path) ? s.referencePaths : [...s.referencePaths, path] })),
-  removeReference: (path) => set((s) => ({ referencePaths: s.referencePaths.filter((p) => p !== path) })),
-  setIncludeLinked: (includeLinked) => set({ includeLinked }),
 
   start: async (task) => {
     if (get().run.phase === "running") return;
@@ -141,11 +111,11 @@ export const useAiStore = create<AiState>((set, get) => ({
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "" },
     });
 
     try {
-      const [rules, references] = await Promise.all([api.rules.get(), collectReferences(get().referencePaths)]);
+      const [rules, references] = await Promise.all([api.rules.get(), collectReferences()]);
       await api.ai.run({
         runId: id,
         task,
@@ -154,6 +124,9 @@ export const useAiStore = create<AiState>((set, get) => ({
         text: context.text,
         before: context.before,
         instruction,
+        templatePrompt: "",
+        web: false,
+        groundedOnly: false,
         references,
       });
     } catch (error) {
@@ -189,6 +162,10 @@ function handleEvent(event: AiEvent) {
   if (event.runId !== run.id) return;
   if (event.type === "delta") {
     useAiStore.setState({ run: { ...run, output: run.output + event.text } });
+  } else if (event.type === "status") {
+    useAiStore.setState({ run: { ...run, status: event.text } });
+  } else if (event.type === "reset") {
+    useAiStore.setState({ run: { ...run, output: "" } });
   } else if (event.type === "done") {
     useAiStore.setState({ run: { ...run, phase: "done", output: tidyOutput(event.text) } });
   } else {

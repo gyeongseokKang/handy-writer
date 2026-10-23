@@ -1,6 +1,7 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { OnlineSpellResult } from "./online-spell";
+import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
@@ -73,6 +74,13 @@ export interface HandyApi {
   search: {
     query: (query: string) => Promise<SearchResult[]>;
   };
+  templates: {
+    list: () => Promise<Template[]>;
+    /** 저장하고, 파일 이름(id)이 정해진 템플릿을 돌려준다. 새 템플릿이면 id를 비워서 보낸다. */
+    save: (template: Template) => Promise<Template>;
+    /** 사용자 파일을 지운다. 내장 템플릿을 고친 것이었다면 기본값으로 돌아간다. */
+    remove: (id: string) => Promise<void>;
+  };
   spell: {
     /** 다음·네이버 맞춤법 검사기로 문단을 검사한다. 오프라인이면 status가 offline이다. */
     check: (text: string) => Promise<OnlineSpellResult>;
@@ -116,6 +124,9 @@ export const IPC = {
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",
+  templatesList: "templates:list",
+  templatesSave: "templates:save",
+  templatesRemove: "templates:remove",
   attachmentsList: "attachments:list",
   attachmentsPick: "attachments:pick",
   attachmentsSave: "attachments:save",

@@ -9,8 +9,17 @@ import { SYSTEM_PROMPT } from "../../shared/ai-prompt";
 import type { AiStatus } from "../../shared/ai";
 
 const RUN_TIMEOUT_MS = 180_000;
+/** 웹 검색은 여러 번 검색하고 페이지를 읽느라 더 오래 걸린다. */
+const WEB_RUN_TIMEOUT_MS = 300_000;
 
-export type StreamPiece = { kind: "delta"; text: string } | { kind: "result"; text: string; isError: boolean };
+export const WEB_TOOLS = "WebSearch,WebFetch";
+
+export type StreamPiece =
+  | { kind: "delta"; text: string }
+  /** 새 응답 턴이 시작됐다 (도구를 쓴 뒤 이어지는 응답) */
+  | { kind: "turn" }
+  | { kind: "tool"; name: string }
+  | { kind: "result"; text: string; isError: boolean };
 
 /** `claude -p --output-format stream-json`가 한 줄씩 내보내는 JSON에서 필요한 조각만 뽑는다. */
 export function parseStreamLine(line: string): StreamPiece | null {
@@ -25,8 +34,13 @@ export function parseStreamLine(line: string): StreamPiece | null {
 
   if (record["type"] === "stream_event") {
     const delta = record["event"]?.delta;
-    if (record["event"]?.type === "content_block_delta" && delta?.type === "text_delta" && typeof delta.text === "string") {
+    const event = record["event"];
+    if (event?.type === "content_block_delta" && delta?.type === "text_delta" && typeof delta.text === "string") {
       return { kind: "delta", text: delta.text };
+    }
+    if (event?.type === "message_start") return { kind: "turn" };
+    if (event?.type === "content_block_start" && event.content_block?.type === "tool_use" && typeof event.content_block.name === "string") {
+      return { kind: "tool", name: event.content_block.name };
     }
     return null;
   }
@@ -103,10 +117,17 @@ interface RunOptions {
   prompt: string;
   signal: AbortSignal;
   onDelta: (text: string) => void;
+  /** 웹 검색(WebSearch, WebFetch)을 허용한다. 끄면 모든 도구가 꺼진다. */
+  web?: boolean;
+  onStatus?: (text: string) => void;
+  /** 도구를 쓰기 전의 중간 발화를 지우라는 신호 */
+  onReset?: () => void;
 }
 
+const TOOL_STATUS: Record<string, string> = { WebSearch: "웹 검색 중…", WebFetch: "웹 페이지 읽는 중…" };
+
 /** 도구를 모두 끈 채로 `claude -p`를 실행하고 결과 글을 돌려준다. 프롬프트는 stdin으로 넘긴다. */
-export async function runClaude({ exe, cwd, prompt, signal, onDelta }: RunOptions): Promise<string> {
+export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false, onStatus, onReset }: RunOptions): Promise<string> {
   const promptFile = await ensureSystemPromptFile();
   const env = await childEnv(exe);
   const args = [
@@ -116,7 +137,8 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta }: RunOption
     "--verbose",
     "--include-partial-messages",
     "--tools",
-    "",
+    web ? WEB_TOOLS : "",
+    ...(web ? ["--allowedTools", WEB_TOOLS] : []),
     "--no-session-persistence",
     "--disable-slash-commands",
     "--append-system-prompt-file",
@@ -136,6 +158,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta }: RunOption
 
     let buffer = "";
     let streamed = "";
+    let turns = 0;
     let result: { text: string; isError: boolean } | null = null;
     let stderr = "";
     let settled = false;
@@ -158,7 +181,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta }: RunOption
     const timer = setTimeout(() => {
       child.kill();
       finish(new Error("시간이 너무 오래 걸려서 중단했어요."));
-    }, RUN_TIMEOUT_MS);
+    }, web ? WEB_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
 
     const handleLine = (line: string) => {
       const piece = parseStreamLine(line.trim());
@@ -166,6 +189,14 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta }: RunOption
       if (piece.kind === "delta") {
         streamed += piece.text;
         onDelta(piece.text);
+      } else if (piece.kind === "turn") {
+        // 두 번째 턴부터는 도구 결과를 받은 뒤의 응답이다. 앞의 중간 발화는 지운다.
+        if (++turns > 1 && streamed) {
+          streamed = "";
+          onReset?.();
+        }
+      } else if (piece.kind === "tool") {
+        onStatus?.(TOOL_STATUS[piece.name] ?? `${piece.name} 실행 중…`);
       } else {
         result = { text: piece.text, isError: piece.isError };
       }

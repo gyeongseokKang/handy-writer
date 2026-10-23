@@ -22,6 +22,27 @@ process.stdin.on("end", async () => {
   if (input.includes("SLOW")) await new Promise((resolve) => setTimeout(resolve, 60_000));
   if (input.includes("FAIL")) return out({ type: "result", is_error: true, result: "로그인이 필요해요. 터미널에서 claude를 실행해 주세요." });
 
+  // 템플릿 블록 요청: 받은 지침과 본문 맥락을 결과에 그대로 드러내서 테스트가 확인할 수 있게 한다.
+  const instruction = input.match(/지침:\n([^\n]*)/)?.[1];
+  if (instruction !== undefined) {
+    const web = args.some((arg) => arg.includes("WebSearch"));
+    const context = input.match(/<context>\n([\s\S]*?)\n<\/context>/)?.[1] ?? "";
+    const turn = () => out({ type: "stream_event", event: { type: "message_start" } });
+    if (web) {
+      turn();
+      delta("검색해 볼게요. ");
+      out({ type: "stream_event", event: { type: "content_block_start", content_block: { type: "tool_use", name: "WebSearch" } } });
+      await new Promise((resolve) => setTimeout(resolve, 900));
+      turn();
+    }
+    const lines = [`**${instruction}**`, "", `- 본문 맥락: ${context.split("\n")[0] ?? ""} (${context.length}자)`, `- 웹 검색: ${web ? "사용" : "안 함"}`];
+    if (web) lines.push("", "출처: [예시 문서](https://example.com/doc)");
+    const answer = lines.join("\n");
+    delta(answer.slice(0, 20));
+    delta(answer.slice(20));
+    return out({ type: "result", subtype: "success", is_error: false, result: answer });
+  }
+
   const text = input.match(/<text>\n([\s\S]*?)\n<\/text>/)?.[1];
   const result =
     text !== undefined

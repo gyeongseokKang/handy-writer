@@ -6,7 +6,7 @@ import { IPC } from "../../shared/types";
 import { claudeStatus, findClaude, runClaude } from "./claude-cli";
 import { readRules, writeRules } from "./rules";
 
-const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom"];
+const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom", "template"];
 
 /** 렌더러에서 온 값을 믿지 않고 모양을 확인한다. */
 function parseRequest(value: unknown): AiRequest {
@@ -22,6 +22,10 @@ function parseRequest(value: unknown): AiRequest {
     text: str(v.text),
     before: str(v.before),
     instruction: str(v.instruction),
+    templatePrompt: str(v.templatePrompt),
+    // 웹 검색은 템플릿 작업에서만, 참고 글 기반 모드가 아닐 때만 켠다.
+    web: v.task === "template" && v.web === true && v.groundedOnly !== true,
+    groundedOnly: v.task === "template" && v.groundedOnly === true,
     references: Array.isArray(v.references)
       ? v.references.map((ref) => ({ name: str(ref?.name), content: str(ref?.content) }))
       : [],
@@ -54,7 +58,10 @@ export function registerAiIpc(requireRoot: () => string) {
       cwd: root,
       prompt: buildUserPrompt(request),
       signal: controller.signal,
+      web: request.web,
       onDelta: (text) => send({ runId, type: "delta", text }),
+      onStatus: (text) => send({ runId, type: "status", text }),
+      onReset: () => send({ runId, type: "reset" }),
     })
       .then((text) => send({ runId, type: "done", text }))
       .catch((error: unknown) => send({ runId, type: "error", message: error instanceof Error ? error.message : String(error) }))

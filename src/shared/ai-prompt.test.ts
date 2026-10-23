@@ -11,6 +11,9 @@ const base: AiRequest = {
   text: "본문입니다",
   before: "앞부분",
   instruction: "",
+  templatePrompt: "",
+  web: false,
+  groundedOnly: false,
   references: [],
 };
 
@@ -46,6 +49,43 @@ describe("buildUserPrompt", () => {
     const prompt = buildUserPrompt({ ...base, text: "가".repeat(40000) });
     expect(prompt.length).toBeLessThan(31000);
     expect(prompt).toContain("(이하 생략)");
+  });
+});
+
+describe("buildUserPrompt: 템플릿", () => {
+  const template: AiRequest = { ...base, task: "template", text: "본문 맥락입니다", templatePrompt: "양자 얽힘을 짧게 설명하세요.", instruction: "예시를 넣어 주세요", web: true };
+
+  it("본문 맥락은 자료(<context>)로, 템플릿 지침은 태그 밖의 지시로 보낸다", () => {
+    const prompt = buildUserPrompt(template);
+    expect(prompt).toContain("<context>\n본문 맥락입니다\n</context>");
+    expect(prompt).toContain("지침:\n양자 얽힘을 짧게 설명하세요.");
+    expect(prompt).toContain("추가 요청: 예시를 넣어 주세요");
+    expect(prompt).not.toContain("<template");
+    expect(prompt).not.toContain("<text>");
+  });
+
+  it("웹 검색을 허용하면 출처를 밝히게 하고, 끄면 쓰지 않는다고 알린다", () => {
+    expect(buildUserPrompt(template)).toContain("출처: [제목](주소)");
+    const off = buildUserPrompt({ ...template, web: false });
+    expect(off).toContain("웹 검색은 쓰지 않습니다. 확실하지 않은 사실은");
+    expect(off).not.toContain("출처:");
+  });
+
+  it("참고 글 기반만 허용하면 새 사실을 덧붙이지 못하게 하고 웹 검색 안내를 빼다", () => {
+    const prompt = buildUserPrompt({ ...template, groundedOnly: true });
+    expect(prompt).toContain("새로운 사실을 덧붙이지 마세요");
+    expect(prompt).not.toContain("출처: [제목](주소)");
+  });
+
+  it("글쓰기 룰이 있으면 템플릿 지침이 우선이라고 알린다", () => {
+    const prompt = buildUserPrompt({ ...template, rules: "- 존댓말" });
+    expect(prompt).toContain("<writing_rules>");
+    expect(prompt).toContain("글쓰기 룰과 위 지침이 충돌하면 위 지침을 따르세요");
+    expect(buildUserPrompt(template)).not.toContain("충돌하면");
+  });
+
+  it("본문 맥락이 비어 있으면 <context>를 보내지 않는다", () => {
+    expect(buildUserPrompt({ ...template, text: "  " })).not.toContain("<context>");
   });
 });
 

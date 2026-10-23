@@ -31,6 +31,11 @@ const api: HandyApi = {
   search: {
     query: (query) => ipcRenderer.invoke(IPC.searchQuery, query),
   },
+  templates: {
+    list: () => ipcRenderer.invoke(IPC.templatesList),
+    save: (template) => ipcRenderer.invoke(IPC.templatesSave, template),
+    remove: (id) => ipcRenderer.invoke(IPC.templatesRemove, id),
+  },
   spell: {
     check: (text) => ipcRenderer.invoke(IPC.spellCheck, text),
   },

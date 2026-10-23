@@ -3,6 +3,7 @@ import { useEmbedStore } from "@/entities/note/model/use-embed-store";
 import { AiPanel } from "@/features/ai/ui/ai-panel";
 import { AttachmentsPanel } from "@/features/attachments/ui/attachments-panel";
 import { GitPanel } from "@/features/git/ui/git-panel";
+import { TemplateList } from "@/features/templates/ui/template-list";
 import { LinksPanel } from "@/features/note-links/ui/links-panel";
 import { cn } from "@/shared/lib/utils";
 
@@ -35,7 +36,12 @@ export function RightPanel() {
           </button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{tab === "links" ? <LinksPanel /> : tab === "files" ? <AttachmentsPanel /> : tab === "ai" ? <AiPanel /> : <GitPanel />}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{tab === "links" ? <LinksPanel /> : tab === "files" ? <AttachmentsPanel /> : tab === "ai" ? (
+            <>
+              <AiPanel />
+              <TemplateList />
+            </>
+          ) : <GitPanel />}</div>
     </aside>
   );
 }

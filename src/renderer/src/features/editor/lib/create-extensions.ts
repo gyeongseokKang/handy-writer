@@ -11,6 +11,7 @@ import { Callout } from "./callout";
 import { Embed } from "./embed";
 import { SlashCommand } from "./slash-command";
 import { SpellCheck, type SpellCheckOptions } from "./spell-check";
+import { TemplateBlock } from "./template-block";
 import { TagHighlight, type TagHighlightOptions } from "./tag-highlight";
 import { WikiLink, type WikiLinkOptions } from "./wiki-link";
 
@@ -43,6 +44,7 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wi
     Embed.configure({ renderView: renderEmbeds }),
     WikiLink.configure(wikiLink),
     TagHighlight.configure({ onTagClick }),
+    TemplateBlock.configure({ renderView: renderEmbeds }),
     Callout,
     SlashCommand,
     AttachmentDrop,

@@ -3,6 +3,7 @@ import type { FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { Template } from "../shared/templates";
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
@@ -10,6 +11,7 @@ import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
+import { listTemplates, removeTemplate, saveTemplate } from "./templates-fs";
 import { hanspellTransport } from "./spell/hanspell-transport";
 import { createOnlineSpeller } from "./spell/online-speller";
 import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
@@ -99,6 +101,9 @@ export async function registerIpc() {
   ipcMain.handle(IPC.attachmentsReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
   });
+  ipcMain.handle(IPC.templatesList, () => listTemplates(requireRoot()));
+  ipcMain.handle(IPC.templatesSave, (_e, template: Template) => saveTemplate(requireRoot(), template));
+  ipcMain.handle(IPC.templatesRemove, (_e, id: string) => removeTemplate(requireRoot(), String(id)));
   ipcMain.handle(IPC.spellCheck, (_e, text: string) => onlineSpeller.check(String(text ?? "")));
   ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 

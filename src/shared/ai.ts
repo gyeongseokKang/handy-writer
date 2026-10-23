@@ -1,4 +1,4 @@
-export type AiTask = "polish" | "proofread" | "continue" | "custom";
+export type AiTask = "polish" | "proofread" | "continue" | "custom" | "template";
 
 export interface AiReference {
   name: string;
@@ -17,8 +17,14 @@ export interface AiRequest {
   text: string;
   /** continue: 커서 앞까지의 글 */
   before: string;
-  /** custom: 사용자의 지시 */
+  /** custom: 사용자의 지시, template: 추가 요청 */
   instruction: string;
+  /** template: 입력값이 채워진 사전 프롬프트 */
+  templatePrompt: string;
+  /** template: 웹 검색(WebSearch, WebFetch)을 허용할지. 다른 작업에서는 항상 꺼진다. */
+  web: boolean;
+  /** template: 본문과 참고 글에 있는 내용만 쓰게 할지 (웹 검색은 꺼진다) */
+  groundedOnly: boolean;
   references: AiReference[];
 }
 
@@ -32,5 +38,9 @@ export interface AiStatus {
 
 export type AiEvent =
   | { runId: string; type: "delta"; text: string }
+  /** 웹 검색 같은 도구를 쓰는 동안 보여줄 상태 ("웹 검색 중…") */
+  | { runId: string; type: "status"; text: string }
+  /** 도구를 쓰기 전의 중간 발화를 지우라는 신호 (새 응답 턴이 시작됐다) */
+  | { runId: string; type: "reset" }
   | { runId: string; type: "done"; text: string }
   | { runId: string; type: "error"; message: string };

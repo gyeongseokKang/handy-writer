@@ -1,7 +1,7 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
-import type { ApplyResult, EditorBridge, EditorContext, EmbedItem } from "@/entities/note/model/use-editor-bridge";
+import type { ApplyResult, EditorBridge, EditorContext, EmbedItem, TemplateBlockAttrs } from "@/entities/note/model/use-editor-bridge";
 
 function serialize(editor: Editor, from: number, to: number) {
   const content = editor.state.doc.slice(from, to).content.toJSON() as JSONContent[];
@@ -16,14 +16,54 @@ function singleParagraphContent(editor: Editor, markdown: string): JSONContent[]
   return only?.type === "paragraph" && only.content ? only.content : null;
 }
 
-function findEmbed(editor: Editor, uid: string) {
+function findByUid(editor: Editor, typeName: string, uid: string) {
   let found: { pos: number; node: ProseMirrorNode } | null = null;
   editor.state.doc.descendants((node, pos) => {
     if (found) return false;
-    if (node.type.name === "embed" && node.attrs["uid"] === uid) found = { pos, node };
+    if (node.type.name === typeName && node.attrs["uid"] === uid) found = { pos, node };
     return !found;
   });
   return found as { pos: number; node: ProseMirrorNode } | null;
+}
+
+const findEmbed = (editor: Editor, uid: string) => findByUid(editor, "embed", uid);
+
+/** 마크다운 → 블록 노드 JSON 목록. 비어 있으면 빈 문단 하나. */
+function parseBlocks(editor: Editor, markdown: string): JSONContent[] {
+  const blocks = editor.markdown?.parse(markdown.trim())?.content ?? [];
+  return blocks.length > 0 ? blocks : [{ type: "paragraph" }];
+}
+
+function serializeNodes(editor: Editor, nodes: ProseMirrorNode[]) {
+  return editor.markdown?.serialize({ type: "doc", content: nodes.map((node) => node.toJSON() as JSONContent) }).trim() ?? "";
+}
+
+/** 템플릿 블록은 맥락에서 뺀다 (앞서 만든 AI 결과가 다음 생성의 재료가 되지 않게). */
+const isContextNode = (node: ProseMirrorNode) => node.type.name !== "templateBlock";
+
+/** 커서가 있는 곳에서 가까운 섹션(앞의 제목부터 같거나 높은 제목 전까지)에 속한 최상위 블록들 */
+function sectionNodes(doc: ProseMirrorNode, top: number): ProseMirrorNode[] {
+  const children: ProseMirrorNode[] = [];
+  doc.forEach((child) => children.push(child));
+  let start = 0;
+  let level = 7; // 위에 제목이 없으면 다음 제목 전까지가 섹션이다.
+  for (let i = top; i >= 0; i--) {
+    const child = children[i];
+    if (child?.type.name === "heading") {
+      start = i;
+      level = Number(child.attrs["level"]);
+      break;
+    }
+  }
+  let end = children.length;
+  for (let j = top + 1; j < children.length; j++) {
+    const child = children[j];
+    if (child?.type.name === "heading" && Number(child.attrs["level"]) <= level) {
+      end = j;
+      break;
+    }
+  }
+  return children.slice(start, end);
 }
 
 export function createEditorBridge(editor: Editor, getNoteName: () => string): EditorBridge {
@@ -103,6 +143,53 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string): E
       const nodes = targets.map((target) => ({ type: "paragraph", content: [{ type: "embed", attrs: { target, syntax: "wiki" } }] }));
       const chain = editor.chain().focus();
       (pos === undefined ? chain.insertContent(nodes) : chain.insertContentAt(pos, nodes)).run();
+    },
+
+    getSelectionText() {
+      const { empty, from, to } = editor.state.selection;
+      return empty ? "" : editor.state.doc.textBetween(from, to, " ", " ").trim();
+    },
+
+    getTemplateContext(scope) {
+      const { doc, selection } = editor.state;
+      if (scope === "none" || doc.childCount === 0) return "";
+      const children: ProseMirrorNode[] = [];
+      doc.forEach((child) => children.push(child));
+      if (scope === "note") return serializeNodes(editor, children.filter(isContextNode));
+      if (scope === "selection" && !selection.empty) return serialize(editor, selection.from, selection.to);
+
+      const top = Math.min(selection.$head.index(0), doc.childCount - 1);
+      const nodes = scope === "section" ? sectionNodes(doc, top) : [children[top]!];
+      return serializeNodes(editor, nodes.filter(isContextNode));
+    },
+
+    insertTemplateBlock(attrs, markdown) {
+      const uid = crypto.randomUUID();
+      const { $to } = editor.state.selection;
+      const pos = $to.depth > 0 ? $to.after(1) : $to.pos;
+      editor
+        .chain()
+        .focus()
+        .insertContentAt(pos, { type: "templateBlock", attrs: { ...attrs, uid }, content: parseBlocks(editor, markdown) })
+        .run();
+      return uid;
+    },
+
+    getTemplateBlock(uid) {
+      const found = findByUid(editor, "templateBlock", uid);
+      if (!found) return null;
+      const { uid: _uid, ...attrs } = found.node.attrs;
+      const children: ProseMirrorNode[] = [];
+      found.node.forEach((child) => children.push(child));
+      return { attrs: attrs as TemplateBlockAttrs, markdown: serializeNodes(editor, children) };
+    },
+
+    replaceTemplateBlock(uid, attrs, markdown) {
+      const found = findByUid(editor, "templateBlock", uid);
+      if (!found) return false;
+      const next = editor.schema.nodeFromJSON({ type: "templateBlock", attrs: { ...attrs, uid }, content: parseBlocks(editor, markdown) });
+      editor.view.dispatch(editor.state.tr.replaceWith(found.pos, found.pos + found.node.nodeSize, next));
+      return true;
     },
 
     findAndSelect(term) {

@@ -2,6 +2,7 @@ import type { AiEvent } from "@shared/ai";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
 import { searchNotes } from "@shared/search";
+import { BUILTIN_TEMPLATES } from "@shared/templates";
 import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
@@ -116,6 +117,11 @@ export function createMockApi(): HandyApi {
           name: toMeta(path).name,
           ...parseNote(content),
         })),
+    },
+    templates: {
+      list: async () => BUILTIN_TEMPLATES,
+      save: async (template) => template,
+      remove: async () => {},
     },
     spell: { check: async () => ({ status: "offline" as const, typos: [] }) },
     attachments: {

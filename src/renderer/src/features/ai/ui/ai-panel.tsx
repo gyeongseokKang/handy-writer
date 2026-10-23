@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { outgoingOf } from "@/entities/note-index/lib/derive";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
+import { useReferenceStore } from "@/entities/note/model/use-reference-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { Button } from "@/shared/ui/button";
 
@@ -37,11 +38,11 @@ function References() {
   const notes = useWorkspaceStore((s) => s.notes);
   const activePath = useWorkspaceStore((s) => s.activePath);
   const entries = useNoteIndexStore((s) => s.entries);
-  const paths = useAiStore((s) => s.referencePaths);
-  const includeLinked = useAiStore((s) => s.includeLinked);
-  const addReference = useAiStore((s) => s.addReference);
-  const removeReference = useAiStore((s) => s.removeReference);
-  const setIncludeLinked = useAiStore((s) => s.setIncludeLinked);
+  const paths = useReferenceStore((s) => s.paths);
+  const includeLinked = useReferenceStore((s) => s.includeLinked);
+  const addReference = useReferenceStore((s) => s.add);
+  const removeReference = useReferenceStore((s) => s.remove);
+  const setIncludeLinked = useReferenceStore((s) => s.setIncludeLinked);
   const [query, setQuery] = useState("");
 
   const linkedCount = useMemo(() => {
