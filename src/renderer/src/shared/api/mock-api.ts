@@ -117,6 +117,7 @@ export function createMockApi(): HandyApi {
           ...parseNote(content),
         })),
     },
+    spell: { check: async () => ({ status: "offline" as const, typos: [] }) },
     attachments: {
       list: async () => [],
       pick: async () => ({ imported: [], skipped: [] }),

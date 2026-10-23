@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
 import type { FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -10,6 +10,8 @@ import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
+import { hanspellTransport } from "./spell/hanspell-transport";
+import { createOnlineSpeller } from "./spell/online-speller";
 import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
@@ -20,6 +22,7 @@ export const getWorkspaceRoot = () => root;
 let watcher: FSWatcher | null = null;
 const indexer = new NoteIndexer();
 const searcher = new NoteSearcher();
+const onlineSpeller = createOnlineSpeller({ transport: hanspellTransport, isOnline: () => net.isOnline() });
 const gitIpc = createGitIpc(requireRoot);
 
 function requireRoot() {
@@ -96,6 +99,7 @@ export async function registerIpc() {
   ipcMain.handle(IPC.attachmentsReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
   });
+  ipcMain.handle(IPC.spellCheck, (_e, text: string) => onlineSpeller.check(String(text ?? "")));
   ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 
   registerAiIpc(requireRoot);

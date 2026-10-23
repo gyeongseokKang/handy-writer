@@ -134,7 +134,7 @@ const composing = await ime.counts();
 assert(composing.starts === compositionsBefore.starts + 1 && composing.ends === compositionsBefore.ends, "밑줄이 생겨도 새로 시작한 조합이 끊기지 않고 이어진다");
 await ime.type("지");
 assert((await ime.counts()).ends === compositionsBefore.ends + 1, "확정하면 조합이 정상적으로 끝난다");
-assert((await page.locator("button[aria-label='맞춤법 표시 끄기']").innerText()).includes("맞춤법 1"), "아래 막대에 맞춤법 개수가 보인다");
+assert((await page.locator("button[aria-label='맞춤법 설정']").innerText()).includes("맞춤법 1"), "아래 막대에 맞춤법 개수가 보인다");
 await page.screenshot({ path: path.join(OUT, "15-spellcheck.png") });
 
 // 9) 팝업: 바꾸기 / 무시 / 끄기
@@ -162,10 +162,27 @@ await page.waitForFunction(() => document.querySelector(".note-prose")?.textCont
 await sleep(300);
 assert((await page.locator(".spell-error").allInnerTexts()).join() === "됬다고", "무시한 낱말은 다른 글에 다녀와도 다시 밑줄이 생기지 않는다");
 
-await page.getByRole("button", { name: "맞춤법 표시 끄기" }).click();
+// 설정 창: 온라인 검사 안내와 상태, 표시 끄기/켜기
+await page.getByRole("button", { name: "맞춤법 설정" }).click();
+const menu = page.locator("[role='dialog'][aria-label='맞춤법 설정']");
+await menu.waitFor();
+assert((await menu.innerText()).includes("문단의 내용이 다음·네이버 서버로 전송"), "온라인 검사를 켜면 문단이 서버로 전송된다는 안내가 보인다");
+await page.waitForFunction(() => /오프라인이라 건너뛰고 있어요|연결됨/.test(document.querySelector("[role='dialog'][aria-label='맞춤법 설정']")?.textContent ?? ""), null, { timeout: 15000 });
+const onlineState = await menu.innerText();
+assert(/오프라인이라 건너뛰고 있어요|연결됨/.test(onlineState), `온라인 검사 상태가 표시된다 (${onlineState.includes("연결됨") ? "연결됨" : "오프라인"})`);
+assert((await page.locator(".spell-error").count()) === 1, "온라인 검사를 쓸 수 없어도 규칙 기반 밑줄은 그대로 있다");
+
+await menu.getByRole("checkbox", { name: "온라인 검사 (다음·네이버)" }).uncheck();
+assert((await menu.innerText()).includes("꺼져 있어요"), "온라인 검사를 끌 수 있다");
+await menu.getByRole("checkbox", { name: "온라인 검사 (다음·네이버)" }).check();
+
+await menu.getByRole("checkbox", { name: "맞춤법 표시" }).uncheck();
+await page.keyboard.press("Escape");
 await sleep(300);
-assert((await page.locator(".spell-error").count()) === 0 && (await page.getByRole("button", { name: "맞춤법 표시 켜기" }).innerText()) === "맞춤법 끔", "맞춤법 표시를 끄면 밑줄이 모두 사라진다");
-await page.getByRole("button", { name: "맞춤법 표시 켜기" }).click();
+assert((await page.locator(".spell-error").count()) === 0 && (await page.getByRole("button", { name: "맞춤법 설정" }).innerText()) === "맞춤법 끔", "맞춤법 표시를 끄면 밑줄이 모두 사라진다");
+await page.getByRole("button", { name: "맞춤법 설정" }).click();
+await menu.getByRole("checkbox", { name: "맞춤법 표시" }).check();
+await page.keyboard.press("Escape");
 await sleep(300);
 assert((await page.locator(".spell-error").count()) === 1, "다시 켜면 밑줄이 돌아온다");
 

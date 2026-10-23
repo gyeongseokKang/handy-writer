@@ -4,7 +4,9 @@ import { TextSelection } from "@tiptap/pm/state";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createExtensions } from "./create-extensions";
-import { SPELL_REFRESH, type SpellCheckOptions, type SpellTarget } from "./spell-check";
+import type { OnlineSpellResult } from "@shared/online-spell";
+
+import { clearOnlineSpellCache, SPELL_REFRESH, type SpellCheckOptions, type SpellTarget } from "./spell-check";
 
 let editor: Editor;
 
@@ -37,7 +39,10 @@ function placeCursorIn(text: string, offset = 1) {
   editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, at)));
 }
 
-afterEach(() => editor?.destroy());
+afterEach(() => {
+  editor?.destroy();
+  clearOnlineSpellCache();
+});
 
 describe("맞춤법 밑줄", () => {
   it("틀린 낱말에 밑줄을 긋고 개수를 알린다 (글 내용은 바뀌지 않는다)", () => {
@@ -117,5 +122,86 @@ describe("맞춤법 밑줄", () => {
     const p = editor.view.dom.querySelector("p")!;
     editor.view.someProp("handleClick", (handler) => handler(editor.view, 2, { target: p } as unknown as MouseEvent));
     expect(onSelect).not.toHaveBeenCalled();
+  });
+});
+
+describe("온라인 검사 합치기", () => {
+  const spaceTypo = { token: "모래속에", suggestions: ["모래 속에", "모래속에서"], type: "space", info: "띄어쓰기 오류입니다." };
+  const online = (result: OnlineSpellResult) => vi.fn(async (_text: string) => result);
+  const waitFor = async (condition: () => boolean, ms = 1000) => {
+    const end = Date.now() + ms;
+    while (!condition() && Date.now() < end) await new Promise((r) => setTimeout(r, 10));
+    if (!condition()) throw new Error("조건이 충족되지 않았어요");
+  };
+
+  it("온라인 결과가 오면 규칙 기반 밑줄과 함께 표시하고 제안 목록을 갖는다", async () => {
+    const checkOnline = online({ status: "ok", typos: [spaceTypo] });
+    const onOnlineStatus = vi.fn();
+    const onSelect = vi.fn<(t: SpellTarget) => void>();
+    mount("웬지 슬프다. 나는 모래속에 두 손을 넣고\n\n끝", { checkOnline, isOnlineEnabled: () => true, onOnlineStatus, onlineDelayMs: 10, onSelect });
+    editor.commands.focus("end");
+    expect(underlined()).toEqual(["웬지"]); // 규칙 기반은 바로
+
+    await waitFor(() => underlined().length === 2);
+    expect(underlined()).toEqual(["웬지", "모래속에"]);
+    expect(onOnlineStatus).toHaveBeenCalledWith("ok");
+
+    vi.spyOn(editor.view, "coordsAtPos").mockReturnValue({ left: 0, right: 5, top: 0, bottom: 10 });
+    const span = [...editor.view.dom.querySelectorAll(".spell-error")][1]!;
+    editor.view.someProp("handleClick", (h) => h(editor.view, editor.view.posAtDOM(span, 0) + 1, { target: span } as unknown as MouseEvent));
+    expect(onSelect.mock.calls[0]![0].issue).toMatchObject({ source: "online", replacement: "모래 속에", suggestions: ["모래 속에", "모래속에서"] });
+  });
+
+  it("보내는 글에서 코드, 주소, #태그는 가리고, 같은 글은 한 번만 보낸다", async () => {
+    const checkOnline = online({ status: "ok", typos: [] });
+    mount("`비밀코드` 와 #비밀태그 그리고 https://secret.example 평범한 문장입니다\n\n다른 문단입니다 충분히 깁니다", { checkOnline, isOnlineEnabled: () => true, onlineDelayMs: 10 });
+    editor.commands.focus("end");
+    await waitFor(() => checkOnline.mock.calls.length === 2);
+
+    const sent = checkOnline.mock.calls.map((c) => c[0]).join("|");
+    expect(sent).not.toMatch(/비밀코드|비밀태그|secret/);
+    expect(sent).toContain("평범한 문장입니다");
+
+    // 다른 문단만 고치면 바뀌지 않은 문단은 다시 보내지 않는다.
+    editor.commands.insertContentAt(editor.state.doc.content.size - 1, " 덧붙임입니다");
+    await waitFor(() => checkOnline.mock.calls.length === 3);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(checkOnline.mock.calls.length).toBe(3);
+  });
+
+  it("오프라인이면 규칙 기반만 쓰고, 한동안 다시 보내지 않는다", async () => {
+    const checkOnline = online({ status: "offline", typos: [] });
+    const onOnlineStatus = vi.fn();
+    mount("웬지 슬프다. 나는 모래속에 두 손을 넣고\n\n끝", { checkOnline, isOnlineEnabled: () => true, onOnlineStatus, onlineDelayMs: 10 });
+    editor.commands.focus("end");
+    await waitFor(() => onOnlineStatus.mock.calls.length > 0);
+
+    expect(onOnlineStatus).toHaveBeenCalledWith("offline");
+    expect(underlined()).toEqual(["웬지"]);
+    const calls = checkOnline.mock.calls.length;
+
+    editor.commands.insertContentAt(editor.state.doc.content.size - 1, " 새로운 문장을 쓰는 중입니다");
+    placeCursorIn("끝", 0);
+    await new Promise((r) => setTimeout(r, 80));
+    expect(checkOnline.mock.calls.length).toBe(calls);
+  });
+
+  it("온라인 검사를 끄면 서버로 보내지 않는다", async () => {
+    const checkOnline = online({ status: "ok", typos: [spaceTypo] });
+    mount("나는 모래속에 두 손을 넣고\n\n끝", { checkOnline, isOnlineEnabled: () => false, onlineDelayMs: 10 });
+    editor.commands.focus("end");
+    await new Promise((r) => setTimeout(r, 80));
+    expect(checkOnline).not.toHaveBeenCalled();
+    expect(underlined()).toEqual([]);
+  });
+
+  it("서버가 던지면 오프라인으로 보고 밑줄에는 영향이 없다", async () => {
+    const checkOnline = vi.fn(async () => Promise.reject(new Error("boom")));
+    const onOnlineStatus = vi.fn();
+    mount("웬지 슬프다. 문장입니다\n\n끝", { checkOnline, isOnlineEnabled: () => true, onOnlineStatus, onlineDelayMs: 10 });
+    editor.commands.focus("end");
+    await waitFor(() => onOnlineStatus.mock.calls.length > 0);
+    expect(onOnlineStatus).toHaveBeenCalledWith("offline");
+    expect(underlined()).toEqual(["웬지"]);
   });
 });

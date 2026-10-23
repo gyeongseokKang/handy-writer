@@ -20,6 +20,7 @@ import { createEditorBridge } from "../lib/editor-bridge";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { NoteTitle } from "./note-title";
+import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
 
 const SAVE_DELAY_MS = 600;
@@ -56,6 +57,9 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
           onCount: (count) => useSpellStore.getState().setCount(count),
           onSelect: setSpellTarget,
+          checkOnline: (text) => api.spell.check(text),
+          isOnlineEnabled: () => useSpellStore.getState().online,
+          onOnlineStatus: (status) => useSpellStore.getState().setOnlineState(status),
         },
         getNoteNames: () => useWorkspaceStore.getState().notes.map((note) => note.name),
         onNavigate: (target) => void useWorkspaceStore.getState().openLink(target),
@@ -154,18 +158,18 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   // 맞춤법 표시를 켜고 끄거나 낱말을 무시하면 밑줄을 다시 계산
   const spellEnabled = useSpellStore((state) => state.enabled);
   const spellIgnored = useSpellStore((state) => state.ignored);
-  const spellCount = useSpellStore((state) => state.count);
+  const spellOnline = useSpellStore((state) => state.online);
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
-  }, [editor, spellEnabled, spellIgnored]);
+  }, [editor, spellEnabled, spellIgnored, spellOnline]);
   useEffect(() => () => useSpellStore.getState().setCount(0), []);
 
-  const applySpell = () => {
+  const applySpell = (replacement?: string) => {
     if (!editor || !spellTarget) return;
     const { issue, from, to } = spellTarget;
     // 밑줄을 누른 뒤에 글이 바뀌었으면 엉뚱한 곳을 고치지 않는다.
     if (to <= editor.state.doc.content.size && editor.state.doc.textBetween(from, to, undefined, "\uFFFC") === issue.text) {
-      editor.view.dispatch(editor.state.tr.insertText(issue.replacement, from, to));
+      editor.view.dispatch(editor.state.tr.insertText(replacement ?? issue.replacement, from, to));
       editor.view.focus();
     }
     setSpellTarget(null);
@@ -252,16 +256,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       )}
       <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{linkTargetToName(name)}</span>
-        <button
-          type="button"
-          onClick={() => useSpellStore.getState().setEnabled(!spellEnabled)}
-          aria-pressed={spellEnabled}
-          aria-label={spellEnabled ? "맞춤법 표시 끄기" : "맞춤법 표시 켜기"}
-          title="자주 틀리는 표기에 밑줄을 그어요 (눌러서 켜고 끄기)"
-          className="ml-auto rounded px-1.5 py-0.5 hover:bg-accent"
-        >
-          {spellEnabled ? (spellCount > 0 ? `맞춤법 ${spellCount}` : "맞춤법 ✓") : "맞춤법 끔"}
-        </button>
+        <SpellMenu />
         <span role="status">{STATUS_LABEL[status]}</span>
       </footer>
     </div>

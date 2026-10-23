@@ -9,6 +9,9 @@ export interface SpellIssue {
   ruleId: string;
   /** 왜 틀렸는지 짧은 설명 */
   hint: string;
+  /** 온라인 검사처럼 제안이 여러 개일 때의 전체 목록 (첫 번째가 replacement) */
+  suggestions?: string[];
+  source?: "rule" | "online";
 }
 
 interface Rule {
@@ -102,7 +105,7 @@ const RULES: Rule[] = [
 ];
 
 /** 검사에서 뺄 부분(주소, #태그, 인라인 코드)을 같은 길이의 빈 글자로 바꾼다. */
-function mask(text: string) {
+export function mask(text: string) {
   return text.replace(/https?:\/\/\S+|#[\p{L}\p{N}_/-]+|`[^`\n]*`/gu, (m) => "\u0000".repeat(m.length));
 }
 

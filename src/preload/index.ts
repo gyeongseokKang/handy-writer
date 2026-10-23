@@ -31,6 +31,9 @@ const api: HandyApi = {
   search: {
     query: (query) => ipcRenderer.invoke(IPC.searchQuery, query),
   },
+  spell: {
+    check: (text) => ipcRenderer.invoke(IPC.spellCheck, text),
+  },
   rules: {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),

@@ -1,5 +1,6 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
+import type { OnlineSpellResult } from "./online-spell";
 import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
@@ -72,6 +73,10 @@ export interface HandyApi {
   search: {
     query: (query: string) => Promise<SearchResult[]>;
   };
+  spell: {
+    /** 다음·네이버 맞춤법 검사기로 문단을 검사한다. 오프라인이면 status가 offline이다. */
+    check: (text: string) => Promise<OnlineSpellResult>;
+  };
   rules: {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
@@ -110,6 +115,7 @@ export const IPC = {
   notesRemove: "notes:remove",
   indexGet: "index:get",
   searchQuery: "search:query",
+  spellCheck: "spell:check",
   attachmentsList: "attachments:list",
   attachmentsPick: "attachments:pick",
   attachmentsSave: "attachments:save",

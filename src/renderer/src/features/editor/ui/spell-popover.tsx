@@ -7,7 +7,7 @@ import type { SpellTarget } from "../lib/spell-check";
 
 interface SpellPopoverProps {
   target: SpellTarget;
-  onApply: () => void;
+  onApply: (replacement?: string) => void;
   onIgnore: () => void;
   onClose: () => void;
 }
@@ -49,8 +49,27 @@ export function SpellPopover({ target, onApply, onIgnore, onClose }: SpellPopove
         <span className="font-semibold">{issue.replacement}</span>
       </p>
       <p className="text-xs text-muted-foreground">{issue.hint}</p>
+      {issue.source === "online" && (
+        <p className="text-xs text-muted-foreground">온라인 맞춤법 검사기(다음·네이버)의 제안이에요.</p>
+      )}
+      {(issue.suggestions?.length ?? 0) > 1 && (
+        <div className="flex flex-wrap gap-1.5" aria-label="다른 제안">
+          {issue.suggestions!.slice(1, 4).map((suggestion) => (
+            <Button
+              key={suggestion}
+              size="sm"
+              variant="outline"
+              className="h-7 px-2 text-xs"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => onApply(suggestion)}
+            >
+              {suggestion}
+            </Button>
+          ))}
+        </div>
+      )}
       <div className="flex gap-2">
-        <Button size="sm" onMouseDown={(event) => event.preventDefault()} onClick={onApply}>
+        <Button size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => onApply()}>
           바꾸기
         </Button>
         <Button size="sm" variant="ghost" onMouseDown={(event) => event.preventDefault()} onClick={onIgnore}>
