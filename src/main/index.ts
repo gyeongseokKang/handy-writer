@@ -1,16 +1,18 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "node:path";
 
+import { registerIpc } from "./ipc";
+
 function createWindow() {
   const win = new BrowserWindow({
-    width: 1100,
-    height: 760,
-    minWidth: 640,
-    minHeight: 480,
+    width: 1280,
+    height: 820,
+    minWidth: 860,
+    minHeight: 520,
     show: false,
     title: "Handy Writer",
     webPreferences: {
-      preload: join(import.meta.dirname, "../preload/index.mjs"),
+      preload: join(import.meta.dirname, "../preload/index.cjs"),
       sandbox: true,
       contextIsolation: true,
     },
@@ -30,7 +32,8 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await registerIpc();
   createWindow();
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

@@ -1,0 +1,92 @@
+import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
+
+const SEED: Record<string, string> = {
+  "시작하기.md": `---
+tags: [가이드]
+---
+
+# 시작하기
+
+Handy Writer에 오신 것을 환영해요. \`/\`를 입력하면 블록 메뉴가 열리고, \`[[\`를 입력하면 다른 글을 연결할 수 있어요.
+
+> [!tip] 팁
+> 글은 작업 폴더에 \`.md\` 파일로 저장돼서 Obsidian이나 git으로도 그대로 쓸 수 있어요.
+
+- [x] 작업 폴더 선택하기
+- [ ] 첫 글 쓰기
+
+다음으로 [[글쓰기 규칙]]을 읽어 보세요.
+`,
+  "글쓰기 규칙.md": `# 글쓰기 규칙
+
+1. 한 문단에는 한 가지 생각만 담는다.
+2. 수식어보다 구체적인 사례를 쓴다.
+
+자세한 내용은 [[시작하기|가이드]]에서 확인하세요.
+`,
+  "일기/2026-10-23.md": "# 2026-10-23\n\n오늘은 에디터를 골랐다.\n",
+};
+
+function toMeta(path: string): NoteMeta {
+  const slash = path.lastIndexOf("/");
+  return {
+    path,
+    name: path.slice(slash + 1).replace(/\.md$/, ""),
+    folder: slash === -1 ? "" : path.slice(0, slash),
+    mtime: Date.now(),
+  };
+}
+
+export function createMockApi(): HandyApi {
+  const files = new Map(Object.entries(SEED));
+  const listeners = new Set<(event: NotesChangedEvent) => void>();
+  const emit = (...paths: string[]) => listeners.forEach((listener) => listener({ paths }));
+
+  return {
+    platform: "mock",
+    workspace: {
+      get: async () => ({ root: "/mock/HandyWriter" }),
+      choose: async () => ({ root: "/mock/HandyWriter" }),
+      useDefault: async () => ({ root: "/mock/HandyWriter" }),
+    },
+    notes: {
+      list: async () => [...files.keys()].map(toMeta),
+      read: async (path) => {
+        const content = files.get(path);
+        if (content === undefined) throw new Error(`없는 글이에요: ${path}`);
+        return content;
+      },
+      write: async (path, content) => {
+        files.set(path, content);
+        emit(path);
+      },
+      create: async (folder, title) => {
+        const prefix = folder ? `${folder}/` : "";
+        const base = title || "제목 없음";
+        let name = base;
+        for (let i = 1; files.has(`${prefix}${name}.md`); i++) name = `${base} ${i}`;
+        const path = `${prefix}${name}.md`;
+        files.set(path, "");
+        emit(path);
+        return toMeta(path);
+      },
+      rename: async (path, newName) => {
+        const meta = toMeta(path);
+        const next = `${meta.folder ? `${meta.folder}/` : ""}${newName}.md`;
+        if (next !== path && files.has(next)) throw new Error(`같은 이름의 글이 이미 있어요: ${newName}`);
+        files.set(next, files.get(path) ?? "");
+        if (next !== path) files.delete(path);
+        emit(path, next);
+        return toMeta(next);
+      },
+      remove: async (path) => {
+        files.delete(path);
+        emit(path);
+      },
+    },
+    onNotesChanged: (listener) => {
+      listeners.add(listener);
+      return () => listeners.delete(listener);
+    },
+  };
+}

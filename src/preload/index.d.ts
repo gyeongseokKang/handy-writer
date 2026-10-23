@@ -1,7 +1,7 @@
-import type { Api } from "./index";
+import type { HandyApi } from "../shared/types";
 
 declare global {
   interface Window {
-    api: Api;
+    api?: HandyApi;
   }
 }

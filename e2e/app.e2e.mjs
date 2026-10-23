@@ -1,0 +1,149 @@
+// 빌드된 앱(out/)을 실제 Electron으로 띄워서 확인하는 E2E. 먼저 `pnpm build`가 필요하다.
+// 화면이 없는 리눅스에서는 `xvfb-run -a pnpm test:e2e`로 실행한다.
+import { createRequire } from "node:module";
+import { _electron as electron } from "playwright-core";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+
+const electronPath = createRequire(import.meta.url)("electron");
+const ROOT = path.resolve(import.meta.dirname, "..");
+const OUT = path.join(ROOT, "test-results");
+fs.mkdirSync(OUT, { recursive: true });
+const assert = (c, m) => { if (!c) { console.log("FAIL:", m); process.exitCode = 1; } else console.log("ok  :", m); };
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+(async () => {
+  const ws = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ws-"));
+  const ud = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ud-"));
+  fs.writeFileSync(path.join(ud, "config.json"), JSON.stringify({ workspaceRoot: ws }));
+  fs.mkdirSync(path.join(ws, "일기"));
+  fs.mkdirSync(path.join(ws, ".git"));
+  fs.writeFileSync(path.join(ws, ".git", "hidden.md"), "no");
+  const seed = "---\ntitle: 시작\ntags: [가이드]\n---\n\n# 시작하기\n\n> [!tip] 팁\n> 콜아웃 본문\n\n- [ ] 할 일\n\n다음은 [[글쓰기 규칙]] 입니다.\n";
+  fs.writeFileSync(path.join(ws, "시작하기.md"), seed);
+  fs.writeFileSync(path.join(ws, "글쓰기 규칙.md"), "# 규칙\n\n짧게 쓴다.\n");
+  fs.writeFileSync(path.join(ws, "일기", "오늘.md"), "오늘의 일기\n");
+
+  const app = await electron.launch({
+    executablePath: electronPath,
+    args: [ROOT, "--no-sandbox", "--disable-gpu", `--user-data-dir=${ud}`],
+  });
+  const logs = [];
+  const page = await app.firstWindow();
+  page.on("console", (m) => { if (["error", "warning"].includes(m.type())) logs.push(m.type() + ": " + m.text()); });
+  page.on("pageerror", (e) => logs.push("pageerror: " + e.message));
+  await page.setViewportSize({ width: 1280, height: 820 });
+  await page.waitForSelector("nav[aria-label='글 목록']");
+  await sleep(500);
+
+  const names = await page.$$eval("nav[aria-label='글 목록'] span.truncate", (els) => els.map((e) => e.textContent));
+  console.log("sidebar:", names);
+  assert(names.includes("시작하기") && names.includes("글쓰기 규칙") && names.includes("오늘"), "사이드바에 글과 하위 폴더 글이 보인다");
+  assert(!names.includes("hidden"), "숨김 폴더(.git)의 글은 보이지 않는다");
+
+  // 글 열기, frontmatter 숨김, 콜아웃/위키링크 렌더링
+  await page.waitForSelector(".note-prose");
+  await page.click("nav >> text=시작하기");
+  await page.waitForSelector(".note-prose .callout");
+  const proseText = await page.innerText(".note-prose");
+  assert(proseText.includes("시작하기") && !proseText.includes("tags:"), "frontmatter는 에디터에 보이지 않는다");
+  assert((await page.$$(".note-prose .callout[data-callout='tip']")).length === 1, "콜아웃이 렌더링된다");
+  assert((await page.$$(".note-prose .wikilink")).length === 1, "위키링크가 렌더링된다");
+  await page.screenshot({ path: path.join(OUT, "1-open.png") });
+
+  // 열기만 했을 때는 파일을 다시 쓰지 않는다
+  await sleep(1200);
+  assert(fs.readFileSync(path.join(ws, "시작하기.md"), "utf8") === seed, "열기만 하면 파일이 바뀌지 않는다");
+
+  // 편집 → 자동 저장, frontmatter 보존
+  await page.click(".note-prose > p:last-of-type");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" 추가한 문장");
+  await sleep(1500);
+  const saved = fs.readFileSync(path.join(ws, "시작하기.md"), "utf8");
+  assert(saved.startsWith("---\ntitle: 시작\ntags: [가이드]\n---\n\n# 시작하기"), "저장 후 frontmatter가 그대로다");
+  assert(saved.includes("[[글쓰기 규칙]] 입니다. 추가한 문장"), "편집한 내용이 자동 저장되고 위키링크가 유지된다");
+  assert(saved.includes("> [!tip] 팁\n> 콜아웃 본문"), "콜아웃이 유지된다");
+  console.log(JSON.stringify(saved));
+
+  // 슬래시 메뉴
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("/콜");
+  await page.waitForSelector("[role='listbox'] [role='option']");
+  await page.screenshot({ path: path.join(OUT, "2-slash.png") });
+  await page.keyboard.press("Enter");
+  await sleep(300);
+  assert((await page.$$(".note-prose .callout")).length === 2, "슬래시 메뉴로 콜아웃을 삽입한다");
+  await page.keyboard.type("슬래시로 만든 콜아웃");
+
+  // [[ 자동완성
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("[[글쓰");
+  await page.waitForSelector("[role='listbox'] [role='option']");
+  await page.screenshot({ path: path.join(OUT, "3-wikilink-suggest.png") });
+  await page.keyboard.press("Enter");
+  await sleep(300);
+  assert((await page.$$(".note-prose .wikilink")).length === 2, "[[ 자동완성으로 위키링크를 삽입한다");
+
+  // 위키링크 클릭 → 이동
+  await page.click(".note-prose .wikilink >> nth=0");
+  await sleep(800);
+  const afterNav = await page.innerText(".note-prose");
+  assert(afterNav.includes("짧게 쓴다"), "위키링크를 누르면 해당 글로 이동한다");
+  const afterSave = fs.readFileSync(path.join(ws, "시작하기.md"), "utf8");
+  assert(afterSave.includes("[!note]") && /\[\[글쓰기 규칙\]\]/.test(afterSave), "글을 옮길 때 저장 대기 내용이 먼저 저장된다");
+  await page.screenshot({ path: path.join(OUT, "4-navigated.png") });
+
+  // 없는 글로 링크 → 새 글 생성
+  await page.click("nav >> text=시작하기");
+  await sleep(600);
+
+  // 외부 변경 반영
+  fs.writeFileSync(path.join(ws, "글쓰기 규칙.md"), "# 규칙\n\n밖에서 바꾼 내용\n");
+  await page.click("nav >> text=글쓰기 규칙");
+  await sleep(600);
+  fs.writeFileSync(path.join(ws, "글쓰기 규칙.md"), "# 규칙\n\n다시 밖에서 바꾼 내용\n");
+  await sleep(1200);
+  assert((await page.innerText(".note-prose")).includes("다시 밖에서 바꾼 내용"), "다른 프로그램이 바꾼 내용이 열린 글에 반영된다");
+
+  // 새 글 + 제목(파일 이름) 바꾸기
+  await page.click("button[aria-label='새 글']");
+  await sleep(600);
+  assert(fs.existsSync(path.join(ws, "제목 없음.md")), "새 글 버튼이 제목 없음.md를 만든다");
+  const title = page.locator("input[aria-label='글 제목']");
+  await title.fill("나의 첫 글");
+  await title.press("Enter");
+  await sleep(800);
+  assert(fs.existsSync(path.join(ws, "나의 첫 글.md")) && !fs.existsSync(path.join(ws, "제목 없음.md")), "제목을 바꾸면 파일 이름이 바뀐다");
+  await page.keyboard.type("새 글 본문입니다");
+  await sleep(1500);
+  assert(fs.readFileSync(path.join(ws, "나의 첫 글.md"), "utf8") === "새 글 본문입니다\n", "새 글에 쓴 내용이 이름 바뀐 파일에 저장된다");
+  await page.screenshot({ path: path.join(OUT, "5-new-note.png") });
+
+  // 검색
+  await page.fill("input[aria-label='글 검색']", "일기");
+  await sleep(300);
+  const filtered = await page.$$eval("nav[aria-label='글 목록'] span.truncate", (els) => els.map((e) => e.textContent));
+  assert(filtered.includes("오늘") && !filtered.includes("시작하기"), "검색이 글 목록을 거른다");
+
+  // 서식 툴바와 블록 드래그 핸들
+  await page.fill("input[aria-label='글 검색']", "");
+  await page.click("nav >> text=오늘");
+  await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("오늘의 일기"));
+  await page.hover(".note-prose > p >> nth=0");
+  await page.waitForSelector(".block-handle", { state: "visible", timeout: 5000 });
+  console.log("ok  : 문단에 마우스를 올리면 드래그 핸들이 보인다");
+  await page.click(".note-prose > p >> nth=0");
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+Home");
+  await page.waitForSelector("button[aria-label='굵게']", { timeout: 5000 });
+  await page.click("button[aria-label='굵게']");
+  await sleep(1500);
+  assert(fs.readFileSync(path.join(ws, "일기", "오늘.md"), "utf8") === "**오늘의 일기**\n", "선택 서식 툴바로 적용한 굵게가 저장된다");
+
+  assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.length ? JSON.stringify(logs) : ""}`);
+  await app.close();
+})().catch((e) => { console.error("SCRIPT ERROR", e); process.exit(1); });
