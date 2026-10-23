@@ -1,4 +1,5 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
+import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
 export interface NoteMeta {
@@ -53,6 +54,9 @@ export interface HandyApi {
   index: {
     get: () => Promise<NoteIndexEntry[]>;
   };
+  search: {
+    query: (query: string) => Promise<SearchResult[]>;
+  };
   rules: {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
@@ -90,6 +94,7 @@ export const IPC = {
   notesRename: "notes:rename",
   notesRemove: "notes:remove",
   indexGet: "index:get",
+  searchQuery: "search:query",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
   gitStatus: "git:status",

@@ -49,6 +49,23 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string): E
       return "ok";
     },
 
+    findAndSelect(term) {
+      const needle = term.trim().toLowerCase();
+      if (!needle) return false;
+      let found: { from: number; to: number } | null = null;
+      editor.state.doc.descendants((node, pos) => {
+        if (found) return false;
+        if (!node.isTextblock) return true;
+        // 위키링크 같은 inline 노드는 한 글자로 바꿔서 글자 위치와 문서 위치를 맞춘다.
+        const index = node.textBetween(0, node.content.size, undefined, "\uFFFC").toLowerCase().indexOf(needle);
+        if (index >= 0) found = { from: pos + 1 + index, to: pos + 1 + index + needle.length };
+        return false;
+      });
+      if (!found) return false;
+      editor.chain().focus().setTextSelection(found).scrollIntoView().run();
+      return true;
+    },
+
     insertBelowCursor(markdown) {
       const { $to } = editor.state.selection;
       const pos = $to.depth > 0 ? $to.after($to.depth) : $to.pos;

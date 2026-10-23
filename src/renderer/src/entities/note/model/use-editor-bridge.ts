@@ -20,6 +20,8 @@ export interface EditorBridge {
   replace: (context: EditorContext, markdown: string) => ApplyResult;
   /** 지금 커서가 있는 블록 바로 아래에 새 블록으로 넣는다. */
   insertBelowCursor: (markdown: string) => void;
+  /** 글에서 처음 나오는 단어를 선택하고 그 위치로 스크롤한다. 없으면 false */
+  findAndSelect: (term: string) => boolean;
 }
 
 interface EditorBridgeState {

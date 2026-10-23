@@ -74,6 +74,15 @@ describe("에디터 브리지", () => {
     expect(editor.getMarkdown()).toBe("앞 새로 쓴 문단 뒤");
   });
 
+  it("검색어가 처음 나오는 위치를 선택한다 (위키링크 앞에 있어도 위치가 맞는다)", () => {
+    const bridge = mount("앞 문단\n\n[[링크]] 뒤에 찾는말이 있다. 또 찾는말");
+    expect(bridge.findAndSelect("찾는말")).toBe(true);
+    const { from, to } = editor.state.selection;
+    expect(editor.state.doc.textBetween(from, to)).toBe("찾는말");
+    expect(bridge.findAndSelect("없는 단어")).toBe(false);
+    expect(bridge.findAndSelect("  ")).toBe(false);
+  });
+
   it("커서가 있는 블록 아래에 새 블록으로 삽입한다", () => {
     const bridge = mount("첫째 문단\n\n둘째 문단");
     select("첫째");

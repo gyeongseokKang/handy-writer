@@ -100,6 +100,12 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         setStatus("saved");
         if (raw === "") editor.commands.focus("start");
+        // 검색 결과에서 열었으면 찾은 단어로 이동
+        const find = useUiStore.getState().pendingFind;
+        if (find) {
+          useUiStore.getState().setPendingFind(null);
+          useEditorBridge.getState().bridge?.findAndSelect(find);
+        }
       })
       .catch((error: unknown) => {
         if (!cancelled) toast.error(`글을 열지 못했어요: ${error instanceof Error ? error.message : String(error)}`);

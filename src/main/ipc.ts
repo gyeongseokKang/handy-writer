@@ -7,6 +7,7 @@ import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
+import { NoteSearcher } from "./notes-search";
 import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
@@ -14,6 +15,7 @@ import { watchNotes } from "./watcher";
 let root: string | null = null;
 let watcher: FSWatcher | null = null;
 const indexer = new NoteIndexer();
+const searcher = new NoteSearcher();
 const gitIpc = createGitIpc(requireRoot);
 
 function requireRoot() {
@@ -27,6 +29,7 @@ function startWatching() {
   if (!root) return;
   watcher = watchNotes(root, (event) => {
     indexer.invalidate(event.paths);
+    searcher.invalidate(event.paths);
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.notesChanged, event);
   });
 }
@@ -35,6 +38,7 @@ async function setRoot(next: string): Promise<WorkspaceInfo> {
   await mkdir(next, { recursive: true });
   root = next;
   indexer.setRoot(next);
+  searcher.setRoot(next);
   gitIpc.onRootChanged(next);
   await saveWorkspaceRoot(next);
   startWatching();
@@ -44,6 +48,7 @@ async function setRoot(next: string): Promise<WorkspaceInfo> {
 export async function registerIpc() {
   root = await loadWorkspaceRoot();
   indexer.setRoot(root);
+  searcher.setRoot(root);
   gitIpc.onRootChanged(root);
   startWatching();
 
@@ -71,6 +76,7 @@ export async function registerIpc() {
     indexer.renameWithLinks(requireRoot(), path, newName),
   );
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
+  ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 
   registerAiIpc(requireRoot);
   gitIpc.register();

@@ -86,6 +86,9 @@ export function Sidebar() {
             className="h-8 w-full rounded-md border bg-background pr-2 pl-8 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
           />
         </label>
+        <Button size="icon" variant="outline" className="size-8" title="전체 검색 (Ctrl/Cmd+K)" aria-label="전체 검색" onClick={() => useUiStore.getState().setPaletteOpen(true)}>
+          <Search />
+        </Button>
         <Button size="icon" variant="outline" className="size-8" title="새 글" aria-label="새 글" onClick={() => void createNote()}>
           <Plus />
         </Button>

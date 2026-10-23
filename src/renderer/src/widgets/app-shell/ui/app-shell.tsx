@@ -1,10 +1,12 @@
 import { FilePlus2, FolderOpen, PenLine } from "lucide-react";
+import { useEffect } from "react";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
+import { CommandPalette } from "@/features/search/ui/command-palette";
 import { Button } from "@/shared/ui/button";
 
 import { RightPanel } from "./right-panel";
@@ -54,6 +56,19 @@ export function AppShell() {
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
+  // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey) return;
+      if (event.key.toLowerCase() !== "k" && event.key.toLowerCase() !== "p") return;
+      event.preventDefault();
+      const { paletteOpen, setPaletteOpen } = useUiStore.getState();
+      if (useWorkspaceStore.getState().root) setPaletteOpen(!paletteOpen);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
   if (!ready) return null;
   if (!root) return <WelcomeScreen />;
 
@@ -70,6 +85,7 @@ export function AppShell() {
         )}
       </main>
       {view === "editor" && rightPanelOpen && <RightPanel />}
+      <CommandPalette />
     </div>
   );
 }

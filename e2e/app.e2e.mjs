@@ -282,6 +282,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");
   await page.getByRole("button", { name: "닫기" }).click();
 
+  // 전체 검색 (Ctrl+K)
+  await page.click(".note-prose");
+  await page.keyboard.press("Control+k");
+  await page.waitForSelector("[role='dialog'][aria-label='글 검색']");
+  assert(await page.evaluate(() => document.activeElement?.getAttribute("aria-label") === "검색어"), "Ctrl+K로 검색창이 열리고 입력창에 포커스가 간다");
+  assert((await page.innerText("[role='dialog']")).includes("최근 글"), "검색어가 없으면 최근 글을 보여준다");
+  await page.keyboard.type("계셔서");
+  await page.waitForSelector("[role='option'] mark");
+  const optionText = await page.innerText("[role='option'] >> nth=0");
+  const markText = await page.innerText("[role='option'] mark >> nth=0");
+  assert(optionText.includes("교정 대상") && markText === "계셔서", `본문에서 찾아 일치한 단어를 강조한다 (${markText})`);
+  await page.screenshot({ path: path.join(OUT, "12-search.png") });
+  await page.keyboard.press("Enter");
+  await page.waitForSelector("[role='dialog'][aria-label='글 검색']", { state: "detached" });
+  await page.waitForFunction(() => getSelection()?.toString() === "계셔서", null, { timeout: 5000 });
+  console.log("ok  : Enter로 글을 열면 찾은 단어가 선택되어 보인다");
+
+  await page.keyboard.press("Control+p");
+  await page.waitForSelector("[role='dialog'][aria-label='글 검색']");
+  await page.keyboard.type("원칙");
+  await page.waitForFunction(() => /\d+개/.test(document.querySelector("[role='dialog']")?.textContent ?? ""));
+  const titleHits = await page.$$eval("[role='option']", (els) => els.map((e) => e.textContent?.slice(0, 40)));
+  assert(titleHits[0]?.includes("글쓰기 원칙"), `제목으로도 찾고 가장 위에 온다 ${JSON.stringify(titleHits)}`);
+  await page.keyboard.press("Escape");
+  await page.waitForSelector("[role='dialog'][aria-label='글 검색']", { state: "detached" });
+  console.log("ok  : Esc로 검색창이 닫힌다");
+
   // Git 연동
   const git = (cwd, ...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
   const gitEnv = { GIT_AUTHOR_NAME: "테스터", GIT_AUTHOR_EMAIL: "t@example.com", GIT_COMMITTER_NAME: "테스터", GIT_COMMITTER_EMAIL: "t@example.com" };

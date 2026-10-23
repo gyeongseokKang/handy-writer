@@ -1,6 +1,8 @@
 import type { AiEvent } from "@shared/ai";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
+import { searchNotes } from "@shared/search";
+import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
 const SEED: Record<string, string> = {
@@ -114,6 +116,13 @@ export function createMockApi(): HandyApi {
           name: toMeta(path).name,
           ...parseNote(content),
         })),
+    },
+    search: {
+      query: async (query) =>
+        searchNotes(
+          [...files.entries()].map(([path, content]) => ({ path, name: toMeta(path).name, body: splitFrontmatter(content).body, tags: parseNote(content).tags })),
+          query,
+        ),
     },
     rules: {
       get: async () => rules,

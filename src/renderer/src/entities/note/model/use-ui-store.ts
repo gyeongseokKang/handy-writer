@@ -10,6 +10,9 @@ interface UiState {
   selectedTag: string | null;
   rightPanelOpen: boolean;
   rightTab: RightTab;
+  paletteOpen: boolean;
+  /** 검색 결과에서 연 글에서 처음 보여줄 단어 */
+  pendingFind: string | null;
 
   setView: (view: MainView) => void;
   setSidebarView: (view: SidebarView) => void;
@@ -18,6 +21,8 @@ interface UiState {
   showTag: (tag: string) => void;
   toggleRightPanel: () => void;
   setRightTab: (tab: RightTab) => void;
+  setPaletteOpen: (open: boolean) => void;
+  setPendingFind: (term: string | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -26,6 +31,8 @@ export const useUiStore = create<UiState>((set) => ({
   selectedTag: null,
   rightPanelOpen: true,
   rightTab: "links",
+  paletteOpen: false,
+  pendingFind: null,
 
   setView: (view) => set({ view }),
   setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -33,4 +40,6 @@ export const useUiStore = create<UiState>((set) => ({
   showTag: (tag) => set({ sidebarView: "tags", selectedTag: tag, view: "editor" }),
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
   setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true }),
+  setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
+  setPendingFind: (pendingFind) => set({ pendingFind }),
 }));
