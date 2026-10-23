@@ -1,0 +1,69 @@
+import { ipcMain } from "electron";
+
+import type { AiEvent, AiRequest, AiTask } from "../../shared/ai";
+import { buildUserPrompt } from "../../shared/ai-prompt";
+import { IPC } from "../../shared/types";
+import { claudeStatus, findClaude, runClaude } from "./claude-cli";
+import { readRules, writeRules } from "./rules";
+
+const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom"];
+
+/** 렌더러에서 온 값을 믿지 않고 모양을 확인한다. */
+function parseRequest(value: unknown): AiRequest {
+  const v = value as Partial<AiRequest> | null;
+  const str = (x: unknown) => (typeof x === "string" ? x : "");
+  if (!v || !TASKS.includes(v.task as AiTask)) throw new Error("알 수 없는 AI 작업이에요.");
+  if (!str(v.runId)) throw new Error("runId가 없어요.");
+  return {
+    runId: str(v.runId),
+    task: v.task as AiTask,
+    rules: str(v.rules),
+    noteName: str(v.noteName),
+    text: str(v.text),
+    before: str(v.before),
+    instruction: str(v.instruction),
+    references: Array.isArray(v.references)
+      ? v.references.map((ref) => ({ name: str(ref?.name), content: str(ref?.content) }))
+      : [],
+  };
+}
+
+export function registerAiIpc(requireRoot: () => string) {
+  const runs = new Map<string, AbortController>();
+
+  ipcMain.handle(IPC.rulesGet, () => readRules(requireRoot()));
+  ipcMain.handle(IPC.rulesSet, (_e, content: string) => writeRules(requireRoot(), String(content)));
+
+  ipcMain.handle(IPC.aiStatus, () => claudeStatus());
+
+  ipcMain.handle(IPC.aiRun, async (event, raw: unknown) => {
+    const request = parseRequest(raw);
+    const root = requireRoot();
+    const exe = await findClaude();
+    if (!exe) throw new Error((await claudeStatus()).reason ?? "claude를 찾지 못했어요.");
+
+    const runId = request.runId;
+    const controller = new AbortController();
+    runs.set(runId, controller);
+    const send = (aiEvent: AiEvent) => {
+      if (!event.sender.isDestroyed()) event.sender.send(IPC.aiEvent, aiEvent);
+    };
+
+    runClaude({
+      exe,
+      cwd: root,
+      prompt: buildUserPrompt(request),
+      signal: controller.signal,
+      onDelta: (text) => send({ runId, type: "delta", text }),
+    })
+      .then((text) => send({ runId, type: "done", text }))
+      .catch((error: unknown) => send({ runId, type: "error", message: error instanceof Error ? error.message : String(error) }))
+      .finally(() => runs.delete(runId));
+
+    return runId;
+  });
+
+  ipcMain.handle(IPC.aiCancel, (_e, runId: string) => {
+    runs.get(runId)?.abort();
+  });
+}

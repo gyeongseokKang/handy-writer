@@ -31,6 +31,9 @@ pnpm build:linux  # 리눅스 설치 파일
 - 태그: frontmatter `tags`와 본문 `#태그`(중첩 `#a/b` 포함), 사이드바 태그 탭, 본문 태그 칩 클릭
 - 없는 글로 가는 `[[링크]]`는 흐리게 표시
 - 그래프 보기: 글과 링크를 force 그래프로 표시 (고립된 글 숨기기, 없는 글 보기, 글 찾기)
+- AI 패널(오른쪽 `AI` 탭): 맞춤법 교정(변경 내용 diff), 다듬기, 이어쓰기, 지시대로 처리. 선택한 부분만, 선택이 없으면 본문 전체가 대상
+- 나의 글쓰기 룰: 작업 폴더의 `.handy-writer/rules.md` (git으로 글과 함께 관리), 모든 AI 요청에 자동 포함
+- 참고할 글: 직접 고르거나 이 글이 링크한 글을 자동 포함하면, AI가 `[[글 이름]]`으로 출처를 밝혀 인용
 - 글 이름을 바꾸면 다른 글의 `[[링크]]`도 새 이름으로 자동 수정 (섹션, 별칭, 코드 블록 보존)
 
 ## Structure
@@ -43,10 +46,18 @@ src/
 └── renderer/   # React app (app / widgets / features / entities / shared)
 ```
 
+## AI 연동
+
+로컬에 설치되어 로그인된 [Claude Code](https://claude.com/claude-code) CLI(`claude`)를 자식 프로세스로 실행해요. 앱에는 API 키가 필요 없어요.
+
+- 프롬프트는 stdin으로 넘기고, 도구는 모두 끈 채(`--tools ""`)로 텍스트만 받아요.
+- `claude`를 못 찾으면 환경변수 `HANDY_WRITER_CLAUDE_PATH`로 경로를 지정할 수 있어요.
+- 개발 모드 E2E는 `e2e/fake-claude.mjs`(같은 stream-json 형식)로 돌아서 네트워크가 필요 없어요.
+
 ## 로드맵
 
 - [x] 앱 셸, 파일 기반 저장
 - [x] 에디터 (슬래시 메뉴, 위키링크, 콜아웃)
 - [x] 링크 색인: 백링크, 태그, 그래프
-- [ ] AI 패널 (Claude Code CLI): 글쓰기 룰, 맞춤법 교정, 이어쓰기와 인용
+- [x] AI 패널 (Claude Code CLI): 글쓰기 룰, 맞춤법 교정, 이어쓰기와 인용
 - [ ] git 연동

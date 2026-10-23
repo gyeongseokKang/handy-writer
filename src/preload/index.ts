@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
+import type { AiEvent } from "../shared/ai";
 import { IPC, type HandyApi, type NotesChangedEvent } from "../shared/types";
 
 const api: HandyApi = {
@@ -19,6 +20,20 @@ const api: HandyApi = {
   },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),
+  },
+  rules: {
+    get: () => ipcRenderer.invoke(IPC.rulesGet),
+    set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
+  },
+  ai: {
+    status: () => ipcRenderer.invoke(IPC.aiStatus),
+    run: (request) => ipcRenderer.invoke(IPC.aiRun, request),
+    cancel: (runId) => ipcRenderer.invoke(IPC.aiCancel, runId),
+    onEvent: (listener) => {
+      const handler = (_e: unknown, event: AiEvent) => listener(event);
+      ipcRenderer.on(IPC.aiEvent, handler);
+      return () => ipcRenderer.removeListener(IPC.aiEvent, handler);
+    },
   },
   onNotesChanged: (listener) => {
     const handler = (_e: unknown, event: NotesChangedEvent) => listener(event);

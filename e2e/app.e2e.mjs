@@ -25,8 +25,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   fs.writeFileSync(path.join(ws, "글쓰기 규칙.md"), "# 규칙\n\n짧게 쓴다.\n");
   fs.writeFileSync(path.join(ws, "일기", "오늘.md"), "오늘의 일기\n");
 
+  const aiLog = path.join(ud, "fake-claude.log");
   const app = await electron.launch({
     executablePath: electronPath,
+    env: { ...process.env, HANDY_WRITER_CLAUDE_PATH: path.join(ROOT, "e2e", "fake-claude.mjs"), FAKE_CLAUDE_LOG: aiLog },
     args: [ROOT, "--no-sandbox", "--disable-gpu", `--user-data-dir=${ud}`],
   });
   const logs = [];
@@ -205,6 +207,79 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.screenshot({ path: path.join(OUT, "8-graph.png") });
   await page.click("button[aria-label='그래프 보기']");
   await page.waitForSelector(".note-prose");
+
+  // AI 패널 (가짜 claude CLI 사용)
+  fs.writeFileSync(path.join(ws, "교정 대상.md"), "나는 어제 학교에 갔는데 선생님이 않계셔서 되돌아 왔다.\n\n둘째 문단입니다.\n");
+  await page.click("nav[aria-label='글 목록'] >> text=교정 대상");
+  await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("둘째 문단입니다"));
+  await page.getByRole("tab", { name: "AI" }).click();
+  await page.waitForSelector("[aria-label='AI 도우미']");
+  assert((await page.locator("[role='alert']").count()) === 0, "claude CLI가 감지되면 경고가 없다");
+
+  // 글쓰기 룰 저장
+  await page.locator("summary", { hasText: "나의 글쓰기 룰" }).click();
+  await page.fill("textarea[aria-label='글쓰기 룰']", "- 존댓말을 쓴다\n- 한 문장은 60자 이내");
+  await page.getByRole("button", { name: "저장", exact: true }).click();
+  await sleep(500);
+  assert(
+    fs.readFileSync(path.join(ws, ".handy-writer", "rules.md"), "utf8") === "- 존댓말을 쓴다\n- 한 문장은 60자 이내",
+    "글쓰기 룰이 작업 폴더의 .handy-writer/rules.md에 저장된다",
+  );
+
+  // 참고할 글 추가
+  await page.fill("input[aria-label='참고할 글 찾기']", "글쓰기");
+  await page.click("[aria-label='AI 도우미'] li >> text=글쓰기 원칙");
+  await page.waitForSelector("ul[aria-label='참고할 글'] >> text=글쓰기 원칙");
+
+  // 선택한 문단만 맞춤법 교정
+  await page.click(".note-prose > p >> nth=0");
+  await page.keyboard.press("Home");
+  await page.keyboard.press("Shift+End");
+  await page.getByRole("button", { name: "맞춤법 교정" }).click();
+  await page.waitForSelector("[aria-label='변경 내용'] ins", { timeout: 10000 });
+  const added = await page.$$eval("[aria-label='변경 내용'] ins", (els) => els.map((e) => e.textContent?.trim()).join("|"));
+  const removed = await page.$$eval("[aria-label='변경 내용'] del", (els) => els.map((e) => e.textContent?.trim()).join("|"));
+  assert(added.includes("안") && removed.includes("않"), `교정 결과가 변경 내용(diff)으로 보인다 (+${added} / -${removed})`);
+  await page.screenshot({ path: path.join(OUT, "9-ai-proofread.png") });
+
+  const calls = fs.readFileSync(aiLog, "utf8").trim().split("\n").map((line) => JSON.parse(line));
+  const call = calls[calls.length - 1];
+  assert(call.input.includes("- 존댓말을 쓴다") && call.input.includes("<writing_rules>"), "프롬프트에 글쓰기 룰이 들어간다");
+  assert(call.input.includes('<note name="글쓰기 원칙">'), "프롬프트에 참고할 글이 이름과 함께 들어간다");
+  assert(call.input.includes("<text>\n나는 어제 학교에 갔는데") && !call.input.includes("둘째 문단입니다"), "선택한 문단만 대상으로 보낸다");
+  assert(call.args.includes("--tools") && call.args[call.args.indexOf("--tools") + 1] === "", "AI 호출에서 도구를 끈다");
+
+  await page.getByRole("button", { name: "선택 부분에 적용" }).click();
+  await sleep(1500);
+  assert(
+    fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8") === "나는 어제 학교에 갔는데 선생님이 안 계셔서 되돌아왔다.\n\n둘째 문단입니다.\n",
+    "교정 결과가 선택한 문단에만 적용되고 저장된다",
+  );
+
+  // 이어쓰기 → 아래에 삽입 (위키링크 포함)
+  await page.click(".note-prose > p >> nth=1");
+  await page.getByRole("button", { name: "이어쓰기" }).click();
+  await page.waitForSelector("[aria-label='결과 글']:has-text('글쓰기 규칙')", { timeout: 10000 });
+  await page.getByRole("button", { name: "아래에 삽입" }).click();
+  await sleep(1500);
+  assert(
+    fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8").endsWith("둘째 문단입니다.\n\n이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요.\n"),
+    "이어쓰기 결과가 아래에 삽입되고 [[링크]]가 링크로 저장된다",
+  );
+
+  // 오류와 취소
+  await page.fill("textarea[aria-label='추가 요청']", "FAIL");
+  await page.getByRole("button", { name: "지시대로 처리" }).click();
+  await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('로그인이 필요해요')", { timeout: 10000 });
+  console.log("ok  : CLI 오류 메시지를 화면에 보여준다");
+  await page.getByRole("button", { name: "닫기" }).click();
+
+  await page.fill("textarea[aria-label='추가 요청']", "SLOW");
+  await page.getByRole("button", { name: "다듬기" }).click();
+  await page.getByRole("button", { name: "중지" }).click();
+  await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
+  console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");
+  await page.getByRole("button", { name: "닫기" }).click();
 
   assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.length ? JSON.stringify(logs) : ""}`);
   await app.close();

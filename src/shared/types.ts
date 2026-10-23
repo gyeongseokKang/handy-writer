@@ -1,3 +1,5 @@
+import type { AiEvent, AiRequest, AiStatus } from "./ai";
+
 export interface NoteMeta {
   /** 작업 폴더 기준 상대 경로 (POSIX 구분자, .md 포함) */
   path: string;
@@ -50,6 +52,17 @@ export interface HandyApi {
   index: {
     get: () => Promise<NoteIndexEntry[]>;
   };
+  rules: {
+    get: () => Promise<string>;
+    set: (content: string) => Promise<void>;
+  };
+  ai: {
+    status: () => Promise<AiStatus>;
+    /** 실행을 시작하고 runId를 돌려준다. 결과는 onEvent로 흘러온다. */
+    run: (request: AiRequest) => Promise<string>;
+    cancel: (runId: string) => Promise<void>;
+    onEvent: (listener: (event: AiEvent) => void) => () => void;
+  };
   onNotesChanged: (listener: (event: NotesChangedEvent) => void) => () => void;
 }
 
@@ -64,5 +77,11 @@ export const IPC = {
   notesRename: "notes:rename",
   notesRemove: "notes:remove",
   indexGet: "index:get",
+  rulesGet: "rules:get",
+  rulesSet: "rules:set",
+  aiStatus: "ai:status",
+  aiRun: "ai:run",
+  aiCancel: "ai:cancel",
+  aiEvent: "ai:event",
   notesChanged: "notes:changed",
 } as const;

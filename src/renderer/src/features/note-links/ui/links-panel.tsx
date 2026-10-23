@@ -35,7 +35,7 @@ export function LinksPanel() {
   if (!activePath) return null;
 
   return (
-    <aside aria-label="연결 정보" className="flex h-full w-72 shrink-0 flex-col divide-y overflow-y-auto border-l bg-muted/20">
+    <div aria-label="연결 정보" role="region" className="flex flex-col divide-y">
       <Section title="태그" count={entry?.tags.length ?? 0}>
         {entry && entry.tags.length > 0 ? (
           <div className="flex flex-wrap gap-1.5">
@@ -101,6 +101,6 @@ export function LinksPanel() {
           <p className="text-sm text-muted-foreground">연결한 글이 없어요</p>
         )}
       </Section>
-    </aside>
+    </div>
   );
 }

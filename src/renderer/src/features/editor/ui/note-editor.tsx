@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
@@ -12,6 +13,7 @@ import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
 import { registerFlusher } from "@/shared/lib/pending-saves";
 
 import { createExtensions } from "../lib/create-extensions";
+import { createEditorBridge } from "../lib/editor-bridge";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { NoteTitle } from "./note-title";
 
@@ -106,6 +108,18 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       cancelled = true;
     };
   }, [editor, path]);
+
+  // AI 패널이 선택한 글을 읽고 결과를 적용할 수 있게 에디터를 등록
+  const nameRef = useRef(name);
+  nameRef.current = name;
+  useEffect(() => {
+    if (!editor) return;
+    const bridge = createEditorBridge(editor, () => nameRef.current);
+    useEditorBridge.getState().setBridge(bridge);
+    return () => {
+      if (useEditorBridge.getState().bridge === bridge) useEditorBridge.getState().setBridge(null);
+    };
+  }, [editor]);
 
   // 색인이 바뀌면(글이 생기거나 지워지면) 없는 글로 가는 링크 표시를 다시 계산
   const indexEntries = useNoteIndexStore((state) => state.entries);

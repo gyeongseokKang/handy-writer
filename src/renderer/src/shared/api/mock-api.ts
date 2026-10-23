@@ -1,3 +1,4 @@
+import type { AiEvent } from "@shared/ai";
 import { parseNote } from "@shared/note-parser";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
@@ -41,6 +42,8 @@ function toMeta(path: string): NoteMeta {
 export function createMockApi(): HandyApi {
   const files = new Map(Object.entries(SEED));
   const listeners = new Set<(event: NotesChangedEvent) => void>();
+  const aiListeners = new Set<(event: AiEvent) => void>();
+  let rules = "";
   const emit = (...paths: string[]) => listeners.forEach((listener) => listener({ paths }));
 
   return {
@@ -92,6 +95,29 @@ export function createMockApi(): HandyApi {
           name: toMeta(path).name,
           ...parseNote(content),
         })),
+    },
+    rules: {
+      get: async () => rules,
+      set: async (content) => {
+        rules = content;
+      },
+    },
+    ai: {
+      status: async () => ({ available: true, version: "mock", path: "mock" }),
+      run: async (request) => {
+        const { runId } = request;
+        const result = request.task === "continue" ? "이어서 쓴 [목업] 문장입니다." : request.text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다");
+        window.setTimeout(() => {
+          aiListeners.forEach((listener) => listener({ runId, type: "delta", text: result }));
+          aiListeners.forEach((listener) => listener({ runId, type: "done", text: result }));
+        }, 300);
+        return runId;
+      },
+      cancel: async () => {},
+      onEvent: (listener) => {
+        aiListeners.add(listener);
+        return () => aiListeners.delete(listener);
+      },
     },
     onNotesChanged: (listener) => {
       listeners.add(listener);

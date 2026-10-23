@@ -4,9 +4,10 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { GraphView } from "@/features/graph/ui/graph-view";
-import { LinksPanel } from "@/features/note-links/ui/links-panel";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
 import { Button } from "@/shared/ui/button";
+
+import { RightPanel } from "./right-panel";
 
 function WelcomeScreen() {
   const chooseFolder = useWorkspaceStore((state) => state.chooseFolder);
@@ -68,7 +69,7 @@ export function AppShell() {
           <EmptyEditor />
         )}
       </main>
-      {view === "editor" && rightPanelOpen && activePath && <LinksPanel />}
+      {view === "editor" && rightPanelOpen && activePath && <RightPanel />}
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { IPC, type WorkspaceInfo } from "../shared/types";
+import { registerAiIpc } from "./ai/ipc-ai";
 import { NoteIndexer } from "./notes-index";
 import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
@@ -66,5 +67,7 @@ export async function registerIpc() {
     indexer.renameWithLinks(requireRoot(), path, newName),
   );
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
+
+  registerAiIpc(requireRoot);
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
 }
