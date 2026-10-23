@@ -144,6 +144,68 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await sleep(1500);
   assert(fs.readFileSync(path.join(ws, "일기", "오늘.md"), "utf8") === "**오늘의 일기**\n", "선택 서식 툴바로 적용한 굵게가 저장된다");
 
+  // 연결 정보: 백링크, 태그, 없는 글, 이름 변경 시 링크 갱신
+  await page.fill("input[aria-label='글 검색']", "");
+  await page.click("nav[aria-label='글 목록'] >> text=글쓰기 규칙");
+  await page.waitForSelector("ul[aria-label='백링크'] >> text=시작하기", { timeout: 5000 });
+  console.log("ok  : 연결 정보 패널에 백링크(시작하기)가 보인다");
+  await page.screenshot({ path: path.join(OUT, "6-links-panel.png") });
+
+  await page.getByRole("tab", { name: "태그" }).click();
+  await page.waitForSelector("ul[aria-label='태그 목록'] >> text=가이드", { timeout: 5000 });
+  await page.click("ul[aria-label='태그 목록'] >> text=가이드");
+  await page.click("ul[aria-label='태그 목록'] >> text=시작하기");
+  await page.waitForSelector(".note-prose .callout");
+  console.log("ok  : 태그 탭에서 frontmatter 태그로 글을 찾아 연다");
+  await page.getByRole("tab", { name: "글" }).click();
+
+  await page.click("nav[aria-label='글 목록'] >> text=나의 첫 글");
+  await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("새 글 본문입니다"));
+  await page.click(".note-prose > p:last-of-type");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" #아이디어 ");
+  await page.keyboard.type("[[아직 없는 글]]");
+  await page.keyboard.press("Escape");
+  await page.waitForSelector(".note-prose .note-tag[data-tag='아이디어']");
+  await page.waitForSelector(".note-prose .wikilink-missing");
+  console.log("ok  : 본문 #태그는 칩으로, 없는 글 링크는 흐리게 보인다");
+  await sleep(1200);
+  assert(
+    fs.readFileSync(path.join(ws, "나의 첫 글.md"), "utf8") === "새 글 본문입니다 #아이디어 [[아직 없는 글]]\n",
+    "직접 타이핑한 [[링크]]가 깨지지 않고 그대로 저장된다",
+  );
+  await page.waitForSelector("ul[aria-label='나가는 링크'] >> text=아직 없는 글", { timeout: 5000 });
+  await page.screenshot({ path: path.join(OUT, "7-tag-and-missing.png") });
+  await page.getByRole("tab", { name: "태그" }).click();
+  await page.waitForSelector("ul[aria-label='태그 목록'] >> text=아이디어", { timeout: 5000 });
+  console.log("ok  : 새로 쓴 #태그가 태그 목록에 반영된다");
+  await page.getByRole("tab", { name: "글" }).click();
+
+  await page.click("ul[aria-label='나가는 링크'] >> text=아직 없는 글");
+  await sleep(800);
+  assert(fs.existsSync(path.join(ws, "아직 없는 글.md")), "없는 글 링크를 누르면 그 이름의 글이 만들어진다");
+
+  await page.click("nav[aria-label='글 목록'] >> text=글쓰기 규칙");
+  await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("다시 밖에서 바꾼 내용"));
+  const renameTitle = page.locator("input[aria-label='글 제목']");
+  await renameTitle.fill("글쓰기 원칙");
+  await renameTitle.press("Enter");
+  await sleep(1200);
+  const linked = fs.readFileSync(path.join(ws, "시작하기.md"), "utf8");
+  assert(linked.includes("[[글쓰기 원칙]]") && !linked.includes("[[글쓰기 규칙]]"), "글 이름을 바꾸면 다른 글의 [[링크]]도 새 이름으로 바뀐다");
+  assert(linked.startsWith("---\ntitle: 시작\ntags: [가이드]\n---\n"), "링크를 고쳐 쓴 글의 frontmatter도 그대로다");
+
+  // 그래프
+  await page.click("button[aria-label='그래프 보기']");
+  await page.waitForSelector("[data-node-count]");
+  await page.waitForFunction(() => document.querySelector("[data-node-count]")?.getAttribute("data-node-count") === "5", null, { timeout: 5000 });
+  const linkCount = await page.getAttribute("[data-node-count]", "data-link-count");
+  assert(linkCount === "2", `그래프에 글 5개와 링크 2개가 그려진다 (링크 ${linkCount}개)`);
+  await sleep(2500);
+  await page.screenshot({ path: path.join(OUT, "8-graph.png") });
+  await page.click("button[aria-label='그래프 보기']");
+  await page.waitForSelector(".note-prose");
+
   assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.length ? JSON.stringify(logs) : ""}`);
   await app.close();
 })().catch((e) => { console.error("SCRIPT ERROR", e); process.exit(1); });

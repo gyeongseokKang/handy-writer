@@ -17,6 +17,9 @@ const api: HandyApi = {
     rename: (path, newName) => ipcRenderer.invoke(IPC.notesRename, path, newName),
     remove: (path) => ipcRenderer.invoke(IPC.notesRemove, path),
   },
+  index: {
+    get: () => ipcRenderer.invoke(IPC.indexGet),
+  },
   onNotesChanged: (listener) => {
     const handler = (_e: unknown, event: NotesChangedEvent) => listener(event);
     ipcRenderer.on(IPC.notesChanged, handler);

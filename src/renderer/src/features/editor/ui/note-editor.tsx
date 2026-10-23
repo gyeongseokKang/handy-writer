@@ -4,9 +4,11 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
-import { serializeNote, splitFrontmatter } from "@/shared/lib/frontmatter";
+import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
 import { registerFlusher } from "@/shared/lib/pending-saves";
 
 import { createExtensions } from "../lib/create-extensions";
@@ -42,6 +44,8 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       createExtensions({
         getNoteNames: () => useWorkspaceStore.getState().notes.map((note) => note.name),
         onNavigate: (target) => void useWorkspaceStore.getState().openLink(target),
+        isResolved: (target) => useNoteIndexStore.getState().resolve(target) !== null,
+        onTagClick: (tag) => useUiStore.getState().showTag(tag),
       }),
     [],
   );
@@ -102,6 +106,12 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       cancelled = true;
     };
   }, [editor, path]);
+
+  // 색인이 바뀌면(글이 생기거나 지워지면) 없는 글로 가는 링크 표시를 다시 계산
+  const indexEntries = useNoteIndexStore((state) => state.entries);
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta("refreshDecorations", true));
+  }, [editor, indexEntries]);
 
   // 글을 바꾸거나 닫기 전에 저장 대기 중인 내용을 쓸 수 있게 등록
   useEffect(() => registerFlusher(path, () => flushRef.current()), [path]);

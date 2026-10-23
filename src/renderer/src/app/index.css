@@ -127,6 +127,22 @@
 .note-prose .wikilink:hover { text-decoration: underline; text-underline-offset: 3px; }
 .note-prose .wikilink.ProseMirror-selectednode { outline: 2px solid var(--ring); }
 
+.note-prose .wikilink-missing {
+  color: var(--muted-foreground);
+  background: transparent;
+  border-bottom: 1px dashed var(--muted-foreground);
+  border-radius: 0;
+}
+
+/* #태그 */
+.note-prose .note-tag {
+  color: var(--primary);
+  background: var(--accent);
+  border-radius: 9999px;
+  padding: 0.05em 0.45em;
+  cursor: pointer;
+}
+
 /* 콜아웃 */
 .note-prose .callout {
   --callout: oklch(0.62 0.15 250);

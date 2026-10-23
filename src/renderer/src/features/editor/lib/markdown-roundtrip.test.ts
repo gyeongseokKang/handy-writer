@@ -2,14 +2,14 @@
 import { Editor } from "@tiptap/core";
 import { describe, expect, it } from "vitest";
 
-import { serializeNote, splitFrontmatter } from "@/shared/lib/frontmatter";
+import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
 
 import { createExtensions } from "./create-extensions";
 
 function roundTrip(markdown: string) {
   const editor = new Editor({
     element: document.createElement("div"),
-    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {} }),
+    extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {} }),
     content: markdown,
     contentType: "markdown",
   });
@@ -18,6 +18,32 @@ function roundTrip(markdown: string) {
   editor.destroy();
   return { output, json };
 }
+
+/** 키보드 입력을 흉내 낸다. ProseMirror의 handleTextInput(입력 규칙 포함)을 먼저 거치고, 처리되지 않으면 글자를 넣는다. */
+function typeText(editor: Editor, text: string) {
+  for (const char of text) {
+    const { from, to } = editor.state.selection;
+    const insert = () => editor.state.tr.insertText(char, from, to);
+    const handled = editor.view.someProp("handleTextInput", (handler) => handler(editor.view, from, to, char, insert));
+    if (!handled) editor.view.dispatch(insert());
+  }
+}
+
+describe("직접 타이핑한 [[위키링크]]", () => {
+  it("끝까지 입력하면 `[[`나 `]]` 글자가 남지 않고 링크 노드 하나가 된다", () => {
+    const editor = new Editor({
+      element: document.createElement("div"),
+      extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {} }),
+      content: "",
+      contentType: "markdown",
+    });
+    editor.commands.focus("end");
+    typeText(editor, "앞 [[노트#절|별칭]] 뒤");
+    expect(editor.getMarkdown()).toBe("앞 [[노트#절|별칭]] 뒤");
+    expect(JSON.stringify(editor.getJSON()).match(/"type":"wikiLink"/g)).toHaveLength(1);
+    editor.destroy();
+  });
+});
 
 describe("마크다운 왕복 (옵시디언 호환)", () => {
   it("위키링크를 이스케이프하지 않고 링크 노드로 인식한다", () => {

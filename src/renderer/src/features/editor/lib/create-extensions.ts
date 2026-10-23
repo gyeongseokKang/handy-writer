@@ -8,9 +8,12 @@ import StarterKit from "@tiptap/starter-kit";
 
 import { Callout } from "./callout";
 import { SlashCommand } from "./slash-command";
+import { TagHighlight, type TagHighlightOptions } from "./tag-highlight";
 import { WikiLink, type WikiLinkOptions } from "./wiki-link";
 
-export function createExtensions(wikiLink: WikiLinkOptions): Extensions {
+export interface EditorCallbacks extends WikiLinkOptions, TagHighlightOptions {}
+
+export function createExtensions({ onTagClick, ...wikiLink }: EditorCallbacks): Extensions {
   return [
     StarterKit.configure({
       // 밑줄은 마크다운에 없는 서식이라 쓰지 않는다.
@@ -29,6 +32,7 @@ export function createExtensions(wikiLink: WikiLinkOptions): Extensions {
         node.type.name === "heading" ? "제목" : "내용을 입력하세요. /로 블록을, [[로 다른 글을 연결해요",
     }),
     WikiLink.configure(wikiLink),
+    TagHighlight.configure({ onTagClick }),
     Callout,
     SlashCommand,
   ];

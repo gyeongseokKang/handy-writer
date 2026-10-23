@@ -1,3 +1,4 @@
+import { parseNote } from "@shared/note-parser";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
 const SEED: Record<string, string> = {
@@ -77,12 +78,20 @@ export function createMockApi(): HandyApi {
         files.set(next, files.get(path) ?? "");
         if (next !== path) files.delete(path);
         emit(path, next);
-        return toMeta(next);
+        return { meta: toMeta(next), updatedNotes: 0 };
       },
       remove: async (path) => {
         files.delete(path);
         emit(path);
       },
+    },
+    index: {
+      get: async () =>
+        [...files.entries()].map(([path, content]) => ({
+          path,
+          name: toMeta(path).name,
+          ...parseNote(content),
+        })),
     },
     onNotesChanged: (listener) => {
       listeners.add(listener);

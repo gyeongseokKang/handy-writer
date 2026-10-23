@@ -1,0 +1,31 @@
+import { create } from "zustand";
+
+type MainView = "editor" | "graph";
+type SidebarView = "notes" | "tags";
+
+interface UiState {
+  view: MainView;
+  sidebarView: SidebarView;
+  selectedTag: string | null;
+  rightPanelOpen: boolean;
+
+  setView: (view: MainView) => void;
+  setSidebarView: (view: SidebarView) => void;
+  selectTag: (tag: string | null) => void;
+  /** 태그 목록에서 해당 태그를 펼쳐 보여준다. */
+  showTag: (tag: string) => void;
+  toggleRightPanel: () => void;
+}
+
+export const useUiStore = create<UiState>((set) => ({
+  view: "editor",
+  sidebarView: "notes",
+  selectedTag: null,
+  rightPanelOpen: true,
+
+  setView: (view) => set({ view }),
+  setSidebarView: (sidebarView) => set({ sidebarView }),
+  selectTag: (selectedTag) => set({ selectedTag }),
+  showTag: (tag) => set({ sidebarView: "tags", selectedTag: tag, view: "editor" }),
+  toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
+}));

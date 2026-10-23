@@ -5,6 +5,8 @@ import { create } from "zustand";
 import { api } from "@/shared/api/handy-api";
 import { flushPath } from "@/shared/lib/pending-saves";
 
+import { useUiStore } from "./use-ui-store";
+
 const LAST_NOTE_KEY = "handy-writer:last-note";
 
 function readLastNote() {
@@ -116,6 +118,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     openNote: async (path) => {
+      useUiStore.getState().setView("editor");
       const current = get().activePath;
       if (path === current) return;
       await flushPath(current);
@@ -136,6 +139,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         await flushPath(get().activePath);
         const meta = await api.notes.create(folder, title);
         await get().refresh();
+        useUiStore.getState().setView("editor");
         rememberNote(meta.path);
         set({ activePath: meta.path });
         if (folder) set((state) => ({ collapsedFolders: { ...state.collapsedFolders, [folder]: false } }));
@@ -147,7 +151,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     renameNote: async (path, newName) => {
       try {
         await flushPath(path);
-        const meta = await api.notes.rename(path, newName);
+        const { meta, updatedNotes } = await api.notes.rename(path, newName);
+        if (updatedNotes > 0) toast.success(`${updatedNotes}개 글의 링크를 새 이름으로 고쳤어요.`);
         await get().refresh();
         if (get().activePath === path || get().activePath === null) {
           rememberNote(meta.path);

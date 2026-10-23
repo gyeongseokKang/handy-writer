@@ -1,7 +1,10 @@
 import { FilePlus2, FolderOpen, PenLine } from "lucide-react";
 
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
+import { GraphView } from "@/features/graph/ui/graph-view";
+import { LinksPanel } from "@/features/note-links/ui/links-panel";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
 import { Button } from "@/shared/ui/button";
 
@@ -46,6 +49,8 @@ export function AppShell() {
   const ready = useWorkspaceStore((state) => state.ready);
   const root = useWorkspaceStore((state) => state.root);
   const activePath = useWorkspaceStore((state) => state.activePath);
+  const view = useUiStore((state) => state.view);
+  const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
   if (!ready) return null;
@@ -55,12 +60,15 @@ export function AppShell() {
     <div className="flex h-screen">
       <Sidebar />
       <main className="min-w-0 flex-1">
-        {activePath && activeName !== undefined ? (
+        {view === "graph" ? (
+          <GraphView />
+        ) : activePath && activeName !== undefined ? (
           <NoteEditor key={activePath} path={activePath} name={activeName} />
         ) : (
           <EmptyEditor />
         )}
       </main>
+      {view === "editor" && rightPanelOpen && activePath && <LinksPanel />}
     </div>
   );
 }

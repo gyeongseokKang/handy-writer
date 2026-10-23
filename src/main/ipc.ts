@@ -4,12 +4,14 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { IPC, type WorkspaceInfo } from "../shared/types";
-import { createNote, listNotes, readNote, renameNote, resolveInside, writeNote } from "./notes-fs";
+import { NoteIndexer } from "./notes-index";
+import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
 
 let root: string | null = null;
 let watcher: FSWatcher | null = null;
+const indexer = new NoteIndexer();
 
 function requireRoot() {
   if (!root) throw new Error("작업 폴더가 선택되지 않았어요.");
@@ -21,6 +23,7 @@ function startWatching() {
   watcher = null;
   if (!root) return;
   watcher = watchNotes(root, (event) => {
+    indexer.invalidate(event.paths);
     for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.notesChanged, event);
   });
 }
@@ -28,6 +31,7 @@ function startWatching() {
 async function setRoot(next: string): Promise<WorkspaceInfo> {
   await mkdir(next, { recursive: true });
   root = next;
+  indexer.setRoot(next);
   await saveWorkspaceRoot(next);
   startWatching();
   return { root };
@@ -35,6 +39,7 @@ async function setRoot(next: string): Promise<WorkspaceInfo> {
 
 export async function registerIpc() {
   root = await loadWorkspaceRoot();
+  indexer.setRoot(root);
   startWatching();
 
   ipcMain.handle(IPC.workspaceGet, (): WorkspaceInfo => ({ root }));
@@ -57,6 +62,9 @@ export async function registerIpc() {
   ipcMain.handle(IPC.notesRead, (_e, path: string) => readNote(requireRoot(), path));
   ipcMain.handle(IPC.notesWrite, (_e, path: string, content: string) => writeNote(requireRoot(), path, content));
   ipcMain.handle(IPC.notesCreate, (_e, folder: string, title?: string) => createNote(requireRoot(), folder, title));
-  ipcMain.handle(IPC.notesRename, (_e, path: string, newName: string) => renameNote(requireRoot(), path, newName));
+  ipcMain.handle(IPC.notesRename, (_e, path: string, newName: string) =>
+    indexer.renameWithLinks(requireRoot(), path, newName),
+  );
+  ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
 }

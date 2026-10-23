@@ -1,5 +1,6 @@
-import { mergeAttributes, Node, nodeInputRule } from "@tiptap/core";
+import { InputRule, mergeAttributes, Node } from "@tiptap/core";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import Suggestion from "@tiptap/suggestion";
 
 import { createSuggestionRender, type SuggestionItem } from "./suggestion-render";
@@ -9,6 +10,8 @@ export interface WikiLinkOptions {
   getNoteNames: () => string[];
   /** 링크를 눌렀을 때 호출된다. target은 `이름#섹션` 형태일 수 있다. */
   onNavigate: (target: string) => void;
+  /** 가리키는 글이 있는지. 없으면 흐리게 보여준다. */
+  isResolved: (target: string) => boolean;
 }
 
 const MAX_SUGGESTIONS = 8;
@@ -30,7 +33,7 @@ export const WikiLink = Node.create<WikiLinkOptions>({
   selectable: true,
 
   addOptions() {
-    return { getNoteNames: () => [], onNavigate: () => {} };
+    return { getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true };
   },
 
   addAttributes() {
@@ -94,11 +97,14 @@ export const WikiLink = Node.create<WikiLinkOptions>({
   },
 
   addInputRules() {
+    // nodeInputRule은 캡처 그룹이 있으면 그 부분만 바꿔서 `[[`와 `]]`가 글자로 남는다. 매치 전체를 노드로 바꾼다.
+    const type = this.type;
     return [
-      nodeInputRule({
+      new InputRule({
         find: /\[\[([^\]|\n]+)(?:\|([^\]\n]+))?\]\]$/,
-        type: this.type,
-        getAttributes: (match) => ({ target: match[1], alias: match[2] ?? null }),
+        handler: ({ state, range, match }) => {
+          state.tr.replaceWith(range.from, range.to, type.create({ target: match[1], alias: match[2] ?? null }));
+        },
       }),
     ];
   },
@@ -109,6 +115,16 @@ export const WikiLink = Node.create<WikiLinkOptions>({
       new Plugin({
         key: new PluginKey("wikiLinkClick"),
         props: {
+          decorations: ({ doc }) => {
+            const decorations: Decoration[] = [];
+            doc.descendants((node, pos) => {
+              if (node.type.name === "wikiLink" && !options.isResolved(String(node.attrs["target"]))) {
+                decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: "wikilink-missing" }));
+              }
+              return true;
+            });
+            return DecorationSet.create(doc, decorations);
+          },
           handleDOMEvents: {
             click: (_view, event) => {
               const el = (event.target as HTMLElement | null)?.closest<HTMLElement>("[data-wikilink]");
