@@ -5,7 +5,7 @@
   "directories": { "output": "dist" },
   "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
   "publish": [{ "provider": "github", "owner": "gyeongseokKang", "repo": "handy-writer", "releaseType": "release" }],
-  "mac": { "target": ["dmg", "zip"], "category": "public.app-category.productivity" },
+  "mac": { "target": ["dmg", "zip"], "identity": "-", "category": "public.app-category.productivity" },
   "win": { "target": ["nsis"] },
   "nsis": { "oneClick": true, "perMachine": false },
   "linux": { "target": ["AppImage"], "category": "Office" }
