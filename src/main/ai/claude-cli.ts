@@ -96,16 +96,35 @@ export async function claudeStatus(): Promise<AiStatus> {
   if (!exe) {
     return {
       available: false,
-      reason: "Claude Code CLI(`claude`)를 찾지 못했어요. 설치하고 터미널에서 한 번 로그인해 주세요.",
+      problem: "missing",
+      reason: "Claude Code CLI(`claude`)를 찾지 못했어요.",
     };
   }
   const env = await childEnv(exe);
-  return new Promise((resolve) => {
-    execFile(exe, ["--version"], { env, timeout: 10_000, shell: process.platform === "win32" }, (error, stdout) => {
-      if (error) resolve({ available: false, path: exe, reason: `claude를 실행하지 못했어요: ${error.message}` });
-      else resolve({ available: true, path: exe, version: stdout.trim() });
-    });
+  const shell = process.platform === "win32";
+  const version = await new Promise<{ ok: true; text: string } | { ok: false; message: string }>((resolve) => {
+    execFile(exe, ["--version"], { env, timeout: 10_000, shell }, (error, stdout) =>
+      resolve(error ? { ok: false, message: error.message } : { ok: true, text: stdout.trim() }),
+    );
   });
+  if (!version.ok) return { available: false, path: exe, problem: "error", reason: `claude를 실행하지 못했어요: ${version.message}` };
+
+  // 로그인 여부. 오래된 CLI처럼 `auth status`를 모르거나 확인하지 못하면 막지 않고 실제 요청에서 알려준다.
+  const loggedIn = await new Promise<boolean | null>((resolve) => {
+    execFile(exe, ["auth", "status"], { env, timeout: 10_000, shell }, (_error, stdout) => resolve(parseLoggedIn(stdout)));
+  });
+  if (loggedIn === false) return { available: false, path: exe, version: version.text, problem: "login", reason: "Claude Code에 로그인되어 있지 않아요." };
+  return { available: true, path: exe, version: version.text };
+}
+
+/** `claude auth status`의 JSON 출력에서 로그인 여부를 읽는다. 읽을 수 없으면 null. */
+export function parseLoggedIn(stdout: string): boolean | null {
+  try {
+    const value = (JSON.parse(stdout) as { loggedIn?: unknown }).loggedIn;
+    return typeof value === "boolean" ? value : null;
+  } catch {
+    return null;
+  }
 }
 
 let systemPromptFile: Promise<string> | null = null;

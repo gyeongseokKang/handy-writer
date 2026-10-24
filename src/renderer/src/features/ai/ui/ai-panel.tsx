@@ -20,13 +20,69 @@ const RULES_PLACEHOLDER = `예)
 const fieldClass =
   "w-full rounded-md border bg-background px-2 py-1.5 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
+function Command({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="flex items-center gap-2 rounded bg-muted px-2 py-1 font-mono text-xs">
+      <code className="min-w-0 flex-1 break-all">{text}</code>
+      <button
+        type="button"
+        className="shrink-0 font-sans text-muted-foreground hover:text-foreground"
+        onClick={() => {
+          void navigator.clipboard?.writeText(text).then(() => setCopied(true));
+          window.setTimeout(() => setCopied(false), 1500);
+        }}
+      >
+        {copied ? "복사됨" : "복사"}
+      </button>
+    </div>
+  );
+}
+
+/** Claude Code를 쓸 수 없을 때 무엇을 하면 되는지 순서대로 안내한다. */
 function StatusNotice() {
   const status = useAiStore((s) => s.status);
   const refreshStatus = useAiStore((s) => s.refreshStatus);
+  const unavailable = status !== null && !status.available;
+
+  // 터미널에서 설치·로그인을 마치고 돌아오면 알아서 다시 확인한다.
+  useEffect(() => {
+    if (!unavailable) return;
+    const onFocus = () => void refreshStatus();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [unavailable, refreshStatus]);
+
   if (!status || status.available) return null;
   return (
-    <div role="alert" className="mx-4 mt-3 space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
-      <p>{status.reason}</p>
+    <div role="alert" className="mx-4 mt-3 space-y-3 rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+      <p className="font-medium">{status.reason}</p>
+      {status.problem === "missing" && (
+        <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
+          <li>
+            <a href="https://claude.com/claude-code" target="_blank" rel="noreferrer" className="underline">Claude Code</a>를 설치해요. 터미널에서:
+            <div className="mt-1"><Command text="npm install -g @anthropic-ai/claude-code" /></div>
+          </li>
+          <li>
+            터미널에서 <code>claude</code>를 실행하고 안내대로 로그인해요(<code>/login</code>).
+          </li>
+          <li>이 앱으로 돌아와 <strong>다시 확인</strong>을 눌러요.</li>
+        </ol>
+      )}
+      {status.problem === "login" && (
+        <ol className="list-decimal space-y-2 pl-5 text-muted-foreground">
+          <li>
+            터미널에서 실행해요:
+            <div className="mt-1"><Command text="claude" /></div>
+          </li>
+          <li>
+            열리면 <code>/login</code>을 입력하고 브라우저에서 로그인해요.
+          </li>
+          <li>이 앱으로 돌아오면 자동으로 다시 확인해요.</li>
+        </ol>
+      )}
+      {status.problem === "error" && <p className="text-muted-foreground">터미널에서 <code>claude --version</code>이 되는지 확인해 주세요.</p>}
+      <p className="text-xs text-muted-foreground">API 키는 필요 없어요. AI를 쓰면 요청한 글이 내 컴퓨터의 <code>claude</code>를 거쳐 Anthropic으로 전송돼요.</p>
       <Button size="sm" variant="outline" onClick={() => void refreshStatus()}>
         다시 확인
       </Button>

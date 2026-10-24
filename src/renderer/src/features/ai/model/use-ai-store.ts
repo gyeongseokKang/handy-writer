@@ -72,7 +72,7 @@ export const useAiStore = create<AiState>((set, get) => ({
     try {
       set({ status: await api.ai.status() });
     } catch (error) {
-      set({ status: { available: false, reason: errorText(error) } });
+      set({ status: { available: false, problem: "error", reason: errorText(error) } });
     }
   },
 

@@ -34,6 +34,8 @@ export interface AiStatus {
   path?: string;
   /** 사용할 수 없을 때 이유 */
   reason?: string;
+  /** 사용할 수 없는 까닭: 설치되지 않음 / 로그인 안 됨 / 그 밖의 실행 오류 */
+  problem?: "missing" | "login" | "error";
 }
 
 export type AiEvent =

@@ -21,7 +21,8 @@
     "test:e2e": "node e2e/app.e2e.mjs",
     "test:unit": "vitest run",
     "test:e2e:ime": "node e2e/ime.e2e.mjs",
-    "test:e2e:templates": "node e2e/templates.e2e.mjs"
+    "test:e2e:templates": "node e2e/templates.e2e.mjs",
+    "test:e2e:ai-login": "node e2e/ai-login.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

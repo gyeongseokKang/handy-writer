@@ -16,6 +16,7 @@ pnpm build        # 프로덕션 빌드
 pnpm test:e2e     # 빌드된 앱을 실제 Electron으로 띄우는 E2E (먼저 pnpm build, 리눅스는 xvfb-run -a 필요)
 pnpm test:e2e:ime # 한글 조합 입력(IME)과 맞춤법 표시 E2E (실제 composition 이벤트를 흘려보냄)
 pnpm test:e2e:templates # 템플릿 블록 E2E (가짜 claude로 웹 검색·삽입·내보내기까지)
+pnpm test:e2e:ai-login # claude 로그인 전 안내 E2E
 pnpm build:mac    # 맥 설치 파일 (dmg)
 pnpm build:win    # 윈도우 설치 파일
 pnpm build:linux  # 리눅스 설치 파일
@@ -84,6 +85,7 @@ src/
 
 - 프롬프트는 stdin으로 넘기고, 도구는 모두 끈 채(`--tools ""`)로 텍스트만 받아요.
 - `claude`를 못 찾으면 환경변수 `HANDY_WRITER_CLAUDE_PATH`로 경로를 지정할 수 있어요.
+- 설치되지 않았거나 로그인되지 않았으면(`claude auth status`로 확인) AI 탭에 설치·로그인 방법이 순서대로 나오고, 터미널에서 마치고 돌아오면 자동으로 다시 확인해요. Dock/Finder로 연 앱은 `.zshrc`의 `ANTHROPIC_*`, `CLAUDE_*` 변수도 로그인 셸에서 가져와 `claude`에 넘겨요.
 - 개발 모드 E2E는 `e2e/fake-claude.mjs`(같은 stream-json 형식)로 돌아서 네트워크가 필요 없어요.
 
 ## Git 연동

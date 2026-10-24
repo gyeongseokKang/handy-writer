@@ -146,6 +146,16 @@ describe.skipIf(!posix)("runClaude", () => {
   });
 });
 
+describe("parseLoggedIn", () => {
+  it("auth status JSON에서 로그인 여부를 읽고, 모르면 null", async () => {
+    const { parseLoggedIn } = await import("./claude-cli");
+    expect(parseLoggedIn('{"loggedIn": true, "authMethod": "oauth_token"}')).toBe(true);
+    expect(parseLoggedIn('{"loggedIn": false}')).toBe(false);
+    expect(parseLoggedIn("Not logged in")).toBeNull();
+    expect(parseLoggedIn("")).toBeNull();
+  });
+});
+
 describe("friendlyError", () => {
   it("로그인 오류에는 해결 방법을 덧붙이고, 다른 오류는 그대로 둔다", async () => {
     const { friendlyError } = await import("./claude-cli");

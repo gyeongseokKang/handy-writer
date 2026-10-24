@@ -10,6 +10,11 @@ if (args.includes("--version")) {
   process.exit(0);
 }
 
+if (args[0] === "auth" && args[1] === "status") {
+  console.log(JSON.stringify({ loggedIn: process.env.FAKE_CLAUDE_LOGGED_OUT !== "1" }));
+  process.exit(0);
+}
+
 let input = "";
 process.stdin.setEncoding("utf8");
 process.stdin.on("data", (chunk) => (input += chunk));
