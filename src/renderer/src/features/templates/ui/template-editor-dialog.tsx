@@ -201,7 +201,7 @@ export function TemplateEditorDialog({ templateId }: { templateId: string | null
                       setOptionsText({ ...optionsText, [index]: e.target.value });
                       patchField(index, { options: e.target.value.split(",").map((o) => o.trim()).filter(Boolean) });
                     }}
-                    placeholder="짧게, 보통, 자세히"
+                    placeholder="약 200자, 약 400자, 약 800자"
                     className={fieldClass}
                   />
                 </label>

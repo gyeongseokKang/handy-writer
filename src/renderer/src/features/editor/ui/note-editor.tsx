@@ -254,7 +254,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
           onClose={() => setSpellTarget(null)}
         />
       )}
-      <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
+      <footer className="flex items-center gap-4 border-t py-1.5 pr-16 pl-6 text-xs text-muted-foreground">
         <span className="truncate">{linkTargetToName(name)}</span>
         <SpellMenu />
         <span role="status">{STATUS_LABEL[status]}</span>

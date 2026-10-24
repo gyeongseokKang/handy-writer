@@ -267,10 +267,10 @@ export const BUILTIN_TEMPLATES: Template[] = [
     referencesOnly: false,
     fields: [
       baseField("topic", "주제", { placeholder: "비워 두면 본문에서 알맞은 주제를 골라요" }),
-      baseField("depth", "분량", { type: "select", options: ["짧게", "보통", "자세히"], default: "보통" }),
+      baseField("depth", "분량", { type: "select", options: ["약 200자", "약 400자", "약 800자"], default: "약 400자" }),
     ],
     prompt:
-      "독자가 본문을 읽다가 더 궁금해할 만한 내용을 {{topic}}을(를) 중심으로 {{depth}} 설명해 주세요.\n본문에 이미 있는 내용은 반복하지 말고, 새로 알 수 있는 정보만 쓰세요.\n어려운 용어는 쉬운 말로 풀어 쓰세요.",
+      "독자가 본문을 읽다가 더 궁금해할 만한 내용을 {{topic}}을(를) 중심으로 설명해 주세요. 분량은 {{depth}} 정도로 쓰세요.\n본문에 이미 있는 내용은 반복하지 말고, 새로 알 수 있는 정보만 쓰세요.\n어려운 용어는 쉬운 말로 풀어 쓰세요.",
     builtin: true,
   },
   {

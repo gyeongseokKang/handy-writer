@@ -21,7 +21,7 @@ function mount(markdown: string) {
   return createEditorBridge(editor, () => "테스트");
 }
 
-const meta: TemplateBlockMeta = { id: "more-info", inputs: { topic: "양자 얽힘", depth: "보통" }, extra: "", web: true, scope: "section" };
+const meta: TemplateBlockMeta = { id: "more-info", inputs: { topic: "양자 얽힘", depth: "약 400자" }, extra: "", web: true, scope: "section" };
 const block = (body: string, m: TemplateBlockMeta = meta, title = "더 알아보기", style = "tip") =>
   `> [!${style}] ${title} ${formatTemplateMeta(m)}\n${body.split("\n").map((l) => (l ? `> ${l}` : ">")).join("\n")}`;
 
@@ -57,7 +57,7 @@ describe("템플릿 블록 마크다운 왕복", () => {
     mount(block("내용"));
     const node = editor.state.doc.firstChild!;
     expect(node.type.name).toBe("templateBlock");
-    expect(node.attrs).toMatchObject({ templateId: "more-info", style: "tip", title: "더 알아보기", inputs: { topic: "양자 얽힘", depth: "보통" }, web: true, scope: "section" });
+    expect(node.attrs).toMatchObject({ templateId: "more-info", style: "tip", title: "더 알아보기", inputs: { topic: "양자 얽힘", depth: "약 400자" }, web: true, scope: "section" });
     expect(node.attrs["uid"]).toBeTruthy();
   });
 

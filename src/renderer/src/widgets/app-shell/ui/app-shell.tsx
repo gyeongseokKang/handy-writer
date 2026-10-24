@@ -75,6 +75,9 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen">
+      <span aria-label="앱 버전" className="pointer-events-none fixed right-3 bottom-1.5 z-30 text-[11px] text-muted-foreground/70 select-none">
+        v{__APP_VERSION__}
+      </span>
       <Sidebar />
       <main className="min-w-0 flex-1">
         {view === "graph" ? (

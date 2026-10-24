@@ -13,6 +13,7 @@ import { useEditorBridge, type TemplateBlockAttrs } from "@/entities/note/model/
 import { useReferenceStore } from "@/entities/note/model/use-reference-store";
 import { useTemplateDialogStore, type TemplateDialogRequest } from "@/entities/template/model/use-template-dialog-store";
 import { useTemplateStore } from "@/entities/template/model/use-template-store";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 import { useTemplateRun } from "../model/use-template-run";
@@ -125,7 +126,7 @@ export function TemplateRunDialog({ request }: { request: RunRequest }) {
         role="dialog"
         aria-modal="true"
         aria-label={template ? `${template.name} 템플릿` : "템플릿"}
-        className="w-full max-w-xl space-y-4 rounded-xl border bg-card p-5 shadow-2xl"
+        className="w-full max-w-xl space-y-4 rounded-xl border bg-card px-8 py-6 shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
@@ -153,15 +154,30 @@ export function TemplateRunDialog({ request }: { request: RunRequest }) {
               const id = `tpl-${field.key}`;
               return (
                 <div key={field.key} className="space-y-1">
-                  <label htmlFor={id} className="text-sm font-medium">
+                  <label htmlFor={id} id={`${id}-label`} className="text-sm font-medium">
                     {field.label} {field.required && <span className="text-destructive" aria-label="필수">*</span>}
                   </label>
                   {field.type === "select" ? (
-                    <select id={id} value={inputs[field.key] ?? ""} onChange={(e) => setInputs({ ...inputs, [field.key]: e.target.value })} className={fieldClass}>
-                      {field.options.map((option) => (
-                        <option key={option} value={option}>{option}</option>
-                      ))}
-                    </select>
+                    <div role="radiogroup" aria-labelledby={`${id}-label`} className="flex flex-wrap gap-2">
+                      {field.options.map((option) => {
+                        const on = (inputs[field.key] ?? "") === option;
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            role="radio"
+                            aria-checked={on}
+                            onClick={() => setInputs({ ...inputs, [field.key]: option })}
+                            className={cn(
+                              "rounded-md border px-3 py-1.5 text-sm transition-colors hover:bg-accent",
+                              on && "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+                            )}
+                          >
+                            {option}
+                          </button>
+                        );
+                      })}
+                    </div>
                   ) : field.type === "textarea" ? (
                     <textarea id={id} rows={3} autoFocus={index === 0} value={inputs[field.key] ?? ""} placeholder={field.placeholder} aria-invalid={Boolean(error)} onChange={(e) => setInputs({ ...inputs, [field.key]: e.target.value })} className={`${fieldClass} resize-y`} />
                   ) : (

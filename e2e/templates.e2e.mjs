@@ -58,7 +58,9 @@ assert((await page.locator("[role='option']").first().innerText()).includes("템
 await page.keyboard.press("Enter");
 await dialog.waitFor();
 assert((await dialog.innerText()).includes("더 알아보기"), "템플릿을 고르면 입력 창이 열린다");
-assert((await dialog.getByLabel("분량").inputValue()) === "보통", "select 필드는 기본값(보통)으로 채워진다");
+const depth = dialog.getByRole("radiogroup", { name: "분량" });
+assert((await depth.getByRole("radio").allInnerTexts()).join("|") === "약 200자|약 400자|약 800자", "select 필드는 글자 수 버튼 그룹으로 보인다");
+assert((await depth.getByRole("radio", { name: "약 400자" }).getAttribute("aria-checked")) === "true", "기본값(약 400자)이 선택돼 있다");
 assert((await dialog.getByLabel("참고할 본문").inputValue()) === "section", "참고할 본문의 기본값은 템플릿에 정한 범위(현재 섹션)다");
 assert(await dialog.getByRole("checkbox", { name: /웹 검색 사용/ }).isChecked(), "웹 검색은 템플릿의 기본값(켜짐)으로 시작한다");
 assert((await page.locator(".note-prose").innerText()).includes("둘째 문단입니다") && !(await page.locator(".note-prose").innerText()).includes("/더"), "입력 창을 열면 슬래시로 친 글자는 지워진다");
@@ -72,7 +74,7 @@ await page.waitForSelector("[aria-label='생성된 내용']:has-text('출처')",
 await page.waitForFunction(() => document.querySelector("[role='dialog'] [role='status']")?.textContent?.includes("직접 확인"));
 const first = lastCall();
 assert(toolsOf(first) === "WebSearch,WebFetch" && first.args.includes("--allowedTools"), "웹 검색을 켠 요청은 WebSearch와 WebFetch만 허용한다");
-assert(first.input.includes("지침:\n독자가 본문을 읽다가 더 궁금해할 만한 내용을 얽힘의 역사을(를) 중심으로 보통 설명해 주세요."), "입력값이 사전 프롬프트의 {{키}} 자리에 들어간다");
+assert(first.input.includes("지침:\n독자가 본문을 읽다가 더 궁금해할 만한 내용을 얽힘의 역사을(를) 중심으로 설명해 주세요. 분량은 약 400자 정도로 쓰세요."), "입력값이 사전 프롬프트의 {{키}} 자리에 들어간다");
 assert(first.input.includes("양자 얽힘은 두 입자가") && first.input.includes("둘째 문단입니다") && !first.input.includes("다음 절 내용") && !first.input.includes("도입 문단"), `현재 섹션(소제목부터 다음 소제목 전까지)만 본문 맥락으로 보낸다 ${JSON.stringify(first.input.match(/<context>\n([\s\S]*?)\n<\/context>/)?.[1])}`);
 const previewText = await page.locator("[aria-label='생성된 내용']").innerText();
 assert(previewText.startsWith("**독자가 본문을 읽다가") && !previewText.includes("검색해 볼게요"), "도구를 쓰기 전의 중간 발화는 지워지고 최종 답만 미리보기에 남는다");
@@ -86,7 +88,7 @@ assert((await page.locator(".template-block-title").innerText()) === "더 알아
 await sleep(1500);
 const saved = draft();
 const metaLine = saved.split("\n").find((line) => line.startsWith("> [!tip] 더 알아보기"));
-assert(Boolean(metaLine) && metaLine.includes('<!--hw-template {"id":"more-info","inputs":{"topic":"얽힘의 역사","depth":"보통"},"extra":"","web":true,"scope":"section"}-->'), `파일에는 입력값 메타데이터가 달린 콜아웃으로 저장된다 (${metaLine?.slice(0, 80)})`);
+assert(Boolean(metaLine) && metaLine.includes('<!--hw-template {"id":"more-info","inputs":{"topic":"얽힘의 역사","depth":"약 400자"},"extra":"","web":true,"scope":"section"}-->'), `파일에는 입력값 메타데이터가 달린 콜아웃으로 저장된다 (${metaLine?.slice(0, 80)})`);
 assert(saved.indexOf("둘째 문단입니다.") < saved.indexOf("[!tip]") && saved.indexOf("[!tip]") < saved.indexOf("## 다음 절"), `블록은 커서가 있던 문단 바로 아래, 다음 소제목 앞에 들어간다 ${JSON.stringify(saved)}`);
 assert(saved.includes("> 출처: [예시 문서](https://example.com/doc)"), "AI가 쓴 마크다운(링크 포함)이 블록 안 내용으로 저장된다");
 

@@ -3,5 +3,5 @@ import { resolve } from "node:path";
 
 export default defineConfig({
   resolve: { alias: { "@": resolve("src/renderer/src"), "@shared": resolve("src/shared") } },
-  test: { include: ["src/**/*.test.ts"] },
+  test: { include: ["src/**/*.test.ts"], define: { __APP_VERSION__: JSON.stringify("test") } },
 });

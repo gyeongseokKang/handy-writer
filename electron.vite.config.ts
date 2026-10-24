@@ -2,7 +2,10 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { Plugin } from "vite";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+
+const { version } = JSON.parse(readFileSync(resolve("package.json"), "utf8")) as { version: string };
 
 const PROD_CSP = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: handy-asset: https:; media-src 'self' handy-asset: https:";
 
@@ -25,6 +28,7 @@ export default defineConfig({
     },
   },
   renderer: {
+    define: { __APP_VERSION__: JSON.stringify(version) },
     plugins: [react(), tailwindcss(), productionCsp()],
     resolve: {
       alias: {

@@ -145,3 +145,11 @@ describe.skipIf(!posix)("runClaude", () => {
     expect(Date.now() - started).toBeLessThan(5000);
   });
 });
+
+describe("friendlyError", () => {
+  it("로그인 오류에는 해결 방법을 덧붙이고, 다른 오류는 그대로 둔다", async () => {
+    const { friendlyError } = await import("./claude-cli");
+    expect(friendlyError("Not logged in · Please run /login")).toContain("claude setup-token");
+    expect(friendlyError("rate limited")).toBe("rate limited");
+  });
+});

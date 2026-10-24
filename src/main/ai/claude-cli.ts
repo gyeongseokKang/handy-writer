@@ -4,7 +4,7 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { delimiter, dirname, join } from "node:path";
 
-import { loginShellPath } from "../shell-env";
+import { loginShellAuthEnv, loginShellPath } from "../shell-env";
 import { SYSTEM_PROMPT } from "../../shared/ai-prompt";
 import type { AiStatus } from "../../shared/ai";
 
@@ -76,10 +76,19 @@ export async function findClaude(): Promise<string | null> {
   return null;
 }
 
+/** 로그인이 안 된 경우는 영어 안내만 나와서, 무엇을 하면 되는지 덧붙인다. */
+export function friendlyError(message: string): string {
+  if (/not logged in|please run \/login/i.test(message)) {
+    return `${message}\n\n터미널에서 \`claude\`를 실행해 \`/login\`으로 로그인하면 돼요. 이미 로그인했는데도 이 메시지가 나오면, 앱이 터미널과 다른 환경에서 열린 것일 수 있어요. 터미널에서 \`claude setup-token\`으로 만든 토큰을 \`CLAUDE_CODE_OAUTH_TOKEN\`으로 설정해 보세요.`;
+  }
+  return message;
+}
+
 async function childEnv(exe: string): Promise<NodeJS.ProcessEnv> {
   // npm으로 설치한 claude는 `#!/usr/bin/env node`라서, 같은 폴더와 로그인 셸 PATH를 함께 넘긴다.
   const path = [dirname(exe), ...(await searchPath())].join(delimiter);
-  return { ...process.env, PATH: path };
+  // 앱을 연 환경에 이미 있는 값이 우선이고, 없는 로그인 관련 변수만 로그인 셸에서 채운다.
+  return { ...(await loginShellAuthEnv()), ...process.env, PATH: path };
 }
 
 export async function claudeStatus(): Promise<AiStatus> {
@@ -220,10 +229,10 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
     child.on("close", (code) => {
       if (buffer.trim()) handleLine(buffer);
       const final = result as { text: string; isError: boolean } | null;
-      if (final?.isError) return finish(new Error(final.text || "AI 요청이 실패했어요."));
+      if (final?.isError) return finish(new Error(friendlyError(final.text) || "AI 요청이 실패했어요."));
       if (final) return finish(null, final.text);
       if (code === 0 && streamed) return finish(null, streamed);
-      finish(new Error(stderr.trim() || `claude가 결과 없이 종료됐어요 (종료 코드 ${code}).`));
+      finish(new Error(friendlyError(stderr.trim()) || `claude가 결과 없이 종료됐어요 (종료 코드 ${code}).`));
     });
 
     child.stdin.on("error", () => {});

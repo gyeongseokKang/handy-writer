@@ -14,7 +14,6 @@ export interface WikiLinkOptions {
   isResolved: (target: string) => boolean;
 }
 
-const MAX_SUGGESTIONS = 8;
 const NEW_NOTE_PREFIX = "__new__:";
 
 declare module "@tiptap/core" {
@@ -148,7 +147,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
           const names = options.getNoteNames();
           const matches = names
             .filter((name) => name.toLowerCase().includes(needle))
-            .slice(0, MAX_SUGGESTIONS)
+            // 앞부분이 일치하는 글을 먼저 보여준다. 나머지는 원래 순서(전체 목록)를 지킨다.
+            .sort((a, b) => Number(b.toLowerCase().startsWith(needle)) - Number(a.toLowerCase().startsWith(needle)))
             .map((name) => ({ id: name, title: name, payload: name }));
           const exact = names.some((name) => name.toLowerCase() === needle);
           if (needle && !exact) {
