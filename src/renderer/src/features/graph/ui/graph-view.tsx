@@ -46,6 +46,9 @@ function useElementSize<T extends HTMLElement>() {
 
 const LABEL_ZOOM = 1.1;
 
+/** 링크가 많은 글도 너무 커지지 않도록 제곱근으로 키우고 상한을 둔다. */
+const nodeRadius = (degree: number) => Math.min(2.5 + 1.1 * Math.sqrt(degree), 9);
+
 export function GraphView() {
   const entries = useNoteIndexStore((state) => state.entries);
   const activePath = useWorkspaceStore((state) => state.activePath);
@@ -125,8 +128,6 @@ export function GraphView() {
             graphData={data}
             backgroundColor="transparent"
             cooldownTicks={120}
-            nodeRelSize={4}
-            nodeVal={(node) => 1 + (node as GraphNode).degree * 0.6}
             linkColor={(link) => {
               const s = typeof link.source === "object" ? (link.source as GraphNode).id : String(link.source);
               const t = typeof link.target === "object" ? (link.target as GraphNode).id : String(link.target);
@@ -142,12 +143,12 @@ export function GraphView() {
               const { x = 0, y = 0 } = node;
               ctx.fillStyle = color;
               ctx.beginPath();
-              ctx.arc(x, y, 4 * Math.sqrt(1 + (node as GraphNode).degree * 0.6) + 2, 0, 2 * Math.PI);
+              ctx.arc(x, y, nodeRadius((node as GraphNode).degree) + 2, 0, 2 * Math.PI);
               ctx.fill();
             }}
             nodeCanvasObject={(node, ctx, scale) => {
               const n = node as GraphNode & { x: number; y: number };
-              const radius = 4 * Math.sqrt(1 + n.degree * 0.6);
+              const radius = nodeRadius(n.degree);
               const dimmed = hovered !== null && !isNear(n.id);
               const isActive = n.path !== null && n.path === activePath;
 
