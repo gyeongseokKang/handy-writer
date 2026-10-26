@@ -4,10 +4,14 @@ import { useUpdateStore } from "@/entities/update/model/use-update-store";
 import { api } from "@/shared/api/handy-api";
 import { UPDATE_LABEL } from "@shared/update";
 
-/** 사이드바 맨 아래의 업데이트 줄. 업데이트를 쓸 수 없는 환경(개발 모드 등)에서는 숨긴다. */
+const VERSION = <span aria-label="현재 버전" className="ml-auto shrink-0 pl-2 tabular-nums">v{__APP_VERSION__}</span>;
+
+/** 사이드바 맨 아래의 업데이트 줄. 현재 버전을 오른쪽에 함께 보여준다. */
 export function UpdateRow() {
   const state = useUpdateStore((s) => s.state);
-  if (state.status === "unsupported") return null;
+  if (state.status === "unsupported") {
+    return <div className="flex items-center border-t px-4 py-1.5 text-xs text-muted-foreground">{VERSION}</div>;
+  }
 
   const busy = state.status === "checking" || state.status === "downloading";
   if (state.status === "ready") {
@@ -19,6 +23,7 @@ export function UpdateRow() {
       >
         <Download className="size-3.5 shrink-0" />
         <span className="truncate">{UPDATE_LABEL(state)} · 다시 시작해서 설치</span>
+        {VERSION}
       </button>
     );
   }
@@ -32,6 +37,7 @@ export function UpdateRow() {
     >
       <RefreshCw className={busy ? "size-3.5 shrink-0 animate-spin" : "size-3.5 shrink-0"} />
       <span className="truncate">{state.status === "idle" ? "업데이트 확인" : UPDATE_LABEL(state)}</span>
+      {VERSION}
     </button>
   );
 }
