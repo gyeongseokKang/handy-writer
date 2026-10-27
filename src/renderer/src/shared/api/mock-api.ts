@@ -1,4 +1,5 @@
 import type { AiEvent } from "@shared/ai";
+import { buildHtmlDocument, exportFileName } from "@shared/export";
 import { createLogBook, type LogEntry } from "@shared/log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
@@ -183,6 +184,20 @@ export function createMockApi(): HandyApi {
       onState: () => () => {},
     },
     spell: { check: async () => ({ status: "offline" as const, typos: [] }) },
+    export: {
+      // 브라우저 미리보기에서는 파일을 내려받는 것으로 대신한다 (PDF는 만들 수 없다).
+      note: async ({ name, format, content }) => {
+        if (format === "pdf") throw new Error("브라우저 미리보기에서는 PDF로 내보낼 수 없어요");
+        const text = format === "html" ? buildHtmlDocument(name, content) : content;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: format === "html" ? "text/html" : "text/markdown" }));
+        link.download = exportFileName(name, format);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        return { path: link.download };
+      },
+      reveal: async () => {},
+    },
     attachments: {
       list: async () => [],
       pick: async () => ({ imported: [], skipped: [] }),

@@ -21,6 +21,7 @@ import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
+import { ExportMenu } from "./export-menu";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
@@ -293,6 +294,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{linkTargetToName(name)}</span>
         <SpellMenu />
+        <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} />
         <span role="status">{STATUS_LABEL[status]}</span>
         <LogIndicator />
       </footer>

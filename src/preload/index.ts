@@ -28,6 +28,10 @@ const api: HandyApi = {
     duplicate: (path) => ipcRenderer.invoke(IPC.notesDuplicate, path),
     reveal: (path) => ipcRenderer.invoke(IPC.notesReveal, path),
   },
+  export: {
+    note: (request) => ipcRenderer.invoke(IPC.exportNote, request),
+    reveal: (path) => ipcRenderer.invoke(IPC.exportReveal, path),
+  },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),
   },

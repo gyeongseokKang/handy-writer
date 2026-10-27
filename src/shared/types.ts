@@ -5,6 +5,7 @@ import type { UpdateState } from "./update";
 import type { LogEntry, LogInput } from "./log";
 import type { Template } from "./templates";
 import type { SearchResult } from "./search";
+import type { ExportRequest, ExportResult } from "./export";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
 
 export interface NoteMeta {
@@ -71,6 +72,12 @@ export interface HandyApi {
     move: (path: string, folder: string) => Promise<NoteMeta>;
     duplicate: (path: string) => Promise<NoteMeta>;
     /** Finder(탐색기)에서 글이나 폴더를 보여준다. */
+    reveal: (path: string) => Promise<void>;
+  };
+  export: {
+    /** 저장 위치를 물어보고 글을 마크다운, HTML, PDF 파일로 내보낸다. 취소하면 path가 null */
+    note: (request: ExportRequest) => Promise<ExportResult>;
+    /** Finder(탐색기)에서 내보낸 파일을 보여준다. */
     reveal: (path: string) => Promise<void>;
   };
   index: {
@@ -159,6 +166,8 @@ export const IPC = {
   notesMove: "notes:move",
   notesDuplicate: "notes:duplicate",
   notesReveal: "notes:reveal",
+  exportNote: "export:note",
+  exportReveal: "export:reveal",
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",

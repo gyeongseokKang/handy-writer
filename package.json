@@ -27,6 +27,7 @@
     "test:e2e:log": "node e2e/log.e2e.mjs",
     "test:e2e:tree-menu": "node e2e/tree-menu.e2e.mjs",
     "test:e2e:code-block": "node e2e/code-block.e2e.mjs",
+    "test:e2e:export": "node e2e/export.e2e.mjs",
     "test:e2e:spell-panel": "node e2e/spell-panel.e2e.mjs"
   },
   "dependencies": {
