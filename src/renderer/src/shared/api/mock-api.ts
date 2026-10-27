@@ -1,4 +1,5 @@
 import type { AiEvent } from "@shared/ai";
+import { createLogBook, type LogEntry } from "@shared/log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
 import { searchNotes } from "@shared/search";
@@ -49,6 +50,8 @@ export function createMockApi(): HandyApi {
   const files = new Map(Object.entries(SEED));
   const listeners = new Set<(event: NotesChangedEvent) => void>();
   const aiListeners = new Set<(event: AiEvent) => void>();
+  const logBook = createLogBook();
+  const logListeners = new Set<(entry: LogEntry) => void>();
   let rules = "";
   const gitListeners = new Set<(event: GitEvent) => void>();
   let gitSettings: GitSettings = { ...DEFAULT_GIT_SETTINGS };
@@ -201,6 +204,19 @@ export function createMockApi(): HandyApi {
       onEvent: (listener) => {
         aiListeners.add(listener);
         return () => aiListeners.delete(listener);
+      },
+    },
+    log: {
+      list: async () => logBook.list(),
+      clear: async () => logBook.clear(),
+      add: async (input) => {
+        const entry = logBook.add(input);
+        if (entry) logListeners.forEach((listener) => listener(entry));
+      },
+      reveal: async () => {},
+      onEntry: (listener) => {
+        logListeners.add(listener);
+        return () => logListeners.delete(listener);
       },
     },
     onNotesChanged: (listener) => {

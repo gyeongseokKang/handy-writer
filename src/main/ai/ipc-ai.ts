@@ -4,6 +4,7 @@ import type { AiEvent, AiRequest, AiTask } from "../../shared/ai";
 import { buildUserPrompt } from "../../shared/ai-prompt";
 import { parseBrief, parseOutline } from "../../shared/draft";
 import { IPC } from "../../shared/types";
+import { logEntry } from "../app-log";
 import { claudeStatus, findClaude, runClaude } from "./claude-cli";
 import { readRules, writeRules } from "./rules";
 
@@ -69,7 +70,12 @@ export function registerAiIpc(requireRoot: () => string) {
       onReset: () => send({ runId, type: "reset" }),
     })
       .then((text) => send({ runId, type: "done", text }))
-      .catch((error: unknown) => send({ runId, type: "error", message: error instanceof Error ? error.message : String(error) }))
+      .catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        // 사용자가 멈춘 것은 오류가 아니다.
+        if (!controller.signal.aborted) logEntry({ level: "error", source: "AI", message });
+        send({ runId, type: "error", message });
+      })
       .finally(() => runs.delete(runId));
 
     return runId;

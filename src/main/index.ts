@@ -1,11 +1,14 @@
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "node:path";
 
+import { registerLogIpc } from "./app-log";
 import { handleAssetProtocol, registerAssetScheme } from "./asset-protocol";
 import { getWorkspaceRoot, registerIpc } from "./ipc";
 import { startAutoUpdate } from "./auto-update";
 
 registerAssetScheme();
+// 시작하는 동안 생긴 오류도 남도록 가장 먼저 등록한다.
+registerLogIpc();
 
 function createWindow() {
   const win = new BrowserWindow({

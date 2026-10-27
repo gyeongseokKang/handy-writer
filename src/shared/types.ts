@@ -2,6 +2,7 @@ import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { OnlineSpellResult } from "./online-spell";
 import type { UpdateState } from "./update";
+import type { LogEntry, LogInput } from "./log";
 import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
@@ -117,6 +118,16 @@ export interface HandyApi {
     cancel: (runId: string) => Promise<void>;
     onEvent: (listener: (event: AiEvent) => void) => () => void;
   };
+  log: {
+    /** 앱을 켠 뒤 모인 오류·경고 (오래된 것부터) */
+    list: () => Promise<LogEntry[]>;
+    clear: () => Promise<void>;
+    /** 화면에서 생긴 오류를 남긴다. */
+    add: (input: LogInput) => Promise<void>;
+    /** Finder에서 로그 파일을 보여준다. */
+    reveal: () => Promise<void>;
+    onEntry: (listener: (entry: LogEntry) => void) => () => void;
+  };
   onNotesChanged: (listener: (event: NotesChangedEvent) => void) => () => void;
 }
 
@@ -137,6 +148,11 @@ export const IPC = {
   updateCheck: "update:check",
   updateInstall: "update:install",
   updateState: "update:state",
+  logList: "log:list",
+  logClear: "log:clear",
+  logAdd: "log:add",
+  logReveal: "log:reveal",
+  logEntry: "log:entry",
   templatesList: "templates:list",
   templatesSave: "templates:save",
   templatesRemove: "templates:remove",

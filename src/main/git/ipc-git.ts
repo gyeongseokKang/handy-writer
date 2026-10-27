@@ -1,6 +1,7 @@
 import { BrowserWindow, ipcMain } from "electron";
 
 import { IPC } from "../../shared/types";
+import { logEntry } from "../app-log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitOpResult } from "../../shared/git";
 import { AutoTimer } from "./auto-timer";
 import { formatCommitMessage, GitService } from "./git-service";
@@ -19,6 +20,7 @@ export function createGitIpc(requireRoot: () => string) {
   let lastAutoError = "";
 
   const broadcast = (event: GitEvent) => {
+    if (event.kind === "error") logEntry({ level: "error", source: "Git", message: event.message });
     for (const win of BrowserWindow.getAllWindows()) if (!win.isDestroyed()) win.webContents.send(IPC.gitEvent, event);
   };
   const broadcastStatus = async (root: string) => broadcast({ kind: "status", status: await service.status(root) });

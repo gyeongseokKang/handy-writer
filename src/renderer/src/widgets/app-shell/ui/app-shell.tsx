@@ -3,7 +3,9 @@ import { useEffect } from "react";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { useLogStore } from "@/entities/log/model/use-log-store";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
+import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
@@ -64,6 +66,7 @@ export function AppShell() {
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const outlineOpen = useUiStore((state) => state.outlineOpen);
   const draftOpen = useUiStore((state) => state.draftOpen);
+  const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
   // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
@@ -94,6 +97,7 @@ export function AppShell() {
         ) : (
           <EmptyEditor />
         )}
+        {logOpen && <LogPanel />}
       </main>
       {view === "editor" && rightPanelOpen && <RightPanel />}
       <CommandPalette />

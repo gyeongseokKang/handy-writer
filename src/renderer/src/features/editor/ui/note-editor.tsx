@@ -4,6 +4,7 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { LogIndicator } from "@/entities/log/ui/log-indicator";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
 import { useOutlineStore } from "@/entities/note/model/use-outline-store";
@@ -293,6 +294,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         <span className="truncate">{linkTargetToName(name)}</span>
         <SpellMenu />
         <span role="status">{STATUS_LABEL[status]}</span>
+        <LogIndicator />
       </footer>
     </div>
   );

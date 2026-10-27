@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import type { AiEvent } from "../shared/ai";
 import type { GitEvent } from "../shared/git";
+import type { LogEntry } from "../shared/log";
 import type { UpdateState } from "../shared/update";
 import { IPC, type HandyApi, type NotesChangedEvent } from "../shared/types";
 
@@ -78,6 +79,17 @@ const api: HandyApi = {
       const handler = (_e: unknown, event: AiEvent) => listener(event);
       ipcRenderer.on(IPC.aiEvent, handler);
       return () => ipcRenderer.removeListener(IPC.aiEvent, handler);
+    },
+  },
+  log: {
+    list: () => ipcRenderer.invoke(IPC.logList),
+    clear: () => ipcRenderer.invoke(IPC.logClear),
+    add: (input) => ipcRenderer.invoke(IPC.logAdd, input),
+    reveal: () => ipcRenderer.invoke(IPC.logReveal),
+    onEntry: (listener) => {
+      const handler = (_e: unknown, entry: LogEntry) => listener(entry);
+      ipcRenderer.on(IPC.logEntry, handler);
+      return () => ipcRenderer.removeListener(IPC.logEntry, handler);
     },
   },
   onNotesChanged: (listener) => {
