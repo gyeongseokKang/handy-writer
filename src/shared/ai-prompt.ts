@@ -1,4 +1,5 @@
 import type { AiReference, AiRequest } from "./ai";
+import { draftInstruction, EMPTY_BRIEF, outlineInstruction } from "./draft";
 
 export const SYSTEM_PROMPT = [
   "당신은 한국어 글쓰기 도우미입니다.",
@@ -84,6 +85,12 @@ export function buildUserPrompt(request: AiRequest): string {
     const extra = request.instruction.trim();
     if (extra) sections.push(`추가 요청: ${extra}`);
     sections.push(`출력 규칙:\n${templateOutputRules(request)}`);
+    return sections.join("\n\n");
+  }
+
+  if (request.task === "outline" || request.task === "draft") {
+    const brief = request.brief ?? EMPTY_BRIEF;
+    sections.push(request.task === "outline" ? outlineInstruction(brief) : draftInstruction(brief, request.outline ?? ""));
     return sections.join("\n\n");
   }
 

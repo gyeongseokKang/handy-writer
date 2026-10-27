@@ -13,6 +13,8 @@ export const TASK_LABEL: Record<AiTask, string> = {
   continue: "이어쓰기",
   custom: "지시대로 처리",
   template: "템플릿 블록",
+  outline: "목차 만들기",
+  draft: "초안 쓰기",
 };
 
 type Phase = "idle" | "running" | "done" | "error";

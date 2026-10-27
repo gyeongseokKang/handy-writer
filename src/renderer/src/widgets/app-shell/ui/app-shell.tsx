@@ -1,11 +1,13 @@
-import { FilePlus2, FolderOpen, PenLine } from "lucide-react";
+import { FilePlus2, FolderOpen, PenLine, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
+import { OutlinePanel } from "@/features/outline/ui/outline-panel";
 import { TemplateDialogs } from "@/features/templates/ui/template-dialogs";
 import { CommandPalette } from "@/features/search/ui/command-palette";
 import { Button } from "@/shared/ui/button";
@@ -42,9 +44,14 @@ function EmptyEditor() {
   return (
     <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-muted-foreground">
       <p className="text-sm">왼쪽에서 글을 고르거나 새 글을 만들어 보세요.</p>
-      <Button variant="outline" size="sm" onClick={() => void createNote()}>
-        <FilePlus2 /> 새 글
-      </Button>
+      <div className="flex gap-2">
+        <Button variant="outline" size="sm" onClick={() => void createNote()}>
+          <FilePlus2 /> 새 글
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => useUiStore.getState().setDraftOpen(true)}>
+          <Sparkles /> AI로 초안 만들기
+        </Button>
+      </div>
     </div>
   );
 }
@@ -55,6 +62,8 @@ export function AppShell() {
   const activePath = useWorkspaceStore((state) => state.activePath);
   const view = useUiStore((state) => state.view);
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
+  const outlineOpen = useUiStore((state) => state.outlineOpen);
+  const draftOpen = useUiStore((state) => state.draftOpen);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
   // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
@@ -76,7 +85,8 @@ export function AppShell() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="min-w-0 flex-1">
+      <main className="relative min-w-0 flex-1">
+        {view === "editor" && outlineOpen && activePath && <OutlinePanel />}
         {view === "graph" ? (
           <GraphView />
         ) : activePath && activeName !== undefined ? (
@@ -88,6 +98,7 @@ export function AppShell() {
       {view === "editor" && rightPanelOpen && <RightPanel />}
       <CommandPalette />
       <TemplateDialogs />
+      {draftOpen && <DraftDialog />}
     </div>
   );
 }

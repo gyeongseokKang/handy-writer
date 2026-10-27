@@ -1,4 +1,6 @@
-export type AiTask = "polish" | "proofread" | "continue" | "custom" | "template";
+import type { DraftBrief } from "./draft";
+
+export type AiTask = "polish" | "proofread" | "continue" | "custom" | "template" | "outline" | "draft";
 
 export interface AiReference {
   name: string;
@@ -26,6 +28,10 @@ export interface AiRequest {
   /** template: 본문과 참고 글에 있는 내용만 쓰게 할지 (웹 검색은 꺼진다) */
   groundedOnly: boolean;
   references: AiReference[];
+  /** outline, draft: 초안 기본정보 */
+  brief?: DraftBrief;
+  /** draft: 초안의 뼈대가 될 목차 (마크다운) */
+  outline?: string;
 }
 
 export interface AiStatus {

@@ -27,6 +27,23 @@ process.stdin.on("end", async () => {
   if (input.includes("SLOW")) await new Promise((resolve) => setTimeout(resolve, 60_000));
   if (input.includes("FAIL")) return out({ type: "result", is_error: true, result: "로그인이 필요해요. 터미널에서 claude를 실행해 주세요." });
 
+  // 초안 만들기: 목차 요청이면 받은 주제로 목차를, 목차가 함께 오면 그 제목으로 초안을 만든다.
+  const topic = input.match(/<brief>\n- 주제: ([^\n]*)/)?.[1];
+  if (topic !== undefined) {
+    const outline = input.match(/<outline>\n([\s\S]*?)\n<\/outline>/)?.[1];
+    const answer =
+      outline === undefined
+        ? `## ${topic} 시작하기\n- 왜 필요한가\n## 실천 방법\n- 하루 10분부터\n### 준비물\n- 신발\n## 마치며\n- 정리`
+        : outline
+            .split("\n")
+            .filter((line) => line.startsWith("#"))
+            .map((line) => `${line}\n\n${line.replace(/^#+\s*/, "")}에 대한 초안 문단입니다.`)
+            .join("\n\n");
+    delta(answer.slice(0, 15));
+    delta(answer.slice(15));
+    return out({ type: "result", subtype: "success", is_error: false, result: answer });
+  }
+
   // 템플릿 블록 요청: 받은 지침과 본문 맥락을 결과에 그대로 드러내서 테스트가 확인할 수 있게 한다.
   const instruction = input.match(/지침:\n([^\n]*)/)?.[1];
   if (instruction !== undefined) {

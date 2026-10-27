@@ -9,6 +9,10 @@ interface UiState {
   sidebarView: SidebarView;
   selectedTag: string | null;
   rightPanelOpen: boolean;
+  /** 사이드바 옆의 목차 패널 */
+  outlineOpen: boolean;
+  /** AI 초안 만들기 창 */
+  draftOpen: boolean;
   rightTab: RightTab;
   paletteOpen: boolean;
   /** 검색 결과에서 연 글에서 처음 보여줄 단어 */
@@ -20,6 +24,8 @@ interface UiState {
   /** 태그 목록에서 해당 태그를 펼쳐 보여준다. */
   showTag: (tag: string) => void;
   toggleRightPanel: () => void;
+  toggleOutline: () => void;
+  setDraftOpen: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
   setPaletteOpen: (open: boolean) => void;
   setPendingFind: (term: string | null) => void;
@@ -30,6 +36,8 @@ export const useUiStore = create<UiState>((set) => ({
   sidebarView: "notes",
   selectedTag: null,
   rightPanelOpen: true,
+  outlineOpen: true,
+  draftOpen: false,
   rightTab: "links",
   paletteOpen: false,
   pendingFind: null,
@@ -39,6 +47,8 @@ export const useUiStore = create<UiState>((set) => ({
   selectTag: (selectedTag) => set({ selectedTag }),
   showTag: (tag) => set({ sidebarView: "tags", selectedTag: tag, view: "editor" }),
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
+  toggleOutline: () => set((state) => ({ outlineOpen: !state.outlineOpen })),
+  setDraftOpen: (draftOpen) => set({ draftOpen }),
   setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setPendingFind: (pendingFind) => set({ pendingFind }),

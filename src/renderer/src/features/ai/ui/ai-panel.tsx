@@ -1,10 +1,11 @@
-import { BookOpen, Check, CopyPlus, Loader2, PenLine, Plus, SpellCheck, Sparkles, Square, TextCursorInput, X } from "lucide-react";
+import { BookOpen, Check, CopyPlus, FileText, Loader2, PenLine, Plus, SpellCheck, Sparkles, Square, TextCursorInput, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { outgoingOf } from "@/entities/note-index/lib/derive";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useReferenceStore } from "@/entities/note/model/use-reference-store";
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { Button } from "@/shared/ui/button";
 
@@ -313,6 +314,9 @@ export function AiPanel() {
             지시대로 처리
           </Button>
         </div>
+        <Button variant="outline" size="sm" className="w-full" disabled={status?.available === false} onClick={() => useUiStore.getState().setDraftOpen(true)}>
+          <FileText /> 기본정보로 목차·초안 만들기
+        </Button>
         <textarea
           value={instruction}
           onChange={(event) => setInstruction(event.target.value)}

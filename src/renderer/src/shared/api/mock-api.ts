@@ -183,7 +183,14 @@ export function createMockApi(): HandyApi {
       status: async () => ({ available: true, version: "mock", path: "mock" }),
       run: async (request) => {
         const { runId } = request;
-        const result = request.task === "continue" ? "이어서 쓴 [목업] 문장입니다." : request.text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다");
+        const result =
+          request.task === "continue"
+            ? "이어서 쓴 [목업] 문장입니다."
+            : request.task === "outline"
+              ? "## 들어가며\n- [목업] 글을 쓰는 이유\n## 본론\n- [목업] 핵심 내용\n## 마치며\n- [목업] 정리"
+              : request.task === "draft"
+                ? "## 들어가며\n\n[목업] 초안 문단입니다.\n\n## 본론\n\n[목업] 본론입니다.\n\n## 마치며\n\n[목업] 정리입니다."
+                : request.text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다");
         window.setTimeout(() => {
           aiListeners.forEach((listener) => listener({ runId, type: "delta", text: result }));
           aiListeners.forEach((listener) => listener({ runId, type: "done", text: result }));

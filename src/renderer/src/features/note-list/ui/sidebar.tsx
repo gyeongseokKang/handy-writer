@@ -1,4 +1,4 @@
-import { FolderOpen, GitBranch, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
+import { FolderOpen, GitBranch, ListTree, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
 
 import { UpdateRow } from "./update-row";
 import { useGitStore } from "@/entities/git/model/use-git-store";
@@ -23,6 +23,8 @@ export function Sidebar() {
   const setSidebarView = useUiStore((state) => state.setSidebarView);
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
+  const outlineOpen = useUiStore((state) => state.outlineOpen);
+  const toggleOutline = useUiStore((state) => state.toggleOutline);
 
   const gitStatus = useGitStore((state) => state.status);
   const setRightTab = useUiStore((state) => state.setRightTab);
@@ -33,29 +35,42 @@ export function Sidebar() {
     <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-muted/40">
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <PenLine className="size-4" />
-        <span className="flex-1 font-semibold">Handy Writer</span>
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn("size-7", view === "graph" && "bg-accent")}
-          title="그래프 보기"
-          aria-label="그래프 보기"
-          aria-pressed={view === "graph"}
-          onClick={() => setView(view === "graph" ? "editor" : "graph")}
-        >
-          <Network />
-        </Button>
-        <Button
-          size="icon"
-          variant="ghost"
-          className={cn("size-7", rightPanelOpen && "bg-accent")}
-          title="연결 정보 패널"
-          aria-label="연결 정보 패널"
-          aria-pressed={rightPanelOpen}
-          onClick={toggleRightPanel}
-        >
-          <PanelRight />
-        </Button>
+        <span className="flex-1 truncate font-semibold whitespace-nowrap">Handy Writer</span>
+        <div className="flex gap-0.5">
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn("size-7", view === "graph" && "bg-accent")}
+            title="그래프 보기"
+            aria-label="그래프 보기"
+            aria-pressed={view === "graph"}
+            onClick={() => setView(view === "graph" ? "editor" : "graph")}
+          >
+            <Network />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn("size-7", outlineOpen && "bg-accent")}
+            title="목차 패널"
+            aria-label="목차 패널"
+            aria-pressed={outlineOpen}
+            onClick={toggleOutline}
+          >
+            <ListTree />
+          </Button>
+          <Button
+            size="icon"
+            variant="ghost"
+            className={cn("size-7", rightPanelOpen && "bg-accent")}
+            title="연결 정보 패널"
+            aria-label="연결 정보 패널"
+            aria-pressed={rightPanelOpen}
+            onClick={toggleRightPanel}
+          >
+            <PanelRight />
+          </Button>
+        </div>
       </div>
 
       <div role="tablist" aria-label="사이드바 보기" className="mx-3 mb-2 grid grid-cols-2 rounded-md bg-muted p-0.5 text-sm">

@@ -9,8 +9,8 @@ import { SYSTEM_PROMPT } from "../../shared/ai-prompt";
 import type { AiStatus } from "../../shared/ai";
 
 const RUN_TIMEOUT_MS = 180_000;
-/** 웹 검색은 여러 번 검색하고 페이지를 읽느라 더 오래 걸린다. */
-const WEB_RUN_TIMEOUT_MS = 300_000;
+/** 웹 검색(여러 번 검색하고 페이지를 읽는다)과 긴 초안은 더 오래 걸린다. */
+const LONG_RUN_TIMEOUT_MS = 300_000;
 
 export const WEB_TOOLS = "WebSearch,WebFetch";
 
@@ -150,12 +150,14 @@ interface RunOptions {
   onStatus?: (text: string) => void;
   /** 도구를 쓰기 전의 중간 발화를 지우라는 신호 */
   onReset?: () => void;
+  /** 긴 글을 쓰는 요청이라 시간 제한을 늘린다. */
+  long?: boolean;
 }
 
 const TOOL_STATUS: Record<string, string> = { WebSearch: "웹 검색 중…", WebFetch: "웹 페이지 읽는 중…" };
 
 /** 도구를 모두 끈 채로 `claude -p`를 실행하고 결과 글을 돌려준다. 프롬프트는 stdin으로 넘긴다. */
-export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false, onStatus, onReset }: RunOptions): Promise<string> {
+export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false, onStatus, onReset, long = false }: RunOptions): Promise<string> {
   const promptFile = await ensureSystemPromptFile();
   const env = await childEnv(exe);
   const args = [
@@ -209,7 +211,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
     const timer = setTimeout(() => {
       child.kill();
       finish(new Error("시간이 너무 오래 걸려서 중단했어요."));
-    }, web ? WEB_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
+    }, web || long ? LONG_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
 
     const handleLine = (line: string) => {
       const piece = parseStreamLine(line.trim());

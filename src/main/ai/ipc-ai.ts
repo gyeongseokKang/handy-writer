@@ -2,11 +2,12 @@ import { ipcMain } from "electron";
 
 import type { AiEvent, AiRequest, AiTask } from "../../shared/ai";
 import { buildUserPrompt } from "../../shared/ai-prompt";
+import { parseBrief, parseOutline } from "../../shared/draft";
 import { IPC } from "../../shared/types";
 import { claudeStatus, findClaude, runClaude } from "./claude-cli";
 import { readRules, writeRules } from "./rules";
 
-const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom", "template"];
+const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom", "template", "outline", "draft"];
 
 /** 렌더러에서 온 값을 믿지 않고 모양을 확인한다. */
 function parseRequest(value: unknown): AiRequest {
@@ -29,6 +30,8 @@ function parseRequest(value: unknown): AiRequest {
     references: Array.isArray(v.references)
       ? v.references.map((ref) => ({ name: str(ref?.name), content: str(ref?.content) }))
       : [],
+    ...(v.task === "outline" || v.task === "draft" ? { brief: parseBrief(v.brief) } : {}),
+    ...(v.task === "draft" ? { outline: parseOutline(v.outline) } : {}),
   };
 }
 
@@ -59,6 +62,8 @@ export function registerAiIpc(requireRoot: () => string) {
       prompt: buildUserPrompt(request),
       signal: controller.signal,
       web: request.web,
+      // 긴 초안은 글을 쓰는 데만 몇 분이 걸린다.
+      long: request.task === "draft",
       onDelta: (text) => send({ runId, type: "delta", text }),
       onStatus: (text) => send({ runId, type: "status", text }),
       onReset: () => send({ runId, type: "reset" }),

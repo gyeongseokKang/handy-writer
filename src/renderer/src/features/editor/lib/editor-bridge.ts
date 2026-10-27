@@ -1,7 +1,7 @@
 import type { Editor, JSONContent } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
-import type { ApplyResult, EditorBridge, EditorContext, EmbedItem, TemplateBlockAttrs } from "@/entities/note/model/use-editor-bridge";
+import type { ApplyResult, EditorBridge, EditorContext, EmbedItem, HeadingItem, TemplateBlockAttrs } from "@/entities/note/model/use-editor-bridge";
 
 function serialize(editor: Editor, from: number, to: number) {
   const content = editor.state.doc.slice(from, to).content.toJSON() as JSONContent[];
@@ -189,6 +189,48 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string): E
       if (!found) return false;
       const next = editor.schema.nodeFromJSON({ type: "templateBlock", attrs: { ...attrs, uid }, content: parseBlocks(editor, markdown) });
       editor.view.dispatch(editor.state.tr.replaceWith(found.pos, found.pos + found.node.nodeSize, next));
+      return true;
+    },
+
+    listHeadings() {
+      const headings: HeadingItem[] = [];
+      editor.state.doc.forEach((node, pos) => {
+        if (node.type.name !== "heading") return;
+        const text = node.textContent.trim();
+        if (text) headings.push({ level: Number(node.attrs["level"]), text, pos });
+      });
+      return headings;
+    },
+
+    currentHeadingPos() {
+      const { doc, selection } = editor.state;
+      let current: number | null = null;
+      doc.forEach((node, pos) => {
+        if (node.type.name === "heading" && pos <= selection.from && node.textContent.trim()) current = pos;
+      });
+      return current;
+    },
+
+    headingInViewPos() {
+      const scroller = editor.view.dom.closest("[data-note-scroller]");
+      const top = scroller?.getBoundingClientRect().top ?? 0;
+      let current: number | null = null;
+      editor.state.doc.forEach((node, pos) => {
+        if (node.type.name !== "heading" || !node.textContent.trim()) return;
+        const dom = editor.view.nodeDOM(pos) as HTMLElement | null;
+        // 화면 위에서 조금 내려온 곳까지 올라온 제목을 지금 읽는 부분으로 본다.
+        if (dom && dom.getBoundingClientRect().top - top <= 120) current = pos;
+      });
+      return current;
+    },
+
+    focusHeading(pos) {
+      const node = editor.state.doc.nodeAt(pos);
+      if (node?.type.name !== "heading") return false;
+      // focus()는 다음 프레임에 커서만 겨우 보이게 스크롤해서 아래 스크롤을 덮어쓰므로 끈다.
+      editor.chain().focus(undefined, { scrollIntoView: false }).setTextSelection(pos + node.nodeSize - 1).run();
+      // 제목이 화면 맨 위에 오게 한다.
+      (editor.view.nodeDOM(pos) as HTMLElement | null)?.scrollIntoView({ block: "start", behavior: "smooth" });
       return true;
     },
 

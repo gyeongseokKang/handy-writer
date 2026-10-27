@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
+import { useOutlineStore } from "@/entities/note/model/use-outline-store";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -37,6 +38,15 @@ const STATUS_LABEL: Record<SaveStatus, string> = {
 interface NoteEditorProps {
   path: string;
   name: string;
+}
+
+/** setContent(emitUpdate: false)로 내용을 통째로 바꾼 뒤, 다른 패널이 보는 임베드 목록과 목차를 다시 읽게 한다. */
+function syncPanels() {
+  const bridge = useEditorBridge.getState().bridge;
+  useEmbedStore.getState().setItems(bridge?.listEmbeds() ?? []);
+  useOutlineStore.getState().setHeadings(bridge?.listHeadings() ?? []);
+  // 화면에 그려진 뒤에야 제목 위치를 잴 수 있다.
+  window.requestAnimationFrame(() => useOutlineStore.getState().setActivePos(useEditorBridge.getState().bridge?.headingInViewPos() ?? null));
 }
 
 /** 글 하나를 편집한다. 글이 바뀌면 key로 새로 마운트되므로 상태가 섞이지 않는다. */
@@ -116,7 +126,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         setStatus("saved");
-        useEmbedStore.getState().setItems(useEditorBridge.getState().bridge?.listEmbeds() ?? []);
+        syncPanels();
         if (raw === "") editor.commands.focus("start");
         // 검색 결과에서 열었으면 찾은 단어로 이동
         const find = useUiStore.getState().pendingFind;
@@ -140,17 +150,28 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
     if (!editor) return;
     const bridge = createEditorBridge(editor, () => nameRef.current);
     useEditorBridge.getState().setBridge(bridge);
-    // 첨부 패널이 보여줄 임베드 목록을 글이 바뀔 때마다 갱신한다.
-    const syncEmbeds = () => useEmbedStore.getState().setItems(bridge.listEmbeds());
+    // 첨부 패널이 보여줄 임베드 목록과 목차를 글이 바뀔 때마다 갱신한다.
+    const syncEmbeds = () => {
+      useEmbedStore.getState().setItems(bridge.listEmbeds());
+      useOutlineStore.getState().setHeadings(bridge.listHeadings());
+    };
+    // 글을 불러오며 선택이 바뀔 때는 무시하고, 사용자가 커서를 옮길 때만 따라간다.
+    const syncActiveHeading = () => {
+      if (editor.isFocused) useOutlineStore.getState().setActivePos(bridge.currentHeadingPos());
+    };
     syncEmbeds();
     editor.on("update", syncEmbeds);
     editor.on("create", syncEmbeds);
+    editor.on("selectionUpdate", syncActiveHeading);
     return () => {
       editor.off("update", syncEmbeds);
       editor.off("create", syncEmbeds);
+      editor.off("selectionUpdate", syncActiveHeading);
       if (useEditorBridge.getState().bridge === bridge) {
         useEditorBridge.getState().setBridge(null);
         useEmbedStore.getState().setItems([]);
+        useOutlineStore.getState().setHeadings([]);
+        useOutlineStore.getState().setActivePos(null);
       }
     };
   }, [editor]);
@@ -216,7 +237,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         frontmatterRef.current = frontmatter;
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
-        useEmbedStore.getState().setItems(useEditorBridge.getState().bridge?.listEmbeds() ?? []);
+        syncPanels();
         toast.info("다른 곳에서 바뀐 내용을 불러왔어요.");
       })
       .catch(() => {});
@@ -225,11 +246,25 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
     };
   }, [editor, externalChange, path]);
 
+  // 스크롤하면 목차에 지금 읽고 있는 제목을 표시한다 (한 프레임에 한 번만 계산).
+  const scrollFrame = useRef<number | null>(null);
+  const onScroll = () => {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = window.requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      const pos = useEditorBridge.getState().bridge?.headingInViewPos();
+      if (pos !== undefined) useOutlineStore.getState().setActivePos(pos);
+    });
+  };
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) window.cancelAnimationFrame(scrollFrame.current);
+  }, []);
+
   if (!editor) return null;
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div data-note-scroller className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll}>
         <div className="mx-auto w-full max-w-3xl px-12 pt-14 pb-40">
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
           <div className="relative mt-6">

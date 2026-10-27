@@ -37,6 +37,14 @@ export interface TemplateBlockAttrs {
 
 export type ApplyResult = "ok" | "changed";
 
+/** 목차에 보여줄 제목 하나 */
+export interface HeadingItem {
+  level: number;
+  text: string;
+  /** 문서 안에서 제목 노드의 위치 */
+  pos: number;
+}
+
 export interface EditorBridge {
   getContext: () => EditorContext;
   /** 요청할 때의 범위를 새 마크다운으로 바꾼다. 그사이 그 부분이 바뀌었으면 건드리지 않고 "changed"를 돌려준다. */
@@ -59,6 +67,14 @@ export interface EditorBridge {
   getTemplateBlock: (uid: string) => { attrs: TemplateBlockAttrs; markdown: string } | null;
   /** 블록의 속성과 내용을 새로 바꾼다 (다시 생성). 없는 uid면 false */
   replaceTemplateBlock: (uid: string, attrs: TemplateBlockAttrs, markdown: string) => boolean;
+  /** 글에 있는 제목(#, ##, …)을 순서대로 */
+  listHeadings: () => HeadingItem[];
+  /** 지금 커서가 속한 제목의 위치 (커서 위에 제목이 없으면 null) */
+  currentHeadingPos: () => number | null;
+  /** 스크롤한 화면 맨 위쪽에 걸친 제목의 위치 (그보다 위에 제목이 없으면 null) */
+  headingInViewPos: () => number | null;
+  /** 해당 제목으로 커서를 옮기고 화면 맨 위로 스크롤한다. */
+  focusHeading: (pos: number) => boolean;
   /** 글에서 처음 나오는 단어를 선택하고 그 위치로 스크롤한다. 없으면 false */
   findAndSelect: (term: string) => boolean;
 }

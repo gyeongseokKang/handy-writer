@@ -55,7 +55,8 @@ interface WorkspaceState {
   refresh: (options?: { attachments?: boolean }) => Promise<void>;
   openNote: (path: string | null) => Promise<void>;
   openLink: (target: string) => Promise<void>;
-  createNote: (folder?: string, title?: string) => Promise<void>;
+  /** content가 있으면 그 내용으로 채운 글을 만든다. */
+  createNote: (folder?: string, title?: string, content?: string) => Promise<void>;
   renameNote: (path: string, newName: string) => Promise<boolean>;
   removeNote: (path: string) => Promise<void>;
   setQuery: (query: string) => void;
@@ -143,10 +144,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       await get().createNote("", name);
     },
 
-    createNote: async (folder = "", title) => {
+    createNote: async (folder = "", title, content) => {
       try {
         await flushPath(get().activePath);
         const meta = await api.notes.create(folder, title);
+        if (content) await api.notes.write(meta.path, content);
         await get().refresh();
         useUiStore.getState().setView("editor");
         rememberNote(meta.path);
