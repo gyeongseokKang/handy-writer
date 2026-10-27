@@ -6,7 +6,7 @@ import { UPDATE_LABEL } from "@shared/update";
 
 const VERSION = <span aria-label="현재 버전" className="ml-auto shrink-0 pl-2 tabular-nums">v{__APP_VERSION__}</span>;
 
-/** 사이드바 맨 아래의 업데이트 줄. 현재 버전을 오른쪽에 함께 보여준다. */
+/** 사이드바 맨 아래의 업데이트 줄. 현재 버전을 오른쪽에 함께 보여주고, 최신이면 버전 옆에 latest 뱃지를 단다. */
 export function UpdateRow() {
   const state = useUpdateStore((s) => s.state);
   if (state.status === "unsupported") {
@@ -36,8 +36,24 @@ export function UpdateRow() {
       className="flex items-center gap-2 border-t px-4 py-2 text-left text-xs text-muted-foreground hover:bg-accent/70 disabled:opacity-70"
     >
       <RefreshCw className={busy ? "size-3.5 shrink-0 animate-spin" : "size-3.5 shrink-0"} />
-      <span className="truncate">{state.status === "idle" ? "업데이트 확인" : UPDATE_LABEL(state)}</span>
-      {VERSION}
+      {state.status === "none" ? (
+        // 최신이면 문구 대신 지금 버전과 latest 뱃지만 보여준다.
+        <>
+          <span aria-label="현재 버전" className="tabular-nums">v{__APP_VERSION__}</span>
+          <span
+            title={UPDATE_LABEL(state)}
+            aria-label={UPDATE_LABEL(state)}
+            className="rounded-full bg-emerald-500/15 px-1.5 py-px text-[10px] leading-4 font-medium text-emerald-700 dark:text-emerald-400"
+          >
+            latest
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="truncate">{state.status === "idle" ? "업데이트 확인" : UPDATE_LABEL(state)}</span>
+          {VERSION}
+        </>
+      )}
     </button>
   );
 }
