@@ -1,7 +1,7 @@
 {
   "name": "handy-writer",
   "productName": "Handy Writer",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "글쓰기를 도와주는 데스크톱 앱",
   "private": true,
   "license": "MIT",
