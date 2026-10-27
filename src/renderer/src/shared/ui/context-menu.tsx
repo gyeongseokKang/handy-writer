@@ -74,7 +74,7 @@ export function ContextMenu({ x, y, label, items, onClose }: ContextMenuProps) {
       style={position}
       onKeyDown={onKeyDown}
       onContextMenu={(event) => event.preventDefault()}
-      className="fixed z-50 min-w-48 rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-lg"
+      className="fixed z-50 min-w-48 rounded-lg border bg-card p-1 text-sm text-card-foreground shadow-lg"
     >
       {items.map((item, index) =>
         item === "separator" ? (
