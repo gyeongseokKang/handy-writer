@@ -14,6 +14,19 @@ export interface SpellIssue {
   source?: "rule" | "online";
 }
 
+/** 맞춤법 탭 항목에 함께 보여줄 앞뒤 글의 길이 */
+export const SPELL_CONTEXT = 16;
+
+/** 맞춤법 탭에 보여줄 항목 하나 (에디터 문서 안의 위치와 함께) */
+export interface SpellItem {
+  issue: SpellIssue;
+  from: number;
+  to: number;
+  /** 틀린 낱말 앞뒤의 글 (목록에서 어디인지 알아보게) */
+  before: string;
+  after: string;
+}
+
 interface Rule {
   id: string;
   pattern: RegExp;

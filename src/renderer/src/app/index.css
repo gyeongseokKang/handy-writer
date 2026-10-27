@@ -233,6 +233,8 @@
   text-underline-offset: 4px;
   cursor: pointer;
 }
+/* 맞춤법 탭에서 고른 낱말 */
+.note-prose .spell-active { background: color-mix(in oklch, oklch(0.65 0.2 25) 18%, transparent); border-radius: 0.2rem; box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.65 0.2 25) 18%, transparent); }
 
 /* 템플릿 블록 (앱 전용). 모양은 콜아웃과 같은 색을 쓴다. */
 .note-prose .template-block {

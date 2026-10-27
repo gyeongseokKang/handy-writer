@@ -3,7 +3,7 @@ import type { MarkType, Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { mapTyposToIssues, maskForOnline, mergeIssues, type OnlineSpellResult } from "@shared/online-spell";
-import { checkSpelling, issueKey, type SpellIssue } from "@shared/spellcheck";
+import { checkSpelling, issueKey, SPELL_CONTEXT, type SpellIssue, type SpellItem } from "@shared/spellcheck";
 
 export interface SpellTarget {
   issue: SpellIssue;
@@ -14,10 +14,12 @@ export interface SpellTarget {
   rect: { left: number; bottom: number; top: number };
 }
 
+
 export interface SpellCheckOptions {
   isEnabled: () => boolean;
   isIgnored: (key: string) => boolean;
-  onCount: (count: number) => void;
+  /** 표시 중인 항목이 바뀔 때마다 (위치가 옮겨진 것도 포함) */
+  onItems: (items: SpellItem[]) => void;
   onSelect: (target: SpellTarget) => void;
   /** 온라인 검사. 없으면 규칙 기반 검사만 한다. */
   checkOnline?: (maskedText: string) => Promise<OnlineSpellResult>;
@@ -29,6 +31,12 @@ export interface SpellCheckOptions {
 
 /** 설정이 바뀌었을 때 장식을 다시 계산하라고 알리는 트랜잭션 메타 */
 export const SPELL_REFRESH = "refreshSpell";
+/** 이 자리의 항목만 건너뛴다 (메타 값: { from, to }) */
+export const SPELL_SKIP = "skipSpell";
+/** 맞춤법 탭에서 고른 항목을 강조한다 (메타 값: { from, to } 또는 null) */
+export const SPELL_ACTIVE = "activeSpell";
+
+type Range = { from: number; to: number };
 
 const LEAF = "￼";
 const ONLINE_DELAY_MS = 1500;
@@ -63,20 +71,24 @@ export function blockText(node: ProseMirrorNode, codeMark: MarkType | undefined)
   return text;
 }
 
-interface Item {
-  from: number;
-  to: number;
-  issue: SpellIssue;
-}
-
 interface PluginState {
-  items: Item[];
+  items: SpellItem[];
   decorations: DecorationSet;
   /** 온라인 검사가 필요한데 아직 결과가 없는 문단 글 */
   missing: string[];
+  /** 건너뛴 자리. 글이 바뀌면 함께 옮기고, 지워진 자리는 버린다. */
+  skipped: Range[];
+  active: Range | null;
 }
 
 const key = new PluginKey<PluginState>("spellCheck");
+
+const sameItems = (a: SpellItem[], b: SpellItem[]) =>
+  a.length === b.length &&
+  a.every((item, i) => {
+    const other = b[i]!;
+    return item.from === other.from && item.to === other.to && item.issue.replacement === other.issue.replacement && item.before === other.before && item.after === other.after;
+  });
 
 /**
  * 글을 쓰는 동안 자주 틀리는 표기에 밑줄을 긋는다 (문서 내용은 바꾸지 않는다).
@@ -87,12 +99,12 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
   name: "spellCheck",
 
   addOptions() {
-    return { isEnabled: () => true, isIgnored: () => false, onCount: () => {}, onSelect: () => {} };
+    return { isEnabled: () => true, isIgnored: () => false, onItems: () => {}, onSelect: () => {} };
   },
 
   addProseMirrorPlugins() {
     const { options } = this;
-    let lastCount = -1;
+    let lastItems: SpellItem[] | null = null;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let offlineUntil = 0;
     const pending = new Set<string>();
@@ -100,8 +112,8 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
 
     const onlineOn = () => Boolean(options.checkOnline && options.isOnlineEnabled?.() && options.isEnabled());
 
-    const compute = (state: EditorState): PluginState => {
-      const items: Item[] = [];
+    const compute = (state: EditorState, skipped: Range[], active: Range | null): PluginState => {
+      const items: SpellItem[] = [];
       const missing = new Set<string>();
       if (options.isEnabled()) {
         const codeMark = state.schema.marks["code"];
@@ -123,18 +135,25 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
             const to = pos + 1 + issue.end;
             if (codeMark && state.doc.rangeHasMark(from, to, codeMark)) continue;
             if (options.isIgnored(issueKey(issue))) continue;
+            if (skipped.some((range) => range.from === from && range.to === to)) continue;
+            const isActive = active?.from === from && active.to === to;
             // 커서가 낱말 안이나 끝에 있으면 아직 쓰는 중이라고 본다.
-            if (empty && cursor >= from && cursor <= to) continue;
-            items.push({ from, to, issue });
+            if (!isActive && empty && cursor >= from && cursor <= to) continue;
+            const before = text.slice(Math.max(0, issue.start - SPELL_CONTEXT), issue.start).replaceAll(LEAF, " ");
+            const after = text.slice(issue.end, issue.end + SPELL_CONTEXT).replaceAll(LEAF, " ");
+            items.push({ from, to, issue, before, after });
           }
           return false;
         });
       }
       const decorations = DecorationSet.create(
         state.doc,
-        items.map((item) => Decoration.inline(item.from, item.to, { class: "spell-error", "data-spell": item.issue.ruleId })),
+        items.map((item) => {
+          const isActive = active?.from === item.from && active.to === item.to;
+          return Decoration.inline(item.from, item.to, { class: isActive ? "spell-error spell-active" : "spell-error", "data-spell": item.issue.ruleId });
+        }),
       );
-      return { items, decorations, missing: [...missing] };
+      return { items, decorations, missing: [...missing], skipped, active };
     };
 
     const flush = (view: EditorView) => {
@@ -180,16 +199,30 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
       new Plugin({
         key,
         state: {
-          init: (_config, state) => compute(state),
-          apply: (tr, value, _old, state) => (tr.docChanged || tr.selectionSet || tr.getMeta(SPELL_REFRESH) ? compute(state) : value),
+          init: (_config, state) => compute(state, [], null),
+          apply: (tr, value, _old, state) => {
+            const map = (range: Range): Range | null => {
+              const from = tr.mapping.mapResult(range.from, 1);
+              const to = tr.mapping.mapResult(range.to, -1);
+              return from.deleted || to.deleted || from.pos >= to.pos ? null : { from: from.pos, to: to.pos };
+            };
+            let skipped = tr.docChanged ? value.skipped.map(map).filter((range): range is Range => range !== null) : value.skipped;
+            let active = value.active && tr.docChanged ? map(value.active) : value.active;
+            const skip = tr.getMeta(SPELL_SKIP) as Range | undefined;
+            if (skip) skipped = [...skipped, skip];
+            const nextActive = tr.getMeta(SPELL_ACTIVE) as Range | null | undefined;
+            if (nextActive !== undefined) active = nextActive;
+            const changed = skip !== undefined || nextActive !== undefined;
+            return tr.docChanged || tr.selectionSet || changed || tr.getMeta(SPELL_REFRESH) ? compute(state, skipped, active) : value;
+          },
         },
         view: () => ({
           update: (view) => {
             const state = key.getState(view.state);
-            const count = state?.items.length ?? 0;
-            if (count !== lastCount) {
-              lastCount = count;
-              options.onCount(count);
+            const items = state?.items ?? [];
+            if (!lastItems || !sameItems(lastItems, items)) {
+              lastItems = items;
+              options.onItems(items);
             }
             if (state && state.missing.length > 0) schedule(view, state.missing);
           },

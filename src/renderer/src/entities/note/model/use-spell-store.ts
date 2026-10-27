@@ -1,5 +1,7 @@
 import { create } from "zustand";
 
+import type { SpellItem } from "@shared/spellcheck";
+
 const ENABLED_KEY = "handy-writer:spellcheck";
 const IGNORED_KEY = "handy-writer:spellcheck-ignored";
 const ONLINE_KEY = "handy-writer:spellcheck-online";
@@ -30,14 +32,15 @@ interface SpellState {
   onlineState: OnlineSpellState;
   /** 사용자가 "무시"한 항목의 키 (규칙:낱말) */
   ignored: string[];
-  /** 지금 열린 글에서 표시 중인 맞춤법 항목 수 */
+  /** 지금 열린 글에서 표시 중인 맞춤법 항목 */
+  items: SpellItem[];
   count: number;
 
   setEnabled: (enabled: boolean) => void;
   setOnline: (online: boolean) => void;
   setOnlineState: (state: OnlineSpellState) => void;
   ignore: (key: string) => void;
-  setCount: (count: number) => void;
+  setItems: (items: SpellItem[]) => void;
 }
 
 export const useSpellStore = create<SpellState>((set, get) => ({
@@ -45,6 +48,7 @@ export const useSpellStore = create<SpellState>((set, get) => ({
   online: read(ONLINE_KEY, true),
   onlineState: "unknown",
   ignored: read<string[]>(IGNORED_KEY, []),
+  items: [],
   count: 0,
 
   setEnabled: (enabled) => {
@@ -64,7 +68,5 @@ export const useSpellStore = create<SpellState>((set, get) => ({
     write(IGNORED_KEY, ignored);
     set({ ignored });
   },
-  setCount: (count) => {
-    if (get().count !== count) set({ count });
-  },
+  setItems: (items) => set({ items, count: items.length }),
 }));

@@ -27,7 +27,8 @@ export function Sidebar() {
   const toggleOutline = useUiStore((state) => state.toggleOutline);
 
   const gitStatus = useGitStore((state) => state.status);
-  const setRightTab = useUiStore((state) => state.setRightTab);
+  const toggleGit = useUiStore((state) => state.toggleGit);
+  const gitOpen = useUiStore((state) => state.gitOpen && state.rightPanelOpen);
 
   const folderName = root?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
@@ -114,16 +115,17 @@ export function Sidebar() {
         {sidebarView === "notes" ? <NoteTree /> : <TagList />}
       </div>
 
-      {gitStatus?.isRepo && (
+      {gitStatus && (
         <button
           type="button"
-          onClick={() => setRightTab("git")}
-          title="Git 패널 열기"
+          onClick={toggleGit}
+          title={gitOpen ? "Git 닫기" : "Git 열기"}
           aria-label="Git 상태"
-          className="flex items-center gap-2 border-t px-4 py-2 text-left text-xs text-muted-foreground hover:bg-accent/70"
+          aria-expanded={gitOpen}
+          className={cn("flex items-center gap-2 border-t px-4 py-2 text-left text-xs text-muted-foreground hover:bg-accent/70", gitOpen && "bg-accent text-foreground")}
         >
           <GitBranch className="size-3.5 shrink-0" />
-          <span className="truncate">{gitStatus.branch ?? "HEAD"}</span>
+          <span className="truncate">{gitStatus.isRepo ? (gitStatus.branch ?? "HEAD") : gitStatus.installed ? "Git 시작하기" : "Git 설치 필요"}</span>
           <span className="ml-auto flex shrink-0 items-center gap-2">
             {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
             {gitStatus.ahead > 0 && <span>↑{gitStatus.ahead}</span>}

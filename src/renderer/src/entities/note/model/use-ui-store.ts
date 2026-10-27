@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 type MainView = "editor" | "graph";
 type SidebarView = "notes" | "tags";
-type RightTab = "links" | "files" | "ai" | "git";
+export type RightTab = "links" | "files" | "ai" | "spell";
 
 interface UiState {
   view: MainView;
@@ -14,6 +14,8 @@ interface UiState {
   /** AI 초안 만들기 창 */
   draftOpen: boolean;
   rightTab: RightTab;
+  /** 오른쪽 패널을 탭 대신 Git 화면으로 덮고 있는지 (왼쪽 아래 브랜치를 눌러 연다) */
+  gitOpen: boolean;
   paletteOpen: boolean;
   /** 검색 결과에서 연 글에서 처음 보여줄 단어 */
   pendingFind: string | null;
@@ -27,6 +29,9 @@ interface UiState {
   toggleOutline: () => void;
   setDraftOpen: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
+  /** Git 화면을 열고 닫는다. 열 때는 오른쪽 패널도 연다. */
+  toggleGit: () => void;
+  closeGit: () => void;
   setPaletteOpen: (open: boolean) => void;
   setPendingFind: (term: string | null) => void;
 }
@@ -39,6 +44,7 @@ export const useUiStore = create<UiState>((set) => ({
   outlineOpen: true,
   draftOpen: false,
   rightTab: "links",
+  gitOpen: false,
   paletteOpen: false,
   pendingFind: null,
 
@@ -49,7 +55,9 @@ export const useUiStore = create<UiState>((set) => ({
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen })),
   toggleOutline: () => set((state) => ({ outlineOpen: !state.outlineOpen })),
   setDraftOpen: (draftOpen) => set({ draftOpen }),
-  setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true }),
+  setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true, gitOpen: false }),
+  toggleGit: () => set((state) => (state.gitOpen && state.rightPanelOpen ? { gitOpen: false } : { gitOpen: true, rightPanelOpen: true })),
+  closeGit: () => set({ gitOpen: false }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setPendingFind: (pendingFind) => set({ pendingFind }),
 }));

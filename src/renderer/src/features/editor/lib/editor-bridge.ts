@@ -3,6 +3,8 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
 import type { ApplyResult, EditorBridge, EditorContext, EmbedItem, HeadingItem, TemplateBlockAttrs } from "@/entities/note/model/use-editor-bridge";
 
+import { SPELL_ACTIVE, SPELL_SKIP } from "./spell-check";
+
 function serialize(editor: Editor, from: number, to: number) {
   const content = editor.state.doc.slice(from, to).content.toJSON() as JSONContent[];
   return editor.markdown?.serialize({ type: "doc", content }).trim() ?? "";
@@ -249,6 +251,26 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string): E
       if (!found) return false;
       editor.chain().focus().setTextSelection(found).scrollIntoView().run();
       return true;
+    },
+
+    revealSpell(range) {
+      if (editor.isDestroyed) return;
+      editor.view.dispatch(editor.state.tr.setMeta(SPELL_ACTIVE, range));
+      if (!range) return;
+      // 강조한 낱말을 화면 가운데로. 장식이 그려진 뒤라 바로 찾을 수 있다.
+      const el = editor.view.dom.querySelector<HTMLElement>(".spell-active");
+      el?.scrollIntoView({ block: "center", behavior: "smooth" });
+    },
+
+    applySpell({ from, to }, text, replacement) {
+      const { doc } = editor.state;
+      if (to > doc.content.size || doc.textBetween(from, to, undefined, "\uFFFC") !== text) return false;
+      editor.view.dispatch(editor.state.tr.insertText(replacement, from, to).setMeta(SPELL_ACTIVE, null));
+      return true;
+    },
+
+    skipSpell(range) {
+      editor.view.dispatch(editor.state.tr.setMeta(SPELL_SKIP, range).setMeta(SPELL_ACTIVE, null));
     },
 
     insertBelowCursor(markdown) {

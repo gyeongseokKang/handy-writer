@@ -316,7 +316,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const remote = path.join(ud, "remote.git");
   git(ud, "init", "--bare", "-b", "main", remote);
 
-  await page.getByRole("tab", { name: "Git" }).click();
+  await page.getByRole("button", { name: "Git 상태" }).click();
   await page.getByRole("button", { name: "git 저장소 만들기" }).click();
   await page.waitForSelector("ul[aria-label='변경된 파일']");
   assert(fs.existsSync(path.join(ws, ".git")), "Git 탭에서 저장소를 만들 수 있다");
@@ -383,6 +383,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const gitSettings = JSON.parse(fs.readFileSync(path.join(ud, "git-settings.json"), "utf8"));
   assert(gitSettings[ws]?.autoCommitMinutes === 10, "자동 커밋 간격이 사용자 설정 파일에 저장된다");
   assert(!fs.existsSync(path.join(ws, ".handy-writer", "git-settings.json")), "컴퓨터별 설정은 작업 폴더(git) 안에 들어가지 않는다");
+  await page.getByRole("button", { name: "Git 닫기" }).click();
 
   // 첨부 탭: 이미지와 영상 보기, 라벨과 크기 고치기
   const fixture = (name) => path.join(ROOT, "e2e", "fixtures", name);

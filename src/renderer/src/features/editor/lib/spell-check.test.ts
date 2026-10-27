@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createExtensions } from "./create-extensions";
 import type { OnlineSpellResult } from "@shared/online-spell";
 
-import { clearOnlineSpellCache, SPELL_REFRESH, type SpellCheckOptions, type SpellTarget } from "./spell-check";
+import { clearOnlineSpellCache, SPELL_ACTIVE, SPELL_REFRESH, SPELL_SKIP, type SpellCheckOptions, type SpellTarget } from "./spell-check";
 
 let editor: Editor;
 
@@ -14,7 +14,7 @@ function mount(markdown: string, overrides: Partial<SpellCheckOptions> = {}) {
   const spell: SpellCheckOptions = {
     isEnabled: () => true,
     isIgnored: () => false,
-    onCount: vi.fn(),
+    onItems: vi.fn(),
     onSelect: vi.fn(),
     ...overrides,
   };
@@ -49,7 +49,7 @@ describe("맞춤법 밑줄", () => {
     const spell = mount("어제 됬다고 했다. 웬지 슬프다.\n\n끝");
     editor.commands.focus("end");
     expect(underlined()).toEqual(["됬다고", "웬지"]);
-    expect(spell.onCount).toHaveBeenLastCalledWith(2);
+    expect(vi.mocked(spell.onItems).mock.lastCall?.[0].map((item) => item.issue.text)).toEqual(["됬다고", "웬지"]);
     expect(editor.getMarkdown()).toBe("어제 됬다고 했다. 웬지 슬프다.\n\n끝");
   });
 
@@ -203,5 +203,49 @@ describe("온라인 검사 합치기", () => {
     await waitFor(() => onOnlineStatus.mock.calls.length > 0);
     expect(onOnlineStatus).toHaveBeenCalledWith("offline");
     expect(underlined()).toEqual(["웬지"]);
+  });
+});
+
+describe("맞춤법 탭에서 다루기", () => {
+  const lastItems = (spell: SpellCheckOptions) => vi.mocked(spell.onItems).mock.lastCall?.[0] ?? [];
+
+  it("항목마다 앞뒤 글을 함께 알린다", () => {
+    const spell = mount("어제 그 일이 됬다고 들었다.\n\n끝");
+    editor.commands.focus("end");
+    const [item] = lastItems(spell);
+    expect(item?.issue.text).toBe("됬다고");
+    expect(item?.before).toBe("어제 그 일이 ");
+    expect(item?.after).toBe(" 들었다.");
+    expect(editor.state.doc.textBetween(item!.from, item!.to)).toBe("됬다고");
+  });
+
+  it("건너뛴 자리만 빼고, 같은 낱말의 다른 자리는 그대로 둔다", () => {
+    const spell = mount("웬지 하나. 웬지 둘.\n\n끝");
+    editor.commands.focus("end");
+    const [first] = lastItems(spell);
+    editor.view.dispatch(editor.state.tr.setMeta(SPELL_SKIP, { from: first!.from, to: first!.to }));
+    expect(lastItems(spell).map((item) => item.after)).toEqual([" 둘."]);
+  });
+
+  it("건너뛴 자리는 앞에 글을 써도 따라가고, 지우면 사라진다", () => {
+    const spell = mount("웬지 하나.\n\n끝");
+    editor.commands.focus("end");
+    const [item] = lastItems(spell);
+    editor.view.dispatch(editor.state.tr.setMeta(SPELL_SKIP, { from: item!.from, to: item!.to }));
+    editor.view.dispatch(editor.state.tr.insertText("앞에 ", 1));
+    expect(underlined()).toEqual([]);
+    editor.view.dispatch(editor.state.tr.delete(item!.from + 3, item!.to + 3).insertText("웬지", item!.from + 3));
+    editor.commands.focus("end");
+    expect(underlined()).toEqual(["웬지"]);
+  });
+
+  it("고른 항목은 강조하고, 커서가 그 안에 있어도 목록에서 빼지 않는다", () => {
+    const spell = mount("웬지 그렇다\n\n끝");
+    editor.commands.focus("end");
+    const [item] = lastItems(spell);
+    editor.view.dispatch(editor.state.tr.setMeta(SPELL_ACTIVE, { from: item!.from, to: item!.to }));
+    placeCursorIn("웬지");
+    expect(editor.view.dom.querySelector(".spell-active")?.textContent).toBe("웬지");
+    expect(lastItems(spell)).toHaveLength(1);
   });
 });

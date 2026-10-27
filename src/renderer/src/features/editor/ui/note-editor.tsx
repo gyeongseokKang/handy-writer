@@ -66,7 +66,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         spell: {
           isEnabled: () => useSpellStore.getState().enabled,
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
-          onCount: (count) => useSpellStore.getState().setCount(count),
+          onItems: (items) => useSpellStore.getState().setItems(items),
           onSelect: setSpellTarget,
           checkOnline: (text) => api.spell.check(text),
           isOnlineEnabled: () => useSpellStore.getState().online,
@@ -184,7 +184,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
   }, [editor, spellEnabled, spellIgnored, spellOnline]);
-  useEffect(() => () => useSpellStore.getState().setCount(0), []);
+  useEffect(() => () => useSpellStore.getState().setItems([]), []);
 
   const applySpell = (replacement?: string) => {
     if (!editor || !spellTarget) return;

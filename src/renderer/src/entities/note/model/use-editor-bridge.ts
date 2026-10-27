@@ -45,6 +45,11 @@ export interface HeadingItem {
   pos: number;
 }
 
+export interface SpellRange {
+  from: number;
+  to: number;
+}
+
 export interface EditorBridge {
   getContext: () => EditorContext;
   /** 요청할 때의 범위를 새 마크다운으로 바꾼다. 그사이 그 부분이 바뀌었으면 건드리지 않고 "changed"를 돌려준다. */
@@ -77,6 +82,12 @@ export interface EditorBridge {
   focusHeading: (pos: number) => boolean;
   /** 글에서 처음 나오는 단어를 선택하고 그 위치로 스크롤한다. 없으면 false */
   findAndSelect: (term: string) => boolean;
+  /** 맞춤법 항목을 강조하고 화면 가운데로 스크롤한다. null이면 강조를 지운다. */
+  revealSpell: (range: SpellRange | null) => void;
+  /** 그 자리의 글이 아직 `text`이면 `replacement`로 바꾼다. 그사이 바뀌었으면 false */
+  applySpell: (range: SpellRange, text: string, replacement: string) => boolean;
+  /** 그 자리의 항목만 건너뛴다 (같은 낱말의 다른 자리는 그대로 표시한다). */
+  skipSpell: (range: SpellRange) => void;
 }
 
 interface EditorBridgeState {
