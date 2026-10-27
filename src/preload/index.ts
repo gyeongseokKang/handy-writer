@@ -20,6 +20,13 @@ const api: HandyApi = {
     create: (folder, title) => ipcRenderer.invoke(IPC.notesCreate, folder, title),
     rename: (path, newName) => ipcRenderer.invoke(IPC.notesRename, path, newName),
     remove: (path) => ipcRenderer.invoke(IPC.notesRemove, path),
+    folders: () => ipcRenderer.invoke(IPC.notesFolders),
+    createFolder: (parent, name) => ipcRenderer.invoke(IPC.notesCreateFolder, parent, name),
+    renameFolder: (path, newName) => ipcRenderer.invoke(IPC.notesRenameFolder, path, newName),
+    removeFolder: (path) => ipcRenderer.invoke(IPC.notesRemoveFolder, path),
+    move: (path, folder) => ipcRenderer.invoke(IPC.notesMove, path, folder),
+    duplicate: (path) => ipcRenderer.invoke(IPC.notesDuplicate, path),
+    reveal: (path) => ipcRenderer.invoke(IPC.notesReveal, path),
   },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),

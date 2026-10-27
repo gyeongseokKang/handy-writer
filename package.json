@@ -24,7 +24,8 @@
     "test:e2e:templates": "node e2e/templates.e2e.mjs",
     "test:e2e:ai-login": "node e2e/ai-login.e2e.mjs",
     "test:e2e:draft": "node e2e/draft.e2e.mjs",
-    "test:e2e:log": "node e2e/log.e2e.mjs"
+    "test:e2e:log": "node e2e/log.e2e.mjs",
+    "test:e2e:tree-menu": "node e2e/tree-menu.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

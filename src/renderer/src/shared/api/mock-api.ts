@@ -51,6 +51,7 @@ export function createMockApi(): HandyApi {
   const listeners = new Set<(event: NotesChangedEvent) => void>();
   const aiListeners = new Set<(event: AiEvent) => void>();
   const logBook = createLogBook();
+  const emptyFolders = new Set<string>();
   const logListeners = new Set<(entry: LogEntry) => void>();
   let rules = "";
   const gitListeners = new Set<(event: GitEvent) => void>();
@@ -114,6 +115,53 @@ export function createMockApi(): HandyApi {
         files.delete(path);
         emit(path);
       },
+      folders: async () => {
+        const all = new Set(emptyFolders);
+        for (const path of files.keys()) {
+          const parts = path.split("/").slice(0, -1);
+          parts.forEach((_, i) => all.add(parts.slice(0, i + 1).join("/")));
+        }
+        return [...all].sort();
+      },
+      createFolder: async (parent, name = "새 폴더") => {
+        const path = parent ? `${parent}/${name}` : name;
+        emptyFolders.add(path);
+        emit();
+        return path;
+      },
+      renameFolder: async (path, newName) => {
+        const next = [...path.split("/").slice(0, -1), newName].join("/");
+        for (const [file, content] of [...files]) {
+          if (!file.startsWith(`${path}/`)) continue;
+          files.delete(file);
+          files.set(next + file.slice(path.length), content);
+        }
+        if (emptyFolders.delete(path)) emptyFolders.add(next);
+        emit();
+        return next;
+      },
+      removeFolder: async (path) => {
+        for (const file of [...files.keys()]) if (file.startsWith(`${path}/`)) files.delete(file);
+        emptyFolders.delete(path);
+        emit();
+      },
+      move: async (path, folder) => {
+        const next = `${folder ? `${folder}/` : ""}${toMeta(path).name}.md`;
+        if (next !== path && files.has(next)) throw new Error("옮길 폴더에 같은 이름의 글이 이미 있어요");
+        files.set(next, files.get(path) ?? "");
+        if (next !== path) files.delete(path);
+        emit(path, next);
+        return toMeta(next);
+      },
+      duplicate: async (path) => {
+        const meta = toMeta(path);
+        let next = "";
+        for (let i = 1; !next || files.has(next); i++) next = `${meta.folder ? `${meta.folder}/` : ""}${meta.name} ${i}.md`;
+        files.set(next, files.get(path) ?? "");
+        emit(next);
+        return toMeta(next);
+      },
+      reveal: async () => {},
     },
     index: {
       get: async () =>

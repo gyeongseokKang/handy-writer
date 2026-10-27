@@ -14,7 +14,7 @@ import { NoteSearcher } from "./notes-search";
 import { listTemplates, removeTemplate, saveTemplate } from "./templates-fs";
 import { hanspellTransport } from "./spell/hanspell-transport";
 import { createOnlineSpeller } from "./spell/online-speller";
-import { createNote, listNotes, readNote, resolveInside, writeNote } from "./notes-fs";
+import { createFolder, createNote, duplicateNote, listFolders, listNotes, moveNote, readNote, renameFolder, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
 
@@ -110,4 +110,16 @@ export async function registerIpc() {
   registerAiIpc(requireRoot);
   gitIpc.register();
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
+  ipcMain.handle(IPC.notesFolders, () => listFolders(requireRoot()));
+  ipcMain.handle(IPC.notesCreateFolder, (_e, parent: string, name?: string) => createFolder(requireRoot(), String(parent ?? ""), name === undefined ? undefined : String(name)));
+  ipcMain.handle(IPC.notesRenameFolder, (_e, path: string, newName: string) => renameFolder(requireRoot(), String(path), String(newName)));
+  ipcMain.handle(IPC.notesRemoveFolder, (_e, path: string) => {
+    if (!path) throw new Error("작업 폴더 자체는 지울 수 없어요.");
+    return shell.trashItem(resolveInside(requireRoot(), String(path)));
+  });
+  ipcMain.handle(IPC.notesMove, (_e, path: string, folder: string) => moveNote(requireRoot(), String(path), String(folder ?? "")));
+  ipcMain.handle(IPC.notesDuplicate, (_e, path: string) => duplicateNote(requireRoot(), String(path)));
+  ipcMain.handle(IPC.notesReveal, (_e, path: string) => {
+    shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
+  });
 }

@@ -40,6 +40,8 @@ interface WorkspaceState {
   ready: boolean;
   root: string | null;
   notes: NoteMeta[];
+  /** 빈 폴더까지 포함한 폴더 (상대 경로) */
+  folders: string[];
   /** 작업 폴더 안의 모든 첨부 파일(이미지, 영상 등) */
   attachments: AttachmentMeta[];
   activePath: string | null;
@@ -59,13 +61,20 @@ interface WorkspaceState {
   createNote: (folder?: string, title?: string, content?: string) => Promise<void>;
   renameNote: (path: string, newName: string) => Promise<boolean>;
   removeNote: (path: string) => Promise<void>;
+  /** 글을 다른 폴더로 옮긴다 ("" 이면 맨 위). */
+  moveNote: (path: string, folder: string) => Promise<void>;
+  duplicateNote: (path: string) => Promise<void>;
+  /** 새 폴더를 만들고 경로를 돌려준다. 실패하면 null */
+  createFolder: (parent: string) => Promise<string | null>;
+  renameFolder: (path: string, newName: string) => Promise<boolean>;
+  removeFolder: (path: string) => Promise<void>;
   setQuery: (query: string) => void;
   toggleFolder: (folder: string) => void;
 }
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   async function loadWorkspace(root: string | null) {
-    set({ root, notes: [], attachments: [], activePath: null });
+    set({ root, notes: [], folders: [], attachments: [], activePath: null });
     if (!root) return;
     await get().refresh();
     const { notes } = get();
@@ -78,6 +87,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     ready: false,
     root: null,
     notes: [],
+    folders: [],
     attachments: [],
     activePath: null,
     query: "",
@@ -111,16 +121,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     refresh: async ({ attachments: withAttachments = true } = {}) => {
+      const activeBefore = get().activePath;
       try {
-        const [notes, attachments] = await Promise.all([
+        const [notes, folders, attachments] = await Promise.all([
           api.notes.list(),
+          api.notes.folders().catch(() => get().folders),
           withAttachments ? api.attachments.list().catch(() => [] as AttachmentMeta[]) : Promise.resolve(null),
         ]);
         set((state) => ({
           notes,
+          folders,
           attachments: attachments ?? state.attachments,
-          // 열어 둔 글이 밖에서 지워졌으면 선택을 푼다.
-          activePath: state.activePath && notes.some((note) => note.path === state.activePath) ? state.activePath : null,
+          // 열어 둔 글이 밖에서 지워졌으면 선택을 푼다. 읽는 사이에 다른 글로 옮겨 갔으면(이동·이름 바꾸기) 그대로 둔다.
+          activePath:
+            state.activePath !== activeBefore || (state.activePath && notes.some((note) => note.path === state.activePath)) ? state.activePath : null,
         }));
       } catch (error) {
         toast.error(errorMessage(error));
@@ -181,6 +195,81 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         await flushPath(path);
         await api.notes.remove(path);
         if (get().activePath === path) {
+          rememberNote(null);
+          set({ activePath: null });
+        }
+        await get().refresh();
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+    },
+
+    moveNote: async (path, folder) => {
+      try {
+        await flushPath(path);
+        const meta = await api.notes.move(path, folder);
+        if (get().activePath === path) {
+          rememberNote(meta.path);
+          set({ activePath: meta.path });
+        }
+        if (folder) set((state) => ({ collapsedFolders: { ...state.collapsedFolders, [folder]: false } }));
+        await get().refresh({ attachments: false });
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+    },
+
+    duplicateNote: async (path) => {
+      try {
+        await flushPath(path);
+        const meta = await api.notes.duplicate(path);
+        await get().refresh({ attachments: false });
+        await get().openNote(meta.path);
+      } catch (error) {
+        toast.error(errorMessage(error));
+      }
+    },
+
+    createFolder: async (parent) => {
+      try {
+        const path = await api.notes.createFolder(parent);
+        if (parent) set((state) => ({ collapsedFolders: { ...state.collapsedFolders, [parent]: false } }));
+        await get().refresh({ attachments: false });
+        return path;
+      } catch (error) {
+        toast.error(errorMessage(error));
+        return null;
+      }
+    },
+
+    renameFolder: async (path, newName) => {
+      try {
+        const { activePath } = get();
+        const inside = (p: string) => p === path || p.startsWith(`${path}/`);
+        if (activePath && inside(activePath)) await flushPath(activePath);
+        const next = await api.notes.renameFolder(path, newName);
+        const moved = (p: string) => (inside(p) ? next + p.slice(path.length) : p);
+        set((state) => ({
+          activePath: state.activePath ? moved(state.activePath) : null,
+          // 접어 둔 상태도 새 이름으로 옮긴다.
+          collapsedFolders: Object.fromEntries(Object.entries(state.collapsedFolders).map(([key, value]) => [moved(key), value])),
+        }));
+        rememberNote(get().activePath);
+        await get().refresh({ attachments: false });
+        return true;
+      } catch (error) {
+        toast.error(errorMessage(error));
+        return false;
+      }
+    },
+
+    removeFolder: async (path) => {
+      try {
+        const { activePath } = get();
+        const inside = activePath !== null && activePath.startsWith(`${path}/`);
+        if (inside) await flushPath(activePath);
+        await api.notes.removeFolder(path);
+        if (inside) {
           rememberNote(null);
           set({ activePath: null });
         }

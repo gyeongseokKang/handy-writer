@@ -61,6 +61,17 @@ export interface HandyApi {
     create: (folder: string, title?: string) => Promise<NoteMeta>;
     rename: (path: string, newName: string) => Promise<RenameResult>;
     remove: (path: string) => Promise<void>;
+    /** 빈 폴더까지 포함한 폴더 목록 (상대 경로) */
+    folders: () => Promise<string[]>;
+    /** 새 폴더를 만들고 상대 경로를 돌려준다. */
+    createFolder: (parent: string, name?: string) => Promise<string>;
+    renameFolder: (path: string, newName: string) => Promise<string>;
+    /** 폴더를 안의 글과 함께 휴지통으로 옮긴다. */
+    removeFolder: (path: string) => Promise<void>;
+    move: (path: string, folder: string) => Promise<NoteMeta>;
+    duplicate: (path: string) => Promise<NoteMeta>;
+    /** Finder(탐색기)에서 글이나 폴더를 보여준다. */
+    reveal: (path: string) => Promise<void>;
   };
   index: {
     get: () => Promise<NoteIndexEntry[]>;
@@ -141,6 +152,13 @@ export const IPC = {
   notesCreate: "notes:create",
   notesRename: "notes:rename",
   notesRemove: "notes:remove",
+  notesFolders: "notes:folders",
+  notesCreateFolder: "notes:create-folder",
+  notesRenameFolder: "notes:rename-folder",
+  notesRemoveFolder: "notes:remove-folder",
+  notesMove: "notes:move",
+  notesDuplicate: "notes:duplicate",
+  notesReveal: "notes:reveal",
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",
