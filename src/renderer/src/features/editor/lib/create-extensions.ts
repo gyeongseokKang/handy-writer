@@ -8,6 +8,7 @@ import StarterKit from "@tiptap/starter-kit";
 
 import { AttachmentDrop } from "./attachment-drop";
 import { Callout } from "./callout";
+import { CodeBlock } from "./code-block";
 import { Embed } from "./embed";
 import { SlashCommand } from "./slash-command";
 import { SpellCheck, type SpellCheckOptions } from "./spell-check";
@@ -27,9 +28,12 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wi
     StarterKit.configure({
       // 밑줄은 마크다운에 없는 서식이라 쓰지 않는다.
       underline: false,
+      // 문법 색과 머리줄이 있는 코드블록으로 바꾼다.
+      codeBlock: false,
       link: { openOnClick: false, autolink: true },
     }),
     Markdown,
+    CodeBlock.configure({ renderView: renderEmbeds }),
     TaskList,
     TaskItem.configure({ nested: true }),
     Table,

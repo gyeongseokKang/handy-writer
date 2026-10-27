@@ -102,7 +102,41 @@
 .note-prose blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); }
 .note-prose code { background: var(--muted); border-radius: 0.25rem; padding: 0.1em 0.35em; font-size: 0.9em; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 .note-prose pre { background: var(--muted); border-radius: var(--radius-md); padding: 0.9rem 1rem; overflow-x: auto; }
-.note-prose pre code { background: none; padding: 0; }
+.note-prose pre code { background: none; padding: 0; font-size: 0.8125rem; line-height: 1.6; tab-size: 2; }
+
+/* 코드블록: 언어 이름·복사 버튼 머리줄과 문법 색 */
+.note-prose .code-block { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--muted); overflow: hidden; }
+.note-prose .code-block + *, .note-prose * + .code-block { margin-top: 0.9em; }
+.note-prose .code-block pre { margin: 0; border-radius: 0; background: none; padding: 0.25rem 1rem 0.9rem; }
+.note-prose .code-block-header { display: flex; align-items: center; gap: 0.25rem; padding: 0.35rem 0.5rem 0 0.6rem; user-select: none; font-size: 0.75rem; color: var(--muted-foreground); }
+.note-prose .code-block-language { appearance: none; background: none; border: 0; border-radius: 0.25rem; padding: 0.1rem 0.35rem; color: inherit; font: inherit; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; outline: none; }
+.note-prose .code-block-language:hover, .note-prose .code-block-language:focus-visible { background: var(--background); color: var(--foreground); }
+.note-prose .code-block-copy { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 0.25rem; padding: 0.1rem 0.4rem; opacity: 0; transition: opacity 0.15s; }
+.note-prose .code-block-copy:hover { background: var(--background); color: var(--foreground); }
+.note-prose .code-block:hover .code-block-copy, .note-prose .code-block:focus-within .code-block-copy, .note-prose .code-block-copy:focus-visible { opacity: 1; }
+
+.note-prose .hljs {
+  --hl-comment: oklch(0.55 0.01 260); --hl-keyword: oklch(0.52 0.2 15); --hl-string: oklch(0.42 0.12 250);
+  --hl-number: oklch(0.5 0.14 250); --hl-title: oklch(0.48 0.17 300); --hl-type: oklch(0.55 0.15 55);
+  --hl-attr: oklch(0.45 0.14 250); --hl-tag: oklch(0.48 0.14 150); --hl-added: oklch(0.45 0.13 150); --hl-deleted: oklch(0.5 0.18 25);
+}
+.dark .note-prose .hljs {
+  --hl-comment: oklch(0.62 0.02 260); --hl-keyword: oklch(0.72 0.16 15); --hl-string: oklch(0.8 0.1 240);
+  --hl-number: oklch(0.78 0.11 240); --hl-title: oklch(0.78 0.13 300); --hl-type: oklch(0.8 0.12 65);
+  --hl-attr: oklch(0.78 0.1 240); --hl-tag: oklch(0.78 0.14 150); --hl-added: oklch(0.78 0.14 150); --hl-deleted: oklch(0.72 0.16 25);
+}
+.note-prose .hljs-comment, .note-prose .hljs-quote, .note-prose .hljs-meta { color: var(--hl-comment); font-style: italic; }
+.note-prose .hljs-keyword, .note-prose .hljs-selector-tag, .note-prose .hljs-literal, .note-prose .hljs-doctag { color: var(--hl-keyword); }
+.note-prose .hljs-string, .note-prose .hljs-regexp, .note-prose .hljs-template-variable { color: var(--hl-string); }
+.note-prose .hljs-number, .note-prose .hljs-symbol, .note-prose .hljs-bullet, .note-prose .hljs-variable.language_ { color: var(--hl-number); }
+.note-prose .hljs-title, .note-prose .hljs-section, .note-prose .hljs-title.function_ { color: var(--hl-title); }
+.note-prose .hljs-type, .note-prose .hljs-built_in, .note-prose .hljs-title.class_, .note-prose .hljs-params { color: var(--hl-type); }
+.note-prose .hljs-attr, .note-prose .hljs-attribute, .note-prose .hljs-property, .note-prose .hljs-selector-class, .note-prose .hljs-selector-id { color: var(--hl-attr); }
+.note-prose .hljs-name, .note-prose .hljs-tag, .note-prose .hljs-selector-pseudo { color: var(--hl-tag); }
+.note-prose .hljs-addition { color: var(--hl-added); background: color-mix(in oklch, var(--hl-added) 12%, transparent); }
+.note-prose .hljs-deletion { color: var(--hl-deleted); background: color-mix(in oklch, var(--hl-deleted) 12%, transparent); }
+.note-prose .hljs-emphasis { font-style: italic; }
+.note-prose .hljs-strong { font-weight: 600; }
 .note-prose hr { border: 0; border-top: 1px solid var(--border); margin: 1.5em 0; }
 .note-prose a { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .note-prose table { border-collapse: collapse; width: 100%; table-layout: fixed; }

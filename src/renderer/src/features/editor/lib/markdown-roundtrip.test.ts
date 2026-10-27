@@ -96,3 +96,29 @@ describe("마크다운 왕복 (옵시디언 호환)", () => {
     expect(serializeNote(frontmatter, roundTrip(body).output)).toBe(raw);
   });
 });
+
+describe("코드블록", () => {
+  it("언어와 내용을 그대로 되돌린다", () => {
+    const markdown = '```tsx\nconst a = <Button size="md" />;\n\tindent();\n```';
+    const { output, json } = roundTrip(markdown);
+    expect(output.trim()).toBe(markdown);
+    expect(json).toContain('"language":"tsx"');
+  });
+
+  it("언어가 없는 코드블록도 그대로 되돌린다", () => {
+    expect(roundTrip("```\nplain text\n```").output.trim()).toBe("```\nplain text\n```");
+  });
+
+  it("문법에 맞춰 색을 입힌다", () => {
+    const element = document.createElement("div");
+    const editor = new Editor({
+      element,
+      extensions: createExtensions({ getNoteNames: () => [], onNavigate: () => {}, isResolved: () => true, onTagClick: () => {}, renderEmbeds: false }),
+      content: "```ts\nconst answer: number = 42;\n```",
+      contentType: "markdown",
+    });
+    expect(element.querySelector(".hljs-keyword")?.textContent).toBe("const");
+    expect(element.querySelector(".hljs-number")?.textContent).toBe("42");
+    editor.destroy();
+  });
+});

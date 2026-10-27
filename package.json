@@ -25,13 +25,15 @@
     "test:e2e:ai-login": "node e2e/ai-login.e2e.mjs",
     "test:e2e:draft": "node e2e/draft.e2e.mjs",
     "test:e2e:log": "node e2e/log.e2e.mjs",
-    "test:e2e:tree-menu": "node e2e/tree-menu.e2e.mjs"
+    "test:e2e:tree-menu": "node e2e/tree-menu.e2e.mjs",
+    "test:e2e:code-block": "node e2e/code-block.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
     "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tiptap/core": "^3.32.0",
+    "@tiptap/extension-code-block-lowlight": "^3.32.0",
     "@tiptap/extension-drag-handle": "^3.32.0",
     "@tiptap/extension-drag-handle-react": "^3.32.0",
     "@tiptap/extension-placeholder": "^3.32.0",
@@ -48,6 +50,7 @@
     "diff": "^9.0.0",
     "electron-updater": "^6.8.9",
     "hanspell": "^1.0.1",
+    "lowlight": "^3.3.0",
     "lucide-react": "^1.61.0",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
