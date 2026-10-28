@@ -346,7 +346,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           onClose={() => setSpellTarget(null)}
         />
       )}
-      <footer className="flex items-center gap-3 overflow-hidden border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
+      <footer className="flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
         <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
         {isMain ? <SpellMenu /> : <span className="ml-auto" />}
