@@ -12,7 +12,7 @@ const { page, ws, logs } = env;
 const file = path.join(ws, "내글.md");
 
 // 글자 수
-const count = page.locator("footer [aria-label^='글자 수']");
+const count = page.locator("footer button[aria-label^='글자 수']");
 assert(/자 · 약 1분/.test(await count.innerText()), `글자 수가 보인다 (${await count.innerText()})`);
 
 // 찾기

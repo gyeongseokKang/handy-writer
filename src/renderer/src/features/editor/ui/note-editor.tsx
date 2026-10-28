@@ -14,6 +14,7 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
+import { formatGoal, parseGoal, setFrontmatterLine, type WritingGoal } from "@shared/text-stats";
 import { issueKey } from "@shared/spellcheck";
 import { registerFlusher } from "@/shared/lib/pending-saves";
 
@@ -58,6 +59,8 @@ function syncPanels() {
 export function NoteEditor({ path, name }: NoteEditorProps) {
   const [status, setStatus] = useState<SaveStatus>("loading");
   const frontmatterRef = useRef("");
+  // 아래 막대의 목표 분량이 frontmatter를 따라 다시 그려지도록 상태로도 들고 있는다.
+  const [frontmatter, setFrontmatter] = useState("");
   const lastSavedRef = useRef<string | null>(null);
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
@@ -129,6 +132,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         if (cancelled || editor.isDestroyed) return;
         const { frontmatter, body } = splitFrontmatter(raw);
         frontmatterRef.current = frontmatter;
+        setFrontmatter(frontmatter);
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         setStatus("saved");
@@ -190,6 +194,14 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
   }, [editor, spellEnabled, spellIgnored, spellOnline]);
   useEffect(() => () => useSpellStore.getState().setItems([]), []);
+
+  const changeGoal = (goal: WritingGoal | null) => {
+    const next = setFrontmatterLine(frontmatterRef.current, "goal", goal ? formatGoal(goal) : null);
+    frontmatterRef.current = next;
+    setFrontmatter(next);
+    dirtyRef.current = true;
+    void flushRef.current();
+  };
 
   const applySpell = (replacement?: string) => {
     if (!editor || !spellTarget) return;
@@ -253,6 +265,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         }
         const { frontmatter, body } = splitFrontmatter(raw);
         frontmatterRef.current = frontmatter;
+        setFrontmatter(frontmatter);
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         syncPanels();
@@ -311,8 +324,16 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       )}
       <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{linkTargetToName(name)}</span>
-        <TextCount editor={editor} />
+        <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
         <SpellMenu />
+        <button
+          type="button"
+          title="변경 기록 (Ctrl/Cmd+Shift+H)"
+          onClick={() => useUiStore.getState().setHistoryTarget({ path, name })}
+          className="rounded px-1.5 py-0.5 hover:bg-accent"
+        >
+          기록
+        </button>
         <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} />
         <span role="status">{STATUS_LABEL[status]}</span>
         <LogIndicator />

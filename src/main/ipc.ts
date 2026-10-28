@@ -9,7 +9,7 @@ import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
-import { exportNote } from "./export";
+import { copyNote, exportNote } from "./export";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
@@ -93,6 +93,7 @@ export async function registerIpc() {
       content: String(request?.content ?? ""),
     }),
   );
+  ipcMain.handle(IPC.exportCopy, (_e, html: string, text: string) => copyNote(requireRoot(), String(html ?? ""), String(text ?? "")));
   ipcMain.handle(IPC.exportReveal, (_e, path: string) => shell.showItemInFolder(String(path)));
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
   ipcMain.handle(IPC.attachmentsList, () => listAttachments(requireRoot()));

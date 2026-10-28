@@ -8,7 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { EXPORT_FORMATS, type ExportFormat } from "@shared/export";
 import { serializeNote } from "@shared/frontmatter";
 
-import { toExportHtml } from "../lib/export-html";
+import { toExportHtml, withPasteStyles } from "../lib/export-html";
 
 interface ExportMenuProps {
   editor: Editor;
@@ -59,6 +59,31 @@ export function ExportMenu({ editor, path, name, getFrontmatter }: ExportMenuPro
     }
   };
 
+  // 블로그·메일에 붙여 넣으면 제목·굵게·표·이미지가 그대로 살아 있게 서식 있는 HTML로 복사한다.
+  const copyRich = async () => {
+    setOpen(false);
+    try {
+      const { attachments, notes } = useWorkspaceStore.getState();
+      const html = toExportHtml(editor.getHTML(), { attachments, noteFolder: notes.find((note) => note.path === path)?.folder ?? "" });
+      await api.export.copy(withPasteStyles(html), editor.getText({ blockSeparator: "\n\n" }));
+      toast.success("서식 있는 글로 복사했어요. 블로그나 메일에 붙여 넣으세요.");
+    } catch (error) {
+      toast.error(`복사하지 못했어요: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  };
+
+  const copyRef = useRef(copyRich);
+  copyRef.current = copyRich;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "c") return;
+      event.preventDefault();
+      void copyRef.current();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
   return (
     <div ref={ref} className="relative">
       <button
@@ -85,6 +110,16 @@ export function ExportMenu({ editor, path, name, getFrontmatter }: ExportMenuPro
               {EXPORT_FORMATS[format].label}
             </button>
           ))}
+          <div role="separator" className="-mx-1 my-1 h-px bg-border" />
+          <button
+            type="button"
+            role="menuitem"
+            title="블로그·메일 편집기에 붙여 넣을 수 있게 복사해요 (Ctrl/Cmd+Shift+C)"
+            onClick={() => void copyRich()}
+            className="flex w-full items-center rounded-md px-2 py-1.5 text-left hover:bg-accent focus-visible:bg-accent"
+          >
+            서식 있는 글로 복사
+          </button>
         </div>
       )}
     </div>

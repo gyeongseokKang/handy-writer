@@ -6,7 +6,7 @@ import type { LogEntry, LogInput } from "./log";
 import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { ExportRequest, ExportResult } from "./export";
-import type { GitEvent, GitOpResult, GitSettings, GitStatus } from "./git";
+import type { GitEvent, GitOpResult, GitSettings, GitStatus, NoteHistory } from "./git";
 
 export interface NoteMeta {
   /** 작업 폴더 기준 상대 경로 (POSIX 구분자, .md 포함) */
@@ -79,6 +79,8 @@ export interface HandyApi {
     note: (request: ExportRequest) => Promise<ExportResult>;
     /** Finder(탐색기)에서 내보낸 파일을 보여준다. */
     reveal: (path: string) => Promise<void>;
+    /** 글을 서식 있는 HTML과 일반 글로 클립보드에 넣는다. 작업 폴더 이미지는 HTML 안에 넣는다. */
+    copy: (html: string, text: string) => Promise<void>;
   };
   index: {
     get: () => Promise<NoteIndexEntry[]>;
@@ -128,6 +130,10 @@ export interface HandyApi {
     getSettings: () => Promise<GitSettings>;
     setSettings: (settings: GitSettings) => Promise<GitSettings>;
     onEvent: (listener: (event: GitEvent) => void) => () => void;
+    /** 글 한 편의 커밋 기록 (최근 것부터) */
+    history: (path: string) => Promise<NoteHistory>;
+    /** 그 커밋에서의 글 내용 (frontmatter 포함) */
+    readVersion: (hash: string, blobPath: string) => Promise<string>;
   };
   ai: {
     status: () => Promise<AiStatus>;
@@ -168,6 +174,7 @@ export const IPC = {
   notesReveal: "notes:reveal",
   exportNote: "export:note",
   exportReveal: "export:reveal",
+  exportCopy: "export:copy",
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",
@@ -199,6 +206,8 @@ export const IPC = {
   gitGetSettings: "git:get-settings",
   gitSetSettings: "git:set-settings",
   gitEvent: "git:event",
+  gitHistory: "git:history",
+  gitReadVersion: "git:read-version",
   aiStatus: "ai:status",
   aiRun: "ai:run",
   aiCancel: "ai:cancel",

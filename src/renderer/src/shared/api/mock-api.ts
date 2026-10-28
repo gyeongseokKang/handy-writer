@@ -197,6 +197,9 @@ export function createMockApi(): HandyApi {
         return { path: link.download };
       },
       reveal: async () => {},
+      copy: async (html, text) => {
+        await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
+      },
     },
     attachments: {
       list: async () => [],
@@ -218,6 +221,25 @@ export function createMockApi(): HandyApi {
       },
     },
     git: {
+      // 브라우저 미리보기용: 지금 글에서 문단을 하나씩 뺀 가짜 버전을 만든다.
+      history: async (path) => {
+        const paragraphs = (files.get(path) ?? "").split(/\n{2,}/).length;
+        const count = Math.min(4, Math.max(1, paragraphs - 1));
+        return {
+          available: true,
+          versions: Array.from({ length: count }, (_, i) => ({
+            hash: `${"abcdef0123"[i]}`.repeat(40),
+            time: Date.now() - (i + 1) * 3_600_000,
+            subject: `버전 ${count - i}`,
+            author: "미리보기",
+            blobPath: `${path}#${paragraphs - 1 - i}`,
+          })),
+        };
+      },
+      readVersion: async (_hash, blobPath) => {
+        const [path = "", keep = "0"] = blobPath.split("#");
+        return (files.get(path) ?? "").split(/\n{2,}/).slice(0, Number(keep)).join("\n\n").replace("오늘은", "어제는");
+      },
       status: async () => gitStatus,
       init: async () => gitStatus,
       setRemote: async () => gitStatus,

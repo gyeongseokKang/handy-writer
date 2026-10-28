@@ -31,6 +31,7 @@ const api: HandyApi = {
   export: {
     note: (request) => ipcRenderer.invoke(IPC.exportNote, request),
     reveal: (path) => ipcRenderer.invoke(IPC.exportReveal, path),
+    copy: (html, text) => ipcRenderer.invoke(IPC.exportCopy, html, text),
   },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),
@@ -81,6 +82,8 @@ const api: HandyApi = {
       ipcRenderer.on(IPC.gitEvent, handler);
       return () => ipcRenderer.removeListener(IPC.gitEvent, handler);
     },
+    history: (path) => ipcRenderer.invoke(IPC.gitHistory, path),
+    readVersion: (hash, blobPath) => ipcRenderer.invoke(IPC.gitReadVersion, hash, blobPath),
   },
   ai: {
     status: () => ipcRenderer.invoke(IPC.aiStatus),

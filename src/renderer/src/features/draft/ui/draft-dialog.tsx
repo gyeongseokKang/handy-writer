@@ -1,4 +1,5 @@
-import { DRAFT_GENRES, DRAFT_LENGTHS, DRAFT_TONES, outlineHeadings } from "@shared/draft";
+import { DRAFT_GENRES, DRAFT_LENGTHS, DRAFT_TONES, draftGoal, outlineHeadings, type DraftBrief } from "@shared/draft";
+import { formatGoal, goalProgress, setFrontmatterLine, textStats } from "@shared/text-stats";
 import { ArrowLeft, Check, FilePlus2, Loader2, RefreshCw, RotateCcw, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -51,6 +52,48 @@ function Choice({ label, options, value, onChange }: { label: string; options: r
 
 const asOptions = (values: readonly string[]) => values.map((v) => ({ id: v, label: v }));
 
+const LENGTH_OPTIONS = [
+  ...DRAFT_LENGTHS.map((l) => ({ id: l.id, label: `${l.label} (~${l.chars.toLocaleString("ko-KR")}자)` })),
+  { id: "custom", label: "직접 정하기" },
+];
+
+/** 분량을 직접 정할 때: 글자 수 또는 200자 원고지 매수 */
+function CustomLength({ brief, onChange }: { brief: DraftBrief; onChange: (goal: DraftBrief["customGoal"]) => void }) {
+  const { unit, value } = brief.customGoal;
+  return (
+    <div className="flex items-center gap-1.5">
+      <input
+        aria-label="목표 분량"
+        type="number"
+        min={1}
+        step={unit === "sheets" ? 1 : 100}
+        value={value}
+        onChange={(e) => onChange({ unit, value: Math.max(0, Number(e.target.value) || 0) })}
+        className={`${fieldClass} w-28 tabular-nums`}
+      />
+      <select aria-label="분량 단위" value={unit} onChange={(e) => onChange({ unit: e.target.value === "sheets" ? "sheets" : "chars", value })} className={`${fieldClass} w-auto`}>
+        <option value="chars">자</option>
+        <option value="sheets">매 (200자 원고지)</option>
+      </select>
+    </div>
+  );
+}
+
+/** 만든 초안이 목표 분량에 얼마나 맞는지 */
+function DraftLengthCheck({ brief, text }: { brief: DraftBrief; text: string }) {
+  const goal = draftGoal(brief);
+  const stats = textStats(text);
+  const percent = Math.round(goalProgress(stats, goal) * 100);
+  const current = goal.unit === "sheets" ? `원고지 ${stats.sheets}매` : `${stats.chars.toLocaleString("ko-KR")}자`;
+  const target = goal.unit === "sheets" ? `${goal.value}매` : `${goal.value.toLocaleString("ko-KR")}자`;
+  return (
+    <p aria-label="초안 분량" className="text-xs text-muted-foreground tabular-nums">
+      {current} / 목표 {target} ({percent}%){goal.unit === "chars" && ` · 원고지 ${stats.sheets}매`}
+      {(percent < 80 || percent > 130) && <span className="text-amber-600 dark:text-amber-400"> · 목표와 차이가 커요. 다시 쓰기를 해 보세요.</span>}
+    </p>
+  );
+}
+
 function BriefForm({ submitted }: { submitted: boolean }) {
   const brief = useDraftRun((s) => s.brief);
   const setBrief = useDraftRun((s) => s.setBrief);
@@ -78,7 +121,10 @@ function BriefForm({ submitted }: { submitted: boolean }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <Choice label="문체" options={asOptions(DRAFT_TONES)} value={brief.tone} onChange={(tone) => setBrief({ tone })} />
-        <Choice label="분량" options={DRAFT_LENGTHS.map((l) => ({ id: l.id, label: `${l.label} (~${l.chars.toLocaleString("ko-KR")}자)` }))} value={brief.length} onChange={(length) => setBrief({ length: length as typeof brief.length })} />
+        <div className="space-y-1.5">
+          <Choice label="분량" options={LENGTH_OPTIONS} value={brief.length} onChange={(length) => setBrief({ length: length as typeof brief.length })} />
+          {brief.length === "custom" && <CustomLength brief={brief} onChange={(customGoal) => setBrief({ customGoal })} />}
+        </div>
       </div>
       <label className="block space-y-1">
         <span className="text-sm font-medium">꼭 넣을 내용 <span className="font-normal text-muted-foreground">(선택)</span></span>
@@ -131,9 +177,11 @@ export function DraftDialog() {
     void generate("draft");
   };
 
+  // 새 글에는 목표 분량을 frontmatter로 남겨서 아래 막대에서 진행률을 볼 수 있게 한다.
   const toNewNote = async (content: string) => {
     close();
-    await useWorkspaceStore.getState().createNote("", brief.topic.trim(), `${content}\n`);
+    const frontmatter = setFrontmatterLine("", "goal", formatGoal(draftGoal(brief)));
+    await useWorkspaceStore.getState().createNote("", brief.topic.trim(), `${frontmatter}\n${content}\n`);
   };
 
   const toCurrentNote = (content: string) => {
@@ -215,6 +263,7 @@ export function DraftDialog() {
                 <p aria-label="생성된 초안" className="text-sm leading-7 break-words whitespace-pre-wrap">{result || "…"}</p>
               </div>
             )}
+            {step === "draft" && draft && <DraftLengthCheck brief={brief} text={draft} />}
             {step === "draft" && phase === "done" && <p className="text-xs text-muted-foreground">AI가 쓴 초안이에요. `(확인 필요)` 표시와 사실은 직접 확인해 주세요.</p>}
           </section>
         )}

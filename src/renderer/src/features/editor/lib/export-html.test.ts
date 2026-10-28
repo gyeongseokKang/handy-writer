@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 
-import { toExportHtml } from "./export-html";
+import { toExportHtml, withPasteStyles } from "./export-html";
 
 const attachments = [{ path: "attachments/사진.png", name: "사진.png", kind: "image" as const, size: 1, mtime: 0 }, { path: "attachments/영상.mp4", name: "영상.mp4", kind: "video" as const, size: 1, mtime: 0 }];
 const ctx = { attachments, noteFolder: "" };
@@ -27,5 +27,15 @@ describe("toExportHtml", () => {
     const html = toExportHtml('<div class="callout-title" contenteditable="false">팁</div><label><input type="checkbox" checked></label>', ctx);
     expect(html).not.toContain("contenteditable");
     expect(html).toContain("disabled");
+  });
+});
+
+describe("withPasteStyles", () => {
+  it("표와 코드에 style 속성을 넣고 코드블록 안의 code에는 넣지 않는다", () => {
+    const html = withPasteStyles("<table><tr><td>a</td></tr></table><pre><code>x</code></pre><p><code>y</code></p>");
+    expect(html).toContain('<td style="border:1px solid');
+    expect(html).toContain('<pre style="background');
+    expect(html).toContain("<pre style=\"background:#f6f8fa;border-radius:6px;padding:12px;white-space:pre-wrap;\"><code>x</code>");
+    expect(html).toContain('<p><code style="background');
   });
 });

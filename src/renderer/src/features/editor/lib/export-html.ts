@@ -64,3 +64,24 @@ export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
   return doc.body.innerHTML;
 }
+
+/** 붙여 넣는 곳(블로그·메일 편집기)은 <style>을 버리므로, 모양이 깨지기 쉬운 요소에만 style 속성을 직접 넣는다. */
+const PASTE_STYLES: Record<string, string> = {
+  table: "border-collapse:collapse;",
+  "th, td": "border:1px solid #d0d7de;padding:4px 8px;vertical-align:top;",
+  th: "background:#f6f8fa;",
+  pre: "background:#f6f8fa;border-radius:6px;padding:12px;white-space:pre-wrap;",
+  ":not(pre) > code": "background:#f3f4f6;border-radius:4px;padding:1px 4px;font-family:monospace;",
+  blockquote: "border-left:3px solid #d0d7de;margin-left:0;padding-left:12px;color:#57606a;",
+  ".callout, .template-block": "border-left:4px solid #3b82f6;background:#eff6ff;padding:8px 12px;margin:8px 0;",
+  ".callout-title, .template-block-header": "font-weight:bold;",
+  img: "max-width:100%;",
+};
+
+export function withPasteStyles(html: string) {
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, "text/html");
+  for (const [selector, style] of Object.entries(PASTE_STYLES)) {
+    for (const el of doc.body.querySelectorAll<HTMLElement>(selector)) el.setAttribute("style", `${el.getAttribute("style") ?? ""}${style}`);
+  }
+  return doc.body.innerHTML;
+}

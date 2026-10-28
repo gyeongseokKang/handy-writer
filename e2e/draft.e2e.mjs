@@ -89,6 +89,7 @@ const draftCall = aiCalls().at(-1);
 assert(draftCall.input.includes("<outline>") && draftCall.input.includes("## 덧붙인 장"), "고친 목차가 초안 요청에 들어간다");
 const draftText = await dialog.getByLabel("생성된 초안").innerText();
 assert(draftText.includes("덧붙인 장에 대한 초안 문단입니다."), "초안이 목차를 따라 만들어진다");
+assert((await dialog.getByLabel("초안 분량").innerText()).includes("/ 목표 1,000자"), "초안 분량을 목표와 비교해 보여준다");
 await page.screenshot({ path: path.join(OUT, "draft-3-draft.png") });
 
 // 새 글로 만들기
@@ -96,7 +97,9 @@ await dialog.getByRole("button", { name: "새 글로 만들기" }).click();
 await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("덧붙인 장에 대한 초안 문단입니다."));
 assert((await dialog.count()) === 0, "새 글을 만들면 창이 닫힌다");
 const saved = fs.readFileSync(path.join(ws, "달리기 습관.md"), "utf8");
-assert(saved.startsWith("## 달리기 습관 시작하기\n\n달리기 습관 시작하기에 대한 초안 문단입니다."), "주제를 제목으로 한 새 글에 초안이 저장된다");
+assert(saved.startsWith("---\ngoal: 1000\n---\n\n## 달리기 습관 시작하기\n\n달리기 습관 시작하기에 대한 초안 문단입니다."), `주제를 제목으로 한 새 글에 초안과 목표 분량이 저장된다 (${JSON.stringify(saved.slice(0, 60))})`);
+const goalLabel = await page.locator("footer button[aria-label^='글자 수']").getAttribute("aria-label");
+assert(goalLabel.includes("/ 1,000자"), `새 글 아래 막대에 목표 분량이 보인다 (${goalLabel})`);
 await outline.hover();
 const newItems = await outline.getByRole("button").allInnerTexts();
 assert(newItems.includes("덧붙인 장") && newItems.includes("준비물"), `새 글의 목차가 목차 패널에 보인다 (${newItems.join(", ")})`);

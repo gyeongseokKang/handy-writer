@@ -19,6 +19,8 @@ interface UiState {
   paletteOpen: boolean;
   /** 검색 결과에서 연 글에서 처음 보여줄 단어 */
   pendingFind: string | null;
+  /** 변경 기록 화면에서 보고 있는 글 */
+  historyTarget: { path: string; name: string } | null;
 
   setView: (view: MainView) => void;
   setSidebarView: (view: SidebarView) => void;
@@ -34,6 +36,7 @@ interface UiState {
   closeGit: () => void;
   setPaletteOpen: (open: boolean) => void;
   setPendingFind: (term: string | null) => void;
+  setHistoryTarget: (target: { path: string; name: string } | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -47,6 +50,7 @@ export const useUiStore = create<UiState>((set) => ({
   gitOpen: false,
   paletteOpen: false,
   pendingFind: null,
+  historyTarget: null,
 
   setView: (view) => set({ view }),
   setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -60,4 +64,5 @@ export const useUiStore = create<UiState>((set) => ({
   closeGit: () => set({ gitOpen: false }),
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setPendingFind: (pendingFind) => set({ pendingFind }),
+  setHistoryTarget: (historyTarget) => set({ historyTarget }),
 }));

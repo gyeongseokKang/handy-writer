@@ -7,6 +7,7 @@ import { useLogStore } from "@/entities/log/model/use-log-store";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
+import { HistoryView } from "@/features/history/ui/history-view";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
 import { OutlinePanel } from "@/features/outline/ui/outline-panel";
@@ -66,8 +67,23 @@ export function AppShell() {
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const outlineOpen = useUiStore((state) => state.outlineOpen);
   const draftOpen = useUiStore((state) => state.draftOpen);
+  const historyTarget = useUiStore((state) => state.historyTarget);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
+
+  // Cmd/Ctrl+Shift+H로 지금 글의 변경 기록을 연다.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "h") return;
+      const { activePath, notes } = useWorkspaceStore.getState();
+      const note = notes.find((n) => n.path === activePath);
+      if (!note) return;
+      event.preventDefault();
+      useUiStore.getState().setHistoryTarget({ path: note.path, name: note.name });
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
   useEffect(() => {
@@ -103,6 +119,7 @@ export function AppShell() {
       <CommandPalette />
       <TemplateDialogs />
       {draftOpen && <DraftDialog />}
+      {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );
 }

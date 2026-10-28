@@ -1,4 +1,4 @@
-import { BrowserWindow, dialog } from "electron";
+import { BrowserWindow, clipboard, ClipboardItem, dialog } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 
 import { buildHtmlDocument, EXPORT_FORMATS, exportFileName, inlineAssets, type ExportRequest, type ExportResult } from "../shared/export";
@@ -13,6 +13,19 @@ async function renderPdf(html: string) {
   } finally {
     win.destroy();
   }
+}
+
+function loadAsset(root: string) {
+  return async (path: string) => {
+    const abs = resolveAssetFile(root, path);
+    return { mime: mimeOf(abs), base64: (await readFile(abs)).toString("base64") };
+  };
+}
+
+/** 블로그·메일 편집기에 붙여 넣을 수 있게 서식 있는 HTML과 일반 글을 함께 클립보드에 넣는다. */
+export async function copyNote(root: string, bodyHtml: string, text: string) {
+  const html = await inlineAssets(bodyHtml, loadAsset(root));
+  await clipboard.write([new ClipboardItem({ "text/html": html, "text/plain": text })]);
 }
 
 /** 저장 위치를 물어보고 글을 내보낸다. 저장 창에서 취소하면 path가 null이다. */
@@ -33,10 +46,7 @@ export async function exportNote(root: string, parent: BrowserWindow | null, req
     return { path: picked.filePath };
   }
 
-  const body = await inlineAssets(request.content, async (path) => {
-    const abs = resolveAssetFile(root, path);
-    return { mime: mimeOf(abs), base64: (await readFile(abs)).toString("base64") };
-  });
+  const body = await inlineAssets(request.content, loadAsset(root));
   const html = buildHtmlDocument(request.name, body);
   if (format === "html") await writeFile(picked.filePath, html, "utf8");
   else await writeFile(picked.filePath, await renderPdf(html));
