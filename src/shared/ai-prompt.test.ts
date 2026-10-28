@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
 import { buildUserPrompt, fitReferences } from "./ai-prompt";
+import { EMPTY_BRIEF } from "./draft";
 
 const base: AiRequest = {
   runId: "r1",
@@ -96,5 +97,41 @@ describe("fitReferences", () => {
     expect(fitted.length).toBe(3);
     expect(fitted.every((ref) => ref.content.length <= 8000 + 20)).toBe(true);
     expect(fitted.reduce((sum, ref) => sum + ref.content.length, 0)).toBeLessThanOrEqual(24000 + 60);
+  });
+});
+
+describe("초안 자료", () => {
+  const video = {
+    kind: "youtube" as const,
+    videoId: "zkmvCDSxqdc",
+    url: "https://www.youtube.com/watch?v=zkmvCDSxqdc",
+    title: "PR 2,000개 워크플로우",
+    channel: "Tech Bridge",
+    seconds: 2282,
+    description: "영상 설명",
+    transcript: "hello my name is Lauren",
+    captionLabel: "영어 (자동 생성됨)",
+  };
+  const draftRequest: AiRequest = { ...base, task: "outline", brief: { ...EMPTY_BRIEF, topic: "에이전트 워크플로" }, sources: [video] };
+
+  it("유튜브 자막을 <sources>로 넣고, 자료를 바탕으로 쓰라고 한다", () => {
+    const prompt = buildUserPrompt(draftRequest);
+    expect(prompt).toContain('<youtube title="PR 2,000개 워크플로우" channel="Tech Bridge" url="https://www.youtube.com/watch?v=zkmvCDSxqdc" length="38:02">');
+    expect(prompt).toContain('<transcript language="영어 (자동 생성됨)">\nhello my name is Lauren\n</transcript>');
+    expect(prompt).toContain("한국어로 옮겨 씁니다");
+    expect(prompt).not.toContain("Read, Glob, Grep");
+    expect(prompt.indexOf("<sources>")).toBeLessThan(prompt.indexOf("<brief>"));
+  });
+
+  it("프로젝트 요약을 함께 넣고, 읽기 도구로 더 보라고 한다", () => {
+    const prompt = buildUserPrompt({ ...draftRequest, sources: [] }, ['<project name="app" path="/p/app" files="3">\n</project>']);
+    expect(prompt).toContain('<project name="app"');
+    expect(prompt).toContain("Read, Glob, Grep");
+    expect(prompt).not.toContain("<youtube");
+  });
+
+  it("자료가 없으면 <sources>를 넣지 않고, 다른 작업에는 자료를 넣지 않는다", () => {
+    expect(buildUserPrompt({ ...draftRequest, sources: [] })).not.toContain("<sources>");
+    expect(buildUserPrompt({ ...base, sources: [video] })).not.toContain("<sources>");
   });
 });

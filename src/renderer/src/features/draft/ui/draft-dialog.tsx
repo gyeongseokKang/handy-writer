@@ -1,5 +1,6 @@
 import { DRAFT_GENRES, DRAFT_LENGTHS, DRAFT_TONES, outlineHeadings } from "@shared/draft";
-import { ArrowLeft, Check, FilePlus2, Loader2, RefreshCw, RotateCcw, Square, X } from "lucide-react";
+import { findYoutubeUrls, formatDuration, youtubeVideoId, type DraftSource } from "@shared/draft-sources";
+import { ArrowLeft, Check, FilePlus2, FolderCode, Loader2, MonitorPlay, RefreshCw, RotateCcw, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
@@ -51,6 +52,90 @@ function Choice({ label, options, value, onChange }: { label: string; options: r
 
 const asOptions = (values: readonly string[]) => values.map((v) => ({ id: v, label: v }));
 
+/** 붙여넣은 글에 유튜브 주소가 있으면 자료로 불러온다. 주소만 붙여넣었으면 칸에는 넣지 않는다. */
+function pasteYoutube(event: React.ClipboardEvent) {
+  const text = event.clipboardData.getData("text").trim();
+  const urls = findYoutubeUrls(text);
+  if (urls.length === 0) return;
+  if (urls.length === 1 && youtubeVideoId(text)) event.preventDefault();
+  for (const url of urls) void useDraftRun.getState().addYoutube(url);
+}
+
+function sourceMeta(source: DraftSource) {
+  if (source.kind === "project") return `${source.path} · 파일 ${source.fileCount.toLocaleString("ko-KR")}개`;
+  const caption = source.transcript ? `자막 ${source.captionLabel} ${source.transcript.length.toLocaleString("ko-KR")}자` : "자막 없음";
+  return [source.channel, formatDuration(source.seconds), caption].filter(Boolean).join(" · ");
+}
+
+/** 유튜브 영상과 프로젝트 폴더를 자료로 붙인다. AI가 이 자료를 바탕으로 목차와 초안을 쓴다. */
+function SourcesField() {
+  const sources = useDraftRun((s) => s.sources);
+  const loading = useDraftRun((s) => s.loading);
+  const { addYoutube, addProject, removeSource } = useDraftRun.getState();
+  const [url, setUrl] = useState("");
+
+  const submit = () => {
+    if (!url.trim()) return;
+    void addYoutube(url.trim());
+    setUrl("");
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <span className="text-sm font-medium">
+        자료 <span className="font-normal text-muted-foreground">(선택) 유튜브 영상의 자막이나 내 프로젝트를 바탕으로 써요</span>
+      </span>
+      <div className="flex gap-2">
+        <input
+          value={url}
+          aria-label="유튜브 주소"
+          placeholder="유튜브 주소를 붙여넣으세요"
+          onChange={(e) => setUrl(e.target.value)}
+          onPaste={(event) => {
+            if (findYoutubeUrls(event.clipboardData.getData("text")).length === 0) return;
+            event.preventDefault();
+            pasteYoutube(event);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.nativeEvent.isComposing && !event.metaKey && !event.ctrlKey) {
+              event.preventDefault();
+              submit();
+            }
+          }}
+          className={fieldClass}
+        />
+        <Button size="sm" variant="outline" className="h-8.5 shrink-0" disabled={!url.trim()} onClick={submit}>
+          <MonitorPlay /> 불러오기
+        </Button>
+        <Button size="sm" variant="outline" className="h-8.5 shrink-0" onClick={() => void addProject()}>
+          <FolderCode /> 프로젝트 폴더
+        </Button>
+      </div>
+      {(sources.length > 0 || loading.length > 0) && (
+        <ul aria-label="붙인 자료" className="divide-y rounded-md border">
+          {sources.map((source, index) => (
+            <li key={source.kind === "youtube" ? source.videoId : source.path} className="flex items-center gap-2.5 px-2.5 py-2">
+              {source.kind === "youtube" ? <MonitorPlay className="size-4 shrink-0 text-red-500" /> : <FolderCode className="size-4 shrink-0 text-muted-foreground" />}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm">{source.kind === "youtube" ? source.title : source.name}</p>
+                <p className="truncate text-xs text-muted-foreground">{sourceMeta(source)}</p>
+              </div>
+              <button type="button" aria-label={`${source.kind === "youtube" ? source.title : source.name} 빼기`} onClick={() => removeSource(index)} className="rounded p-1 text-muted-foreground hover:bg-accent hover:text-foreground">
+                <X className="size-3.5" />
+              </button>
+            </li>
+          ))}
+          {loading.map((id) => (
+            <li key={id} role="status" className="flex items-center gap-2.5 px-2.5 py-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 shrink-0 animate-spin" /> 영상 자막을 불러오는 중…
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function BriefForm({ submitted }: { submitted: boolean }) {
   const brief = useDraftRun((s) => s.brief);
   const setBrief = useDraftRun((s) => s.setBrief);
@@ -62,7 +147,7 @@ function BriefForm({ submitted }: { submitted: boolean }) {
         <label htmlFor="draft-topic" className="text-sm font-medium">
           주제 또는 제목 <span className="text-destructive" aria-label="필수">*</span>
         </label>
-        <input id="draft-topic" autoFocus value={brief.topic} aria-invalid={topicError} placeholder="예: 처음 시작하는 사람을 위한 달리기 습관" onChange={(e) => setBrief({ topic: e.target.value })} className={fieldClass} />
+        <input id="draft-topic" autoFocus value={brief.topic} aria-invalid={topicError} placeholder="예: 처음 시작하는 사람을 위한 달리기 습관 (유튜브 주소를 붙여넣어도 돼요)" onPaste={pasteYoutube} onChange={(e) => setBrief({ topic: e.target.value })} className={fieldClass} />
         {topicError && <p className="text-xs text-destructive">주제를 입력해 주세요.</p>}
       </div>
       <Choice label="글 종류" options={asOptions(DRAFT_GENRES)} value={brief.genre} onChange={(genre) => setBrief({ genre })} />
@@ -82,8 +167,9 @@ function BriefForm({ submitted }: { submitted: boolean }) {
       </div>
       <label className="block space-y-1">
         <span className="text-sm font-medium">꼭 넣을 내용 <span className="font-normal text-muted-foreground">(선택)</span></span>
-        <textarea rows={3} value={brief.keyPoints} placeholder={"핵심 주장, 예시, 자료를 적어 주세요.\n예: 하루 10분부터, 무릎 부상 주의"} onChange={(e) => setBrief({ keyPoints: e.target.value })} className={`${fieldClass} resize-y`} />
+        <textarea rows={3} value={brief.keyPoints} placeholder={"핵심 주장, 예시, 자료를 적어 주세요.\n예: 하루 10분부터, 무릎 부상 주의"} onPaste={pasteYoutube} onChange={(e) => setBrief({ keyPoints: e.target.value })} className={`${fieldClass} resize-y`} />
       </label>
+      <SourcesField />
       <label className="block space-y-1">
         <span className="text-sm font-medium">그 밖의 요청 <span className="font-normal text-muted-foreground">(선택)</span></span>
         <textarea rows={2} value={brief.extra} placeholder="예: 마지막에 체크리스트를 넣어 주세요" onChange={(e) => setBrief({ extra: e.target.value })} className={`${fieldClass} resize-none`} />
@@ -96,11 +182,12 @@ function RunStatus() {
   const phase = useDraftRun((s) => s.phase);
   const task = useDraftRun((s) => s.task);
   const error = useDraftRun((s) => s.error);
+  const status = useDraftRun((s) => s.status);
   if (phase === "error") return <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm whitespace-pre-wrap">{error}</p>;
   if (phase !== "running") return null;
   return (
     <p role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
-      <Loader2 className="size-3.5 animate-spin" /> {task === "draft" ? "초안을 쓰는 중… 분량에 따라 1~3분 걸려요." : "목차를 만드는 중…"}
+      <Loader2 className="size-3.5 animate-spin" /> {status || (task === "draft" ? "초안을 쓰는 중… 분량에 따라 1~3분 걸려요." : "목차를 만드는 중…")}
     </p>
   );
 }

@@ -78,6 +78,10 @@ const api: HandyApi = {
       return () => ipcRenderer.removeListener(IPC.gitEvent, handler);
     },
   },
+  sources: {
+    youtube: (url) => ipcRenderer.invoke(IPC.sourcesYoutube, url),
+    pickProject: () => ipcRenderer.invoke(IPC.sourcesPickProject),
+  },
   ai: {
     status: () => ipcRenderer.invoke(IPC.aiStatus),
     run: (request) => ipcRenderer.invoke(IPC.aiRun, request),

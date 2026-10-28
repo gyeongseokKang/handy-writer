@@ -1,5 +1,6 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
+import type { ProjectSource, YoutubeSource } from "./draft-sources";
 import type { OnlineSpellResult } from "./online-spell";
 import type { UpdateState } from "./update";
 import type { LogEntry, LogInput } from "./log";
@@ -129,6 +130,13 @@ export interface HandyApi {
     cancel: (runId: string) => Promise<void>;
     onEvent: (listener: (event: AiEvent) => void) => () => void;
   };
+  /** 초안 만들기에 붙이는 자료 */
+  sources: {
+    /** 유튜브 주소로 제목, 설명, 자막을 받는다. */
+    youtube: (url: string) => Promise<YoutubeSource>;
+    /** 폴더 선택 창으로 프로젝트 폴더를 고른다. 취소하면 null */
+    pickProject: () => Promise<ProjectSource | null>;
+  };
   log: {
     /** 앱을 켠 뒤 모인 오류·경고 (오래된 것부터) */
     list: () => Promise<LogEntry[]>;
@@ -194,5 +202,7 @@ export const IPC = {
   aiRun: "ai:run",
   aiCancel: "ai:cancel",
   aiEvent: "ai:event",
+  sourcesYoutube: "sources:youtube",
+  sourcesPickProject: "sources:pick-project",
   notesChanged: "notes:changed",
 } as const;

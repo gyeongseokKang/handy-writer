@@ -3,8 +3,10 @@ import { ipcMain } from "electron";
 import type { AiEvent, AiRequest, AiTask } from "../../shared/ai";
 import { buildUserPrompt } from "../../shared/ai-prompt";
 import { parseBrief, parseOutline } from "../../shared/draft";
+import { parseSources, type ProjectSource } from "../../shared/draft-sources";
 import { IPC } from "../../shared/types";
 import { logEntry } from "../app-log";
+import { projectSection, scanProject } from "../project-context";
 import { claudeStatus, findClaude, runClaude } from "./claude-cli";
 import { readRules, writeRules } from "./rules";
 
@@ -33,10 +35,15 @@ function parseRequest(value: unknown): AiRequest {
       : [],
     ...(v.task === "outline" || v.task === "draft" ? { brief: parseBrief(v.brief) } : {}),
     ...(v.task === "draft" ? { outline: parseOutline(v.outline) } : {}),
+    ...(v.task === "outline" || v.task === "draft" ? { sources: parseSources(v.sources) } : {}),
   };
 }
 
-export function registerAiIpc(requireRoot: () => string) {
+/**
+ * @param isPickedProject 사용자가 폴더 선택 창으로 고른 프로젝트 폴더인지.
+ *   렌더러가 보낸 아무 경로나 AI가 읽게 두지 않는다.
+ */
+export function registerAiIpc(requireRoot: () => string, isPickedProject: (path: string) => boolean) {
   const runs = new Map<string, AbortController>();
 
   ipcMain.handle(IPC.rulesGet, () => readRules(requireRoot()));
@@ -50,6 +57,9 @@ export function registerAiIpc(requireRoot: () => string) {
     const exe = await findClaude();
     if (!exe) throw new Error((await claudeStatus()).reason ?? "claude를 찾지 못했어요.");
 
+    const projects = (request.sources ?? []).filter((source): source is ProjectSource => source.kind === "project" && isPickedProject(source.path));
+    const projectSections = await Promise.all(projects.map(async (project) => projectSection(project.path, await scanProject(project.path))));
+
     const runId = request.runId;
     const controller = new AbortController();
     runs.set(runId, controller);
@@ -60,7 +70,8 @@ export function registerAiIpc(requireRoot: () => string) {
     runClaude({
       exe,
       cwd: root,
-      prompt: buildUserPrompt(request),
+      prompt: buildUserPrompt(request, projectSections),
+      readDirs: projects.map((project) => project.path),
       signal: controller.signal,
       web: request.web,
       // 긴 초안은 글을 쓰는 데만 몇 분이 걸린다.

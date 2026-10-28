@@ -6,7 +6,10 @@ import { join } from "node:path";
 import type { Template } from "../shared/templates";
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
+import { scanProject } from "./project-context";
+import { fetchYoutube } from "./youtube";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
+import type { ProjectSource } from "../shared/draft-sources";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
@@ -107,7 +110,21 @@ export async function registerIpc() {
   ipcMain.handle(IPC.spellCheck, (_e, text: string) => onlineSpeller.check(String(text ?? "")));
   ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 
-  registerAiIpc(requireRoot);
+  // 폴더 선택 창으로 고른 프로젝트만 AI가 읽게 한다.
+  const pickedProjects = new Set<string>();
+  ipcMain.handle(IPC.sourcesYoutube, (_e, url: string) => fetchYoutube(String(url ?? "")));
+  ipcMain.handle(IPC.sourcesPickProject, async (event): Promise<ProjectSource | null> => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title: "초안에 참고할 프로젝트 폴더 선택", properties: ["openDirectory"] as Array<"openDirectory"> };
+    const picked = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options);
+    const path = picked.filePaths[0];
+    if (picked.canceled || !path) return null;
+    const scan = await scanProject(path);
+    pickedProjects.add(path);
+    return { kind: "project", path, name: scan.name, fileCount: scan.fileCount };
+  });
+
+  registerAiIpc(requireRoot, (path) => pickedProjects.has(path));
   gitIpc.register();
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
   ipcMain.handle(IPC.notesFolders, () => listFolders(requireRoot()));
