@@ -13,8 +13,11 @@ const env = await launchApp({
 });
 const { page, ws, aiCalls, logs } = env;
 const outline = page.getByRole("navigation", { name: "목차" });
-/** 접혀 있을 때 보이는 한 줄 (지금 보고 있는 제목) */
-const collapsed = () => outline.locator("[data-outline-current]").innerText();
+/** 접혀 있을 때 보이는 줄 (지금 보고 있는 제목과 그 위 제목들). 사라지는 중인 줄은 뺀다. */
+const collapsed = async () => {
+  await sleep(250);
+  return (await outline.locator("[data-outline-current] .outline-trail-line:not([data-leaving])").allInnerTexts()).join("\n");
+};
 const away = () => page.mouse.move(700, 600);
 const dialog = page.getByRole("dialog", { name: "AI 초안 만들기" });
 
@@ -44,6 +47,15 @@ await page.screenshot({ path: path.join(OUT, "draft-1-outline-collapsed.png") })
 await page.locator("[data-note-scroller]").evaluate((el) => el.scrollTo({ top: 0 }));
 await sleep(300);
 assert((await collapsed()) === "첫째 장", "스크롤하면 접힌 목차가 지금 보이는 제목으로 바뀐다");
+await page.locator("[data-note-scroller]").evaluate((el) => {
+  const heading = [...document.querySelectorAll(".note-prose h3")].find((h) => h.textContent === "작은 절");
+  el.scrollTo({ top: el.scrollTop + heading.getBoundingClientRect().top - el.getBoundingClientRect().top - 40 });
+});
+await sleep(300);
+assert((await collapsed()) === "첫째 장\n작은 절", `하위 제목에 있으면 상위 제목부터 이어서 보인다 (${JSON.stringify(await collapsed())})`);
+await page.screenshot({ path: path.join(OUT, "draft-1-outline-trail.png") });
+await page.locator("[data-note-scroller]").evaluate((el) => el.scrollTo({ top: 0 }));
+await sleep(300);
 await outline.focus();
 assert(await outline.getByRole("button", { name: "둘째 장" }).isVisible(), "키보드로 들어와도 펼쳐진다");
 await outline.getByRole("button", { name: "둘째 장" }).click();
