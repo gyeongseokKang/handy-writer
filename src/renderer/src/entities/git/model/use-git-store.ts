@@ -7,7 +7,7 @@ import { api } from "@/shared/api/handy-api";
 
 const REFRESH_DELAY_MS = 1200;
 
-type Busy = "init" | "remote" | "commit" | "pull" | "push" | "sync" | null;
+type Busy = "init" | "remote" | "commit" | "pull" | "push" | "sync" | "force-pull" | "force-push" | null;
 
 interface GitState {
   status: GitStatus | null;
@@ -16,6 +16,8 @@ interface GitState {
   commitMessage: string;
   /** 변경된 글의 경로 → 종류 (사이드바 표시용) */
   changedByPath: Record<string, GitChangeKind>;
+  /** 마지막 가져오기·동기화가 충돌로 멈췄으면 true (강제 가져오기·푸시를 보여준다) */
+  conflicted: boolean;
 
   refresh: () => Promise<void>;
   loadSettings: () => Promise<void>;
@@ -27,6 +29,8 @@ interface GitState {
   pull: () => Promise<void>;
   push: () => Promise<void>;
   sync: () => Promise<void>;
+  forcePull: () => Promise<void>;
+  forcePush: () => Promise<void>;
 }
 
 function errorText(error: unknown) {
@@ -41,7 +45,7 @@ function indexChanges(status: GitStatus | null) {
 function report(result: GitOpResult) {
   if (result.outcome === "conflict") toast.error(result.message, { duration: 12000 });
   else if (result.outcome === "nothing-to-commit" || result.outcome === "up-to-date" || result.outcome === "no-upstream") toast.info(result.message);
-  else toast.success(result.message);
+  else toast.success(result.message, result.backupBranch ? { duration: 10000 } : undefined);
 }
 
 export const useGitStore = create<GitState>((set, get) => {
@@ -51,7 +55,9 @@ export const useGitStore = create<GitState>((set, get) => {
     if (get().busy) return;
     set({ busy });
     try {
-      report(await task());
+      const result = await task();
+      if (busy === "pull" || busy === "sync" || busy.startsWith("force")) set({ conflicted: result.outcome === "conflict" });
+      report(result);
     } catch (error) {
       toast.error(errorText(error), { duration: 10000 });
     } finally {
@@ -66,6 +72,7 @@ export const useGitStore = create<GitState>((set, get) => {
     busy: null,
     commitMessage: "",
     changedByPath: {},
+    conflicted: false,
 
     refresh: async () => {
       if (!useWorkspaceStore.getState().root) return set({ status: null, changedByPath: {} });
@@ -131,6 +138,8 @@ export const useGitStore = create<GitState>((set, get) => {
     pull: () => run("pull", () => api.git.pull()),
     push: () => run("push", () => api.git.push()),
     sync: () => run("sync", () => api.git.sync()),
+    forcePull: () => run("force-pull", () => api.git.forcePull()),
+    forcePush: () => run("force-push", () => api.git.forcePush()),
   };
 });
 

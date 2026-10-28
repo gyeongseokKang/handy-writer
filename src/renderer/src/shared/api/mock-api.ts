@@ -218,6 +218,16 @@ export function createMockApi(): HandyApi {
         emitGit();
         return { outcome: "pushed", message: "원격 저장소에 올렸어요." };
       },
+      forcePull: async () => {
+        gitStatus = { ...gitStatus, changes: [], ahead: 0, behind: 0 };
+        emitGit();
+        return { outcome: "force-pulled", message: "원격과 똑같이 맞췄어요." };
+      },
+      forcePush: async () => {
+        gitStatus = { ...gitStatus, ahead: 0, behind: 0 };
+        emitGit();
+        return { outcome: "force-pushed", message: "원격을 내 글로 덮어썼어요." };
+      },
       sync: async () => {
         gitStatus = { ...gitStatus, changes: [], ahead: 0 };
         emitGit();

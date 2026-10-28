@@ -95,6 +95,8 @@ export function createGitIpc(requireRoot: () => string) {
     );
     ipcMain.handle(IPC.gitPull, () => op((root) => service.pull(root)));
     ipcMain.handle(IPC.gitPush, () => op((root) => service.push(root)));
+    ipcMain.handle(IPC.gitForcePull, () => op((root) => service.forcePull(root)));
+    ipcMain.handle(IPC.gitForcePush, () => op((root) => service.forcePush(root)));
     ipcMain.handle(IPC.gitSync, () => op(async (root) => service.sync(root, await loadGitSettings(root))));
     ipcMain.handle(IPC.gitGetSettings, async () => loadGitSettings(requireRoot()));
     ipcMain.handle(IPC.gitSetSettings, async (_e, settings: unknown) => {

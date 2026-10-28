@@ -118,6 +118,10 @@ export interface HandyApi {
     commit: (message: string) => Promise<GitOpResult>;
     pull: () => Promise<GitOpResult>;
     push: () => Promise<GitOpResult>;
+    /** 내 변경을 백업 브랜치에 남기고 원격과 똑같이 맞춘다 */
+    forcePull: () => Promise<GitOpResult>;
+    /** 원격만의 커밋을 백업 브랜치에 남기고 원격을 내 커밋으로 덮어쓴다 */
+    forcePush: () => Promise<GitOpResult>;
     sync: () => Promise<GitOpResult>;
     getSettings: () => Promise<GitSettings>;
     setSettings: (settings: GitSettings) => Promise<GitSettings>;
@@ -194,6 +198,8 @@ export const IPC = {
   gitCommit: "git:commit",
   gitPull: "git:pull",
   gitPush: "git:push",
+  gitForcePull: "git:force-pull",
+  gitForcePush: "git:force-push",
   gitSync: "git:sync",
   gitGetSettings: "git:get-settings",
   gitSetSettings: "git:set-settings",
