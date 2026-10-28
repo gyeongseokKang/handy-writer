@@ -43,7 +43,7 @@ await sleep(600);
 assert(await popover.isVisible(), "눌러서 연 창은 마우스가 떠나도 남아 있다");
 await page.keyboard.press("Escape");
 // 커서가 낱말 안에 있으면 그 낱말은 밑줄을 숨기므로 글 맨 앞으로 옮긴다.
-await page.keyboard.press("Meta+ArrowUp");
+await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home");
 await sleep(300);
 
 // --- 맞춤법 탭
