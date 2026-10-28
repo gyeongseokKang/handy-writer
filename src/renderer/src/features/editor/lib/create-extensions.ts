@@ -11,6 +11,7 @@ import { Callout } from "./callout";
 import { CodeBlock } from "./code-block";
 import { Embed } from "./embed";
 import { FindReplace } from "./find-replace";
+import { FootnoteDef, FootnoteRef } from "./footnote";
 import { SlashCommand } from "./slash-command";
 import { SpellCheck, type SpellCheckOptions } from "./spell-check";
 import { TemplateBlock } from "./template-block";
@@ -45,6 +46,9 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wi
       placeholder: ({ node }) =>
         node.type.name === "heading" ? "제목" : "내용을 입력하세요. /로 블록을, [[로 다른 글을 연결해요",
     }),
+    // 각주(`[^1]`)는 링크 문법과 겹치므로 기본 링크보다 먼저 읽는다.
+    FootnoteDef,
+    FootnoteRef,
     // 임베드(`![[...]]`)는 위키링크(`[[...]]`)보다 먼저 읽어야 앞의 `!`가 글자로 남지 않는다.
     Embed.configure({ renderView: renderEmbeds }),
     WikiLink.configure(wikiLink),

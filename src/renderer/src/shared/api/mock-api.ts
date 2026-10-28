@@ -304,6 +304,7 @@ export function createMockApi(): HandyApi {
         return () => logListeners.delete(listener);
       },
     },
+    onCloseTab: () => () => {},
     onNotesChanged: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

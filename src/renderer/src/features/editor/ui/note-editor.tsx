@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { LogIndicator } from "@/entities/log/ui/log-indicator";
+import { NotePathContext } from "@/entities/note/model/note-path-context";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
 import { useOutlineStore } from "@/entities/note/model/use-outline-store";
@@ -44,6 +45,11 @@ const STATUS_LABEL: Record<SaveStatus, string> = {
 interface NoteEditorProps {
   path: string;
   name: string;
+  /**
+   * main: 가운데 에디터. AI·목차·첨부·맞춤법 패널과 연결된다.
+   * side: 분할 화면의 오른쪽 에디터. 편집과 저장은 같지만 패널과는 연결하지 않는다.
+   */
+  pane?: "main" | "side";
 }
 
 /** setContent(emitUpdate: false)로 내용을 통째로 바꾼 뒤, 다른 패널이 보는 임베드 목록과 목차를 다시 읽게 한다. */
@@ -56,7 +62,8 @@ function syncPanels() {
 }
 
 /** 글 하나를 편집한다. 글이 바뀌면 key로 새로 마운트되므로 상태가 섞이지 않는다. */
-export function NoteEditor({ path, name }: NoteEditorProps) {
+export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
+  const isMain = pane === "main";
   const [status, setStatus] = useState<SaveStatus>("loading");
   const frontmatterRef = useRef("");
   // 아래 막대의 목표 분량이 frontmatter를 따라 다시 그려지도록 상태로도 들고 있는다.
@@ -71,7 +78,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   const extensions = useMemo(
     () =>
       createExtensions({
-        spell: {
+        spell: !isMain ? undefined : {
           isEnabled: () => useSpellStore.getState().enabled,
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
           onItems: (items) => useSpellStore.getState().setItems(items),
@@ -136,10 +143,10 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
         setStatus("saved");
-        syncPanels();
-        if (raw === "") editor.commands.focus("start");
+        if (isMain) syncPanels();
+        if (raw === "" && isMain) editor.commands.focus("start");
         // 검색 결과에서 열었으면 찾은 단어로 이동
-        const find = useUiStore.getState().pendingFind;
+        const find = isMain ? useUiStore.getState().pendingFind : null;
         if (find) {
           useUiStore.getState().setPendingFind(null);
           useEditorBridge.getState().bridge?.findAndSelect(find);
@@ -157,7 +164,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   const nameRef = useRef(name);
   nameRef.current = name;
   useEffect(() => {
-    if (!editor) return;
+    if (!editor || !isMain) return;
     const bridge = createEditorBridge(editor, () => nameRef.current);
     useEditorBridge.getState().setBridge(bridge);
     // 첨부 패널이 보여줄 임베드 목록과 목차를 글이 바뀔 때마다 갱신한다.
@@ -193,7 +200,21 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
   }, [editor, spellEnabled, spellIgnored, spellOnline]);
-  useEffect(() => () => useSpellStore.getState().setItems([]), []);
+  useEffect(() => () => {
+    if (isMain) useSpellStore.getState().setItems([]);
+  }, []);
+
+  // 분할 화면에서 단축키가 마지막으로 만진 에디터로 가게 한다.
+  useEffect(() => {
+    if (!editor) return;
+    const onFocus = () => useUiStore.getState().setFocusedPane(pane);
+    editor.on("focus", onFocus);
+    return () => {
+      editor.off("focus", onFocus);
+    };
+  }, [editor, pane]);
+  // 분할 화면이 없으면 가운데 에디터가 언제나 단축키를 받는다.
+  const isShortcutTarget = () => (isMain && !useWorkspaceStore.getState().splitPath) || useUiStore.getState().focusedPane === pane;
 
   const changeGoal = (goal: WritingGoal | null) => {
     const next = setFrontmatterLine(frontmatterRef.current, "goal", goal ? formatGoal(goal) : null);
@@ -227,6 +248,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "f") return;
+      if (!isShortcutTarget()) return;
       event.preventDefault();
       setFindOpen(true);
       document.querySelector<HTMLInputElement>("[role='search'] input")?.select();
@@ -268,7 +290,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         setFrontmatter(frontmatter);
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
-        syncPanels();
+        if (isMain) syncPanels();
         toast.info("다른 곳에서 바뀐 내용을 불러왔어요.");
       })
       .catch(() => {});
@@ -280,7 +302,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   // 스크롤하면 목차에 지금 읽고 있는 제목을 표시한다 (한 프레임에 한 번만 계산).
   const scrollFrame = useRef<number | null>(null);
   const onScroll = () => {
-    if (scrollFrame.current !== null) return;
+    if (!isMain || scrollFrame.current !== null) return;
     scrollFrame.current = window.requestAnimationFrame(() => {
       scrollFrame.current = null;
       const pos = useEditorBridge.getState().bridge?.headingInViewPos();
@@ -305,7 +327,9 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
                 <GripVertical className="size-4" />
               </div>
             </DragHandle>
-            <EditorContent editor={editor} />
+            <NotePathContext.Provider value={path}>
+              <EditorContent editor={editor} />
+            </NotePathContext.Provider>
           </div>
         </div>
       </div>
@@ -322,10 +346,10 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
           onClose={() => setSpellTarget(null)}
         />
       )}
-      <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
-        <span className="truncate">{linkTargetToName(name)}</span>
+      <footer className="flex items-center gap-3 overflow-hidden border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
+        <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
-        <SpellMenu />
+        {isMain ? <SpellMenu /> : <span className="ml-auto" />}
         <button
           type="button"
           title="변경 기록 (Ctrl/Cmd+Shift+H)"
@@ -334,9 +358,9 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         >
           기록
         </button>
-        <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} />
+        <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} isShortcutTarget={isShortcutTarget} />
         <span role="status">{STATUS_LABEL[status]}</span>
-        <LogIndicator />
+        {isMain && <LogIndicator />}
       </footer>
     </div>
   );

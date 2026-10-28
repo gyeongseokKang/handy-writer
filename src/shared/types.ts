@@ -153,6 +153,8 @@ export interface HandyApi {
     onEntry: (listener: (entry: LogEntry) => void) => () => void;
   };
   onNotesChanged: (listener: (event: NotesChangedEvent) => void) => () => void;
+  /** Ctrl/Cmd+W를 눌렀을 때 (창 대신 지금 탭을 닫는다) */
+  onCloseTab: (listener: () => void) => () => void;
 }
 
 export const IPC = {
@@ -213,4 +215,5 @@ export const IPC = {
   aiCancel: "ai:cancel",
   aiEvent: "ai:event",
   notesChanged: "notes:changed",
+  tabsCloseCurrent: "tabs:close-current",
 } as const;

@@ -16,10 +16,12 @@ interface ExportMenuProps {
   name: string;
   /** 글에서 frontmatter만 따로 들고 있는 값. 마크다운으로 내보낼 때 다시 붙인다. */
   getFrontmatter: () => string;
+  /** 분할 화면에서 이 에디터가 단축키를 받을 차례인지 */
+  isShortcutTarget?: () => boolean;
 }
 
 /** 아래 막대의 "내보내기" 버튼. 지금 글을 마크다운, HTML, PDF 파일로 저장한다. */
-export function ExportMenu({ editor, path, name, getFrontmatter }: ExportMenuProps) {
+export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarget = () => true }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -74,9 +76,12 @@ export function ExportMenu({ editor, path, name, getFrontmatter }: ExportMenuPro
 
   const copyRef = useRef(copyRich);
   copyRef.current = copyRich;
+  const shortcutRef = useRef(isShortcutTarget);
+  shortcutRef.current = isShortcutTarget;
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "c") return;
+      if (!shortcutRef.current()) return;
       event.preventDefault();
       void copyRef.current();
     };

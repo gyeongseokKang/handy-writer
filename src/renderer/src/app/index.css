@@ -336,3 +336,19 @@
   .history-card, .history-dot { transition: none; }
   .history-card.is-active .history-diff ins, .history-card.is-active .history-diff del, .history-stage .history-card.is-active { animation: none; }
 }
+
+/* 각주: 본문에는 번호만 위첨자로, 내용 줄은 번호 + 내용. 번호는 데코레이션이 --fn으로 넘겨 준다. */
+.note-prose sup.footnote-ref { font-size: 0.7rem; line-height: 0; cursor: pointer; color: var(--primary); padding: 0 0.1em; }
+.note-prose [data-number] .footnote-text { display: none; }
+.note-prose sup.footnote-ref[data-number]::before { content: "[" var(--fn) "]"; }
+.note-prose sup.footnote-ref:hover { text-decoration: underline; text-underline-offset: 2px; }
+.note-prose sup.footnote-ref.footnote-missing { color: var(--destructive); }
+.note-prose sup.footnote-ref.ProseMirror-selectednode { outline: 2px solid var(--ring); border-radius: 2px; }
+.note-prose .footnote-def { display: flex; gap: 0.5rem; font-size: 0.875rem; color: var(--muted-foreground); padding-left: 0.25rem; }
+.note-prose .footnote-def + .footnote-def { margin-top: 0.15em; }
+.note-prose * + .footnote-def:not(.footnote-def + .footnote-def) { margin-top: 1.5em; padding-top: 0.75em; border-top: 1px solid var(--border); }
+.note-prose .footnote-label { flex-shrink: 0; min-width: 1.75rem; color: var(--primary); cursor: pointer; user-select: none; font-variant-numeric: tabular-nums; }
+.note-prose .footnote-def[data-number] .footnote-label::before { content: var(--fn) "."; }
+.note-prose .footnote-label:hover { text-decoration: underline; }
+.note-prose .footnote-body { flex: 1; min-width: 0; }
+.note-prose .footnote-def.footnote-unused .footnote-label { color: var(--muted-foreground); }

@@ -23,7 +23,7 @@ await page.click("nav[aria-label='글 목록'] >> text=맞춤법");
 await page.waitForSelector(".note-prose .spell-error");
 
 // --- 맞춤법 탭
-const tab = page.getByRole("tab", { name: /맞춤법/ });
+const tab = page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /맞춤법/ });
 assert((await tab.innerText()).includes("3"), "맞춤법 탭에 항목 수가 보인다");
 await tab.click();
 const list = page.getByRole("region", { name: "맞춤법 목록" }).or(page.locator("section[aria-label='맞춤법 목록']"));
@@ -79,7 +79,7 @@ assert(fs.existsSync(path.join(ws, ".git")), "Git 화면에서 저장소를 만�
 await page.screenshot({ path: path.join(OUT, "git-view.png") });
 await page.getByRole("button", { name: "Git 닫기" }).click();
 await page.getByRole("tablist", { name: "패널 보기" }).waitFor();
-assert((await page.getByRole("tab", { name: /맞춤법/ }).getAttribute("aria-selected")) === "true", "X를 누르면 보던 탭으로 돌아간다");
+assert((await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /맞춤법/ }).getAttribute("aria-selected")) === "true", "X를 누르면 보던 탭으로 돌아간다");
 await gitButton.click();
 await gitView.waitFor();
 await gitButton.click();

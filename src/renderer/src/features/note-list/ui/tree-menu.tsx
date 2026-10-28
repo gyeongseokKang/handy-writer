@@ -1,4 +1,4 @@
-import { Copy, FilePlus2, History, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Trash2 } from "lucide-react";
+import { Columns2, Copy, FilePlus2, History, PanelTop, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -54,6 +54,9 @@ function itemsFor(target: TreeTarget): MenuItem[] {
 
   const { note } = target;
   return [
+    { label: "새 탭에서 열기", icon: <PanelTop />, onSelect: () => void ws.openNote(note.path, { newTab: true }) },
+    { label: "옆에 열기", icon: <Columns2 />, disabled: note.path === ws.activePath, onSelect: () => void ws.openSplit(note.path) },
+    "separator",
     { label: "이름 바꾸기", icon: <Pencil />, onSelect: () => ui.startRename("note", note.path) },
     { label: "복제", icon: <Copy />, onSelect: () => void ws.duplicateNote(note.path) },
     { label: "다른 폴더로 옮기기…", icon: <FolderInput />, onSelect: () => ui.setMoving(note) },

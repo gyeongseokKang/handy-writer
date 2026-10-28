@@ -54,6 +54,12 @@ th { background: #f6f8fa; }
 .callout-title, .template-block-header { font-weight: 600; margin-bottom: 0.2rem; }
 .callout > .callout-body > * + *, .template-block-body > * + * { margin-top: 0.5em; }
 .wikilink, .note-tag { color: #0969da; }
+sup.footnote-ref { font-size: 0.75em; color: #0969da; }
+sup.footnote-ref::before { content: "["; } sup.footnote-ref::after { content: "]"; }
+.footnote-def { display: flex; gap: 0.5rem; font-size: 0.9rem; color: #57606a; }
+.footnote-def:not(.footnote-def + .footnote-def) { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #d0d7de; }
+.footnote-label { min-width: 1.5rem; color: #0969da; }
+.footnote-label::after { content: "."; }
 @media print { main { max-width: none; padding: 0; } pre, table, img, blockquote, .callout, .template-block { break-inside: avoid; } h1, h2, h3, h4 { break-after: avoid; } }
 @page { margin: 18mm 16mm; }
 `;

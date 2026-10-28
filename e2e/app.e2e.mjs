@@ -154,13 +154,13 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   console.log("ok  : 연결 정보 패널에 백링크(시작하기)가 보인다");
   await page.screenshot({ path: path.join(OUT, "6-links-panel.png") });
 
-  await page.getByRole("tab", { name: "태그" }).click();
+  await page.getByRole("tablist", { name: "사이드바 보기" }).getByRole("tab", { name: "태그" }).click();
   await page.waitForSelector("ul[aria-label='태그 목록'] >> text=가이드", { timeout: 5000 });
   await page.click("ul[aria-label='태그 목록'] >> text=가이드");
   await page.click("ul[aria-label='태그 목록'] >> text=시작하기");
   await page.waitForSelector(".note-prose .callout");
   console.log("ok  : 태그 탭에서 frontmatter 태그로 글을 찾아 연다");
-  await page.getByRole("tab", { name: "글" }).click();
+  await page.getByRole("tablist", { name: "사이드바 보기" }).getByRole("tab", { name: "글" }).click();
 
   await page.click("nav[aria-label='글 목록'] >> text=나의 첫 글");
   await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("새 글 본문입니다"));
@@ -179,10 +179,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   );
   await page.waitForSelector("ul[aria-label='나가는 링크'] >> text=아직 없는 글", { timeout: 5000 });
   await page.screenshot({ path: path.join(OUT, "7-tag-and-missing.png") });
-  await page.getByRole("tab", { name: "태그" }).click();
+  await page.getByRole("tablist", { name: "사이드바 보기" }).getByRole("tab", { name: "태그" }).click();
   await page.waitForSelector("ul[aria-label='태그 목록'] >> text=아이디어", { timeout: 5000 });
   console.log("ok  : 새로 쓴 #태그가 태그 목록에 반영된다");
-  await page.getByRole("tab", { name: "글" }).click();
+  await page.getByRole("tablist", { name: "사이드바 보기" }).getByRole("tab", { name: "글" }).click();
 
   await page.click("ul[aria-label='나가는 링크'] >> text=아직 없는 글");
   await sleep(800);
@@ -213,7 +213,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   fs.writeFileSync(path.join(ws, "교정 대상.md"), "나는 어제 학교에 갔는데 선생님이 않계셔서 되돌아 왔다.\n\n둘째 문단입니다.\n");
   await page.click("nav[aria-label='글 목록'] >> text=교정 대상");
   await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("둘째 문단입니다"));
-  await page.getByRole("tab", { name: "AI" }).click();
+  await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: "AI" }).click();
   await page.waitForSelector("[aria-label='AI 도우미']");
   assert((await page.locator("[role='alert']").count()) === 0, "claude CLI가 감지되면 경고가 없다");
 
@@ -273,14 +273,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.getByRole("button", { name: "지시대로 처리" }).click();
   await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('로그인이 필요해요')", { timeout: 10000 });
   console.log("ok  : CLI 오류 메시지를 화면에 보여준다");
-  await page.getByRole("button", { name: "닫기" }).click();
+  await page.getByRole("button", { name: "닫기", exact: true }).click();
 
   await page.fill("textarea[aria-label='추가 요청']", "SLOW");
   await page.getByRole("button", { name: "다듬기" }).click();
   await page.getByRole("button", { name: "중지" }).click();
   await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
   console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");
-  await page.getByRole("button", { name: "닫기" }).click();
+  await page.getByRole("button", { name: "닫기", exact: true }).click();
 
   // 전체 검색 (Ctrl+K)
   await page.click(".note-prose");
@@ -459,7 +459,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(probe.traversal.status !== 200 && probe.note.status === 403 && probe.other.status === 404, `작업 폴더 밖, 글(.md), 다른 호스트는 열 수 없다 (${probe.traversal.status}/${probe.note.status}/${probe.other.status})`);
 
   // 패널: 처음에는 모두 접혀 있고, 눌러야 펼쳐진다
-  await page.getByRole("tab", { name: /^첨부/ }).click();
+  await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /^첨부/ }).click();
   await page.waitForSelector("ul[aria-label='첨부 목록'] > li");
   assert((await page.locator("ul[aria-label='첨부 목록'] > li").count()) === 4, "첨부 탭에 이 글의 이미지, 영상, 없는 파일, 마크다운 이미지가 모두 나열된다");
   assert(

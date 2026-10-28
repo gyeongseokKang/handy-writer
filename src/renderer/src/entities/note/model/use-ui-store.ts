@@ -21,6 +21,8 @@ interface UiState {
   pendingFind: string | null;
   /** 변경 기록 화면에서 보고 있는 글 */
   historyTarget: { path: string; name: string } | null;
+  /** 단축키(찾기, 복사 등)가 향할 에디터. 분할 화면이면 마지막으로 포커스한 쪽 */
+  focusedPane: "main" | "side";
 
   setView: (view: MainView) => void;
   setSidebarView: (view: SidebarView) => void;
@@ -37,6 +39,7 @@ interface UiState {
   setPaletteOpen: (open: boolean) => void;
   setPendingFind: (term: string | null) => void;
   setHistoryTarget: (target: { path: string; name: string } | null) => void;
+  setFocusedPane: (pane: "main" | "side") => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -51,6 +54,7 @@ export const useUiStore = create<UiState>((set) => ({
   paletteOpen: false,
   pendingFind: null,
   historyTarget: null,
+  focusedPane: "main",
 
   setView: (view) => set({ view }),
   setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -65,4 +69,5 @@ export const useUiStore = create<UiState>((set) => ({
   setPaletteOpen: (paletteOpen) => set({ paletteOpen }),
   setPendingFind: (pendingFind) => set({ pendingFind }),
   setHistoryTarget: (historyTarget) => set({ historyTarget }),
+  setFocusedPane: (focusedPane) => set({ focusedPane }),
 }));

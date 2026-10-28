@@ -111,6 +111,11 @@ const api: HandyApi = {
     ipcRenderer.on(IPC.notesChanged, handler);
     return () => ipcRenderer.removeListener(IPC.notesChanged, handler);
   },
+  onCloseTab: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IPC.tabsCloseCurrent, handler);
+    return () => ipcRenderer.removeListener(IPC.tabsCloseCurrent, handler);
+  },
 };
 
 contextBridge.exposeInMainWorld("api", api);
