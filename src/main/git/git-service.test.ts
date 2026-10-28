@@ -181,6 +181,58 @@ describe("가져오기", () => {
   });
 });
 
+describe("강제 가져오기·강제 푸시", () => {
+  /** 같은 줄을 양쪽에서 고쳐 a와 원격이 갈라진 상태를 만든다. */
+  async function diverge() {
+    await setup();
+    await writeFile(join(b, "첫 글.md"), "b 버전\n\n둘째 줄\n");
+    git(b, "commit", "-am", "b");
+    git(b, "push");
+    await writeFile(join(a, "첫 글.md"), "a 버전\n\n둘째 줄\n");
+    await service.commit(a, "a");
+    expect((await service.pull(a)).outcome).toBe("conflict");
+  }
+
+  it("강제 가져오기는 원격과 똑같이 맞추고, 내 커밋과 저장 안 한 변경은 백업 브랜치에 남긴다", async () => {
+    await diverge();
+    await writeFile(join(a, "저장 안 한 글.md"), "아직 커밋 안 함");
+
+    const result = await service.forcePull(a);
+
+    expect(result.outcome).toBe("force-pulled");
+    expect(await readFile(join(a, "첫 글.md"), "utf8")).toBe("b 버전\n\n둘째 줄\n");
+    expect(git(a, "rev-parse", "HEAD")).toBe(git(remote, "rev-parse", "main"));
+    const status = await service.status(a);
+    expect(status).toMatchObject({ ahead: 0, behind: 0, changes: [] });
+    const backup = result.backupBranch!;
+    expect(backup).toMatch(/^handy-writer\/backup-\d{8}-\d{6}$/);
+    expect(git(a, "show", `${backup}:첫 글.md`)).toBe("a 버전\n\n둘째 줄");
+    expect(git(a, "show", `${backup}:저장 안 한 글.md`)).toBe("아직 커밋 안 함");
+  });
+
+  it("강제 푸시는 원격을 내 커밋으로 덮어쓰고, 원격에만 있던 커밋은 백업 브랜치에 남긴다", async () => {
+    await diverge();
+    const remoteBefore = git(remote, "rev-parse", "main");
+
+    const result = await service.forcePush(a);
+
+    expect(result.outcome).toBe("force-pushed");
+    expect(git(remote, "rev-parse", "main")).toBe(git(a, "rev-parse", "HEAD"));
+    expect(git(remote, "show", "main:첫 글.md")).toBe("a 버전\n\n둘째 줄");
+    expect(result.backupBranch).toMatch(/^handy-writer\/backup-remote-/);
+    expect(git(a, "rev-parse", result.backupBranch!)).toBe(remoteBefore);
+    expect(await service.status(a)).toMatchObject({ ahead: 0, behind: 0 });
+  });
+
+  it("원격이 없으면 강제 동작을 하지 않는다", async () => {
+    await service.init(a);
+    await writeFile(join(a, "글.md"), "x");
+    await service.commit(a, "c");
+    await expect(service.forcePull(a)).rejects.toThrow("원격");
+    await expect(service.forcePush(a)).rejects.toThrow("원격");
+  });
+});
+
 describe("동기화", () => {
   it("커밋, 가져오기, 푸시를 한 번에 하고 원격에 내 변경이 올라간다", async () => {
     await setup();

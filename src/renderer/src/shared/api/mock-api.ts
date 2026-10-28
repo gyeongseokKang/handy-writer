@@ -255,6 +255,16 @@ export function createMockApi(): HandyApi {
         emitGit();
         return { outcome: "pushed", message: "원격 저장소에 올렸어요." };
       },
+      forcePull: async () => {
+        gitStatus = { ...gitStatus, changes: [], ahead: 0, behind: 0 };
+        emitGit();
+        return { outcome: "force-pulled", message: "원격과 똑같이 맞췄어요." };
+      },
+      forcePush: async () => {
+        gitStatus = { ...gitStatus, ahead: 0, behind: 0 };
+        emitGit();
+        return { outcome: "force-pushed", message: "원격을 내 글로 덮어썼어요." };
+      },
       sync: async () => {
         gitStatus = { ...gitStatus, changes: [], ahead: 0 };
         emitGit();
@@ -266,6 +276,20 @@ export function createMockApi(): HandyApi {
         gitListeners.add(listener);
         return () => gitListeners.delete(listener);
       },
+    },
+    sources: {
+      youtube: async (url) => ({
+        kind: "youtube",
+        videoId: "mockvideo01",
+        url,
+        title: "[목업] 유튜브 영상",
+        channel: "목업 채널",
+        seconds: 600,
+        description: "",
+        transcript: "[목업] 영상 자막입니다.",
+        captionLabel: "한국어",
+      }),
+      pickProject: async () => ({ kind: "project", path: "/mock/project", name: "project", fileCount: 12 }),
     },
     ai: {
       status: async () => ({ available: true, version: "mock", path: "mock" }),

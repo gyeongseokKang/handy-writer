@@ -1,5 +1,5 @@
 import type { GitChangeKind } from "@shared/git";
-import { ArrowDown, ArrowUp, FolderGit2, GitBranch, GitCommitHorizontal, Loader2, RefreshCw } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowDownToLine, ArrowUpFromLine, FolderGit2, GitBranch, GitCommitHorizontal, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 
 import { useGitStore } from "@/entities/git/model/use-git-store";
@@ -45,6 +45,59 @@ function RemoteForm() {
       <Button size="sm" disabled={!url.trim() || busy !== null} onClick={() => void setRemote(url).then((ok) => ok && setUrl(""))}>
         연결
       </Button>
+    </section>
+  );
+}
+
+const FORCE = {
+  pull: {
+    label: "강제 가져오기",
+    confirm: "원격으로 덮어쓰기",
+    text: "내 컴퓨터의 커밋과 아직 커밋하지 않은 변경을 버리고 원격과 똑같이 맞춰요. 버리기 전 상태는 백업 브랜치에 남겨 둬요.",
+  },
+  push: {
+    label: "강제 푸시",
+    confirm: "내 글로 덮어쓰기",
+    text: "원격에만 있는 커밋을 지우고 원격을 내 커밋으로 덮어써요. 지워지는 원격 커밋은 내 컴퓨터의 백업 브랜치에 남겨 둬요. 커밋하지 않은 변경은 올라가지 않아요.",
+  },
+} as const;
+
+/** 가져오기가 충돌하거나 양쪽에 서로 다른 커밋이 있을 때: 한쪽으로 덮어써서 맞춘다. */
+function ForceSync() {
+  const busy = useGitStore((s) => s.busy);
+  const [confirming, setConfirming] = useState<"pull" | "push" | null>(null);
+  const run = (kind: "pull" | "push") => {
+    setConfirming(null);
+    const { forcePull, forcePush } = useGitStore.getState();
+    void (kind === "pull" ? forcePull() : forcePush());
+  };
+
+  return (
+    <section aria-label="충돌 해결" className="space-y-2 px-4 py-3">
+      <h2 className="text-xs font-semibold text-muted-foreground">충돌 해결</h2>
+      <p className="text-xs text-muted-foreground">합치지 못하면 한쪽으로 덮어써서 맞출 수 있어요.</p>
+      {confirming ? (
+        <div role="alertdialog" aria-label={`${FORCE[confirming].label} 확인`} className="space-y-2 rounded-md border border-destructive/40 bg-destructive/5 p-2.5 text-xs">
+          <p>{FORCE[confirming].text}</p>
+          <div className="flex gap-2">
+            <Button size="sm" variant="destructive" onClick={() => run(confirming)}>
+              {FORCE[confirming].confirm}
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(null)}>
+              취소
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Button size="sm" variant="outline" className="text-destructive" disabled={busy !== null} onClick={() => setConfirming("pull")}>
+            {busy === "force-pull" ? <Loader2 className="animate-spin" /> : <ArrowDownToLine />} {FORCE.pull.label}
+          </Button>
+          <Button size="sm" variant="outline" className="text-destructive" disabled={busy !== null} onClick={() => setConfirming("push")}>
+            {busy === "force-push" ? <Loader2 className="animate-spin" /> : <ArrowUpFromLine />} {FORCE.push.label}
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
@@ -100,6 +153,7 @@ function Settings() {
 export function GitPanel() {
   const status = useGitStore((s) => s.status);
   const busy = useGitStore((s) => s.busy);
+  const lastConflict = useGitStore((s) => s.conflicted);
   const message = useGitStore((s) => s.commitMessage);
   const setMessage = useGitStore((s) => s.setCommitMessage);
   const { init, commit, pull, push, sync, refresh } = useGitStore.getState();
@@ -157,7 +211,7 @@ export function GitPanel() {
         )}
         {(status.merging || conflicted.length > 0) && (
           <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs">
-            병합이 끝나지 않았거나 충돌한 파일이 있어요. 터미널에서 해결(또는 `git merge --abort`)한 뒤 새로고침해 주세요.
+            병합이 끝나지 않았거나 충돌한 파일이 있어요. 터미널에서 해결(또는 `git merge --abort`)하거나 아래 충돌 해결에서 한쪽으로 덮어써 주세요.
           </p>
         )}
       </section>
@@ -215,6 +269,7 @@ export function GitPanel() {
         </div>
       </section>
 
+      {status.hasRemote && (lastConflict || status.merging || conflicted.length > 0 || (status.ahead > 0 && status.behind > 0)) && <ForceSync />}
       {!status.hasRemote && <RemoteForm />}
       <Settings />
     </div>

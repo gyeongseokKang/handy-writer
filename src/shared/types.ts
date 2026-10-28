@@ -1,5 +1,6 @@
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
+import type { ProjectSource, YoutubeSource } from "./draft-sources";
 import type { OnlineSpellResult } from "./online-spell";
 import type { UpdateState } from "./update";
 import type { LogEntry, LogInput } from "./log";
@@ -126,6 +127,10 @@ export interface HandyApi {
     commit: (message: string) => Promise<GitOpResult>;
     pull: () => Promise<GitOpResult>;
     push: () => Promise<GitOpResult>;
+    /** 내 변경을 백업 브랜치에 남기고 원격과 똑같이 맞춘다 */
+    forcePull: () => Promise<GitOpResult>;
+    /** 원격만의 커밋을 백업 브랜치에 남기고 원격을 내 커밋으로 덮어쓴다 */
+    forcePush: () => Promise<GitOpResult>;
     sync: () => Promise<GitOpResult>;
     getSettings: () => Promise<GitSettings>;
     setSettings: (settings: GitSettings) => Promise<GitSettings>;
@@ -141,6 +146,13 @@ export interface HandyApi {
     run: (request: AiRequest) => Promise<string>;
     cancel: (runId: string) => Promise<void>;
     onEvent: (listener: (event: AiEvent) => void) => () => void;
+  };
+  /** 초안 만들기에 붙이는 자료 */
+  sources: {
+    /** 유튜브 주소로 제목, 설명, 자막을 받는다. */
+    youtube: (url: string) => Promise<YoutubeSource>;
+    /** 폴더 선택 창으로 프로젝트 폴더를 고른다. 취소하면 null */
+    pickProject: () => Promise<ProjectSource | null>;
   };
   log: {
     /** 앱을 켠 뒤 모인 오류·경고 (오래된 것부터) */
@@ -204,6 +216,8 @@ export const IPC = {
   gitCommit: "git:commit",
   gitPull: "git:pull",
   gitPush: "git:push",
+  gitForcePull: "git:force-pull",
+  gitForcePush: "git:force-push",
   gitSync: "git:sync",
   gitGetSettings: "git:get-settings",
   gitSetSettings: "git:set-settings",
@@ -214,6 +228,8 @@ export const IPC = {
   aiRun: "ai:run",
   aiCancel: "ai:cancel",
   aiEvent: "ai:event",
+  sourcesYoutube: "sources:youtube",
+  sourcesPickProject: "sources:pick-project",
   notesChanged: "notes:changed",
   tabsCloseCurrent: "tabs:close-current",
 } as const;

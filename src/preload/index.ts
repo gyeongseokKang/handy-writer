@@ -74,6 +74,8 @@ const api: HandyApi = {
     commit: (message) => ipcRenderer.invoke(IPC.gitCommit, message),
     pull: () => ipcRenderer.invoke(IPC.gitPull),
     push: () => ipcRenderer.invoke(IPC.gitPush),
+    forcePull: () => ipcRenderer.invoke(IPC.gitForcePull),
+    forcePush: () => ipcRenderer.invoke(IPC.gitForcePush),
     sync: () => ipcRenderer.invoke(IPC.gitSync),
     getSettings: () => ipcRenderer.invoke(IPC.gitGetSettings),
     setSettings: (settings) => ipcRenderer.invoke(IPC.gitSetSettings, settings),
@@ -84,6 +86,10 @@ const api: HandyApi = {
     },
     history: (path) => ipcRenderer.invoke(IPC.gitHistory, path),
     readVersion: (hash, blobPath) => ipcRenderer.invoke(IPC.gitReadVersion, hash, blobPath),
+  },
+  sources: {
+    youtube: (url) => ipcRenderer.invoke(IPC.sourcesYoutube, url),
+    pickProject: () => ipcRenderer.invoke(IPC.sourcesPickProject),
   },
   ai: {
     status: () => ipcRenderer.invoke(IPC.aiStatus),

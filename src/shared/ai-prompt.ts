@@ -1,5 +1,6 @@
 import type { AiReference, AiRequest } from "./ai";
 import { draftInstruction, EMPTY_BRIEF, outlineInstruction } from "./draft";
+import { sourcesInstruction, youtubeSection } from "./draft-sources";
 
 export const SYSTEM_PROMPT = [
   "당신은 한국어 글쓰기 도우미입니다.",
@@ -60,7 +61,10 @@ function templateOutputRules(request: AiRequest) {
   return rules.map((rule) => `- ${rule}`).join("\n");
 }
 
-export function buildUserPrompt(request: AiRequest): string {
+/**
+ * @param projectSections 메인 프로세스가 프로젝트 폴더를 훑어 만든 `<project>` 자료 (초안 만들기에서만)
+ */
+export function buildUserPrompt(request: AiRequest, projectSections: string[] = []): string {
   const sections: string[] = [];
 
   const rules = request.rules.trim();
@@ -90,6 +94,12 @@ export function buildUserPrompt(request: AiRequest): string {
 
   if (request.task === "outline" || request.task === "draft") {
     const brief = request.brief ?? EMPTY_BRIEF;
+    const videos = (request.sources ?? []).filter((source) => source.kind === "youtube");
+    if (videos.length > 0 || projectSections.length > 0) {
+      sections.push(
+        `<sources>\n${[...videos.map(youtubeSection), ...projectSections].join("\n")}\n</sources>\n${sourcesInstruction(videos.length > 0, projectSections.length > 0)}`,
+      );
+    }
     sections.push(request.task === "outline" ? outlineInstruction(brief) : draftInstruction(brief, request.outline ?? ""));
     return sections.join("\n\n");
   }

@@ -1,4 +1,5 @@
 import type { DraftBrief } from "./draft";
+import type { DraftSource } from "./draft-sources";
 
 export type AiTask = "polish" | "proofread" | "continue" | "custom" | "template" | "outline" | "draft";
 
@@ -32,6 +33,8 @@ export interface AiRequest {
   brief?: DraftBrief;
   /** draft: 초안의 뼈대가 될 목차 (마크다운) */
   outline?: string;
+  /** outline, draft: 유튜브 자막과 프로젝트 폴더 같은 자료 */
+  sources?: DraftSource[];
 }
 
 export interface AiStatus {

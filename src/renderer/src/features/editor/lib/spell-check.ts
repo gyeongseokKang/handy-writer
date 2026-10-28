@@ -12,7 +12,12 @@ export interface SpellTarget {
   to: number;
   /** 화면 위치 (팝업을 붙일 곳) */
   rect: { left: number; bottom: number; top: number };
+  /** 마우스를 올려서 띄운 것이면 true (마우스가 떠나면 닫힌다) */
+  hover?: boolean;
 }
+
+/** 밑줄에 마우스를 올리고 제안 창을 띄우기까지 기다리는 시간 */
+const HOVER_DELAY_MS = 250;
 
 
 export interface SpellCheckOptions {
@@ -21,6 +26,8 @@ export interface SpellCheckOptions {
   /** 표시 중인 항목이 바뀔 때마다 (위치가 옮겨진 것도 포함) */
   onItems: (items: SpellItem[]) => void;
   onSelect: (target: SpellTarget) => void;
+  /** 마우스가 밑줄을 떠났을 때 */
+  onHoverEnd?: () => void;
   /** 온라인 검사. 없으면 규칙 기반 검사만 한다. */
   checkOnline?: (maskedText: string) => Promise<OnlineSpellResult>;
   isOnlineEnabled?: () => boolean;
@@ -109,6 +116,17 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
     let offlineUntil = 0;
     const pending = new Set<string>();
     const inflight = new Set<string>();
+    let hoverTimer: ReturnType<typeof setTimeout> | undefined;
+    let hoverEl: Element | null = null;
+
+    /** pos에 있는 밑줄 친 낱말과 그 화면 위치 */
+    const targetAt = (view: EditorView, pos: number): SpellTarget | null => {
+      const hit = key.getState(view.state)?.items.find((item) => pos >= item.from && pos <= item.to);
+      if (!hit) return null;
+      const start = view.coordsAtPos(hit.from);
+      const end = view.coordsAtPos(hit.to);
+      return { ...hit, rect: { left: start.left, top: start.top, bottom: Math.max(start.bottom, end.bottom) } };
+    };
 
     const onlineOn = () => Boolean(options.checkOnline && options.isOnlineEnabled?.() && options.isEnabled());
 
@@ -226,19 +244,44 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
             }
             if (state && state.missing.length > 0) schedule(view, state.missing);
           },
-          destroy: () => clearTimeout(timer),
+          destroy: () => {
+            clearTimeout(timer);
+            clearTimeout(hoverTimer);
+          },
         }),
         props: {
           decorations: (state) => key.getState(state)?.decorations,
           handleClick: (view, pos, event) => {
             const el = (event.target as HTMLElement | null)?.closest(".spell-error");
             if (!el) return false;
-            const hit = key.getState(view.state)?.items.find((item) => pos >= item.from && pos <= item.to);
-            if (!hit) return false;
-            const start = view.coordsAtPos(hit.from);
-            const end = view.coordsAtPos(hit.to);
-            options.onSelect({ ...hit, rect: { left: start.left, top: start.top, bottom: Math.max(start.bottom, end.bottom) } });
+            clearTimeout(hoverTimer);
+            const target = targetAt(view, pos);
+            if (target) options.onSelect(target);
             return false;
+          },
+          handleDOMEvents: {
+            mouseover: (view, event) => {
+              const el = (event.target as HTMLElement | null)?.closest(".spell-error");
+              if (!el || el === hoverEl) return false;
+              hoverEl = el;
+              clearTimeout(hoverTimer);
+              const { clientX, clientY } = event;
+              hoverTimer = setTimeout(() => {
+                const pos = view.posAtCoords({ left: clientX, top: clientY })?.pos;
+                const target = pos === undefined ? null : targetAt(view, pos);
+                if (target) options.onSelect({ ...target, hover: true });
+              }, HOVER_DELAY_MS);
+              return false;
+            },
+            mouseout: (_view, event) => {
+              if (!hoverEl) return false;
+              const to = event.relatedTarget as Node | null;
+              if (to && hoverEl.contains(to)) return false;
+              hoverEl = null;
+              clearTimeout(hoverTimer);
+              options.onHoverEnd?.();
+              return false;
+            },
           },
         },
       }),

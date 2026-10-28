@@ -376,6 +376,21 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(git(ws, "status", "--porcelain") === "", "충돌 뒤에도 작업 폴더가 깨끗한 상태로 되돌아간다");
   await page.screenshot({ path: path.join(OUT, "11-git-conflict.png") });
 
+  // 충돌하면 강제 가져오기·강제 푸시가 열린다. 누르면 한 번 더 확인한다.
+  const force = page.getByRole("region", { name: "충돌 해결" }).or(page.locator("section[aria-label='충돌 해결']"));
+  assert(await force.getByRole("button", { name: "강제 가져오기" }).isVisible(), "충돌하면 강제 가져오기 버튼이 보인다");
+  await force.getByRole("button", { name: "강제 푸시" }).click();
+  assert(await page.getByRole("alertdialog", { name: "강제 푸시 확인" }).isVisible(), "강제 푸시는 바로 하지 않고 확인을 묻는다");
+  await page.getByRole("button", { name: "취소" }).click();
+  assert(git("/", "--git-dir", remote, "show", "main:일기/오늘.md") === "B 버전", "취소하면 원격은 그대로다");
+  await force.getByRole("button", { name: "강제 푸시" }).click();
+  await page.getByRole("button", { name: "내 글로 덮어쓰기" }).click();
+  await page.waitForSelector("text=원격을 내 글로 덮어썼어요", { timeout: 15000 });
+  assert(git("/", "--git-dir", remote, "show", "main:일기/오늘.md") === "A 버전", "강제 푸시하면 원격이 내 글로 바뀐다");
+  assert(git(ws, "branch", "--list", "handy-writer/backup-remote-*") !== "", "원격에만 있던 커밋은 백업 브랜치에 남는다");
+  await sleep(500);
+  assert((await force.count()) === 0, "맞춘 뒤에는 충돌 해결 버튼이 사라진다");
+
   // 자동 커밋 설정은 컴퓨터별 설정 파일에 저장된다
   await page.locator("summary", { hasText: "자동화 설정" }).click();
   await page.selectOption("select[aria-label='자동 커밋 간격']", "10");

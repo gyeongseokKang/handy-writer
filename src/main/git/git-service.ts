@@ -22,13 +22,21 @@ export function formatCommitMessage(template: string, now = new Date()) {
   return (template.trim() || "handy-writer: {date}").replaceAll("{date}", date);
 }
 
+/** 덮어쓰기 전 상태를 남길 브랜치 이름: `handy-writer/backup-20261028-1405` */
+export function backupBranchName(kind: "local" | "remote", now = new Date()) {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `handy-writer/backup-${kind === "remote" ? "remote-" : ""}${stamp}`;
+}
+
 function fail(error: unknown): never {
   if (error instanceof GitError) throw new Error(explainGitError(error.stderr || error.message));
   throw error;
 }
 
 /**
- * 작업 폴더의 git 저장소를 다룬다. 내용을 잃을 수 있는 동작(강제 푸시, reset, 충돌 마커 남기기)은 하지 않는다.
+ * 작업 폴더의 git 저장소를 다룬다. 내용을 잃을 수 있는 동작(강제 푸시, reset, 충돌 마커 남기기)은
+ * 사용자가 강제 가져오기·강제 푸시를 직접 고를 때만 하고, 그때도 덮어쓰기 전 상태를 백업 브랜치로 남긴다.
  * 같은 폴더에 대한 명령은 한 줄로 세워서 index.lock 충돌을 막는다.
  */
 export class GitService {
@@ -198,6 +206,67 @@ export class GitService {
     const args = status.upstream ? ["push"] : ["push", "-u", "origin", "HEAD"];
     await runGit(root, args, { timeoutMs: NETWORK_TIMEOUT_MS }).catch(fail);
     return { outcome: "pushed", message: "원격 저장소에 올렸어요." };
+  }
+
+  /**
+   * 강제 가져오기: 내 커밋과 저장하지 않은 변경을 버리고 원격과 똑같이 맞춘다.
+   * 버리기 전에 지금 상태(저장 안 한 변경 포함)를 백업 브랜치에 커밋해 둔다.
+   */
+  forcePull(root: string): Promise<GitOpResult> {
+    return this.enqueue(root, async () => {
+      const before = await this.readStatus(root);
+      if (!before.isRepo) throw new Error("아직 git 저장소가 아니에요.");
+      if (!before.hasRemote) throw new Error("원격 저장소가 연결되지 않았어요.");
+      await runGit(root, ["fetch", "--prune"], { timeoutMs: NETWORK_TIMEOUT_MS }).catch(fail);
+      const fetched = await this.readStatus(root);
+      if (!fetched.upstream) throw new Error("원격에 이 브랜치가 아직 없어서 가져올 게 없어요.");
+
+      await runGit(root, ["merge", "--abort"]).catch(() => {});
+      const backup = backupBranchName("local");
+      const dirty = (await runGit(root, ["status", "--porcelain"]).catch(fail)).stdout.trim() !== "";
+      if (dirty) {
+        // 저장소 전체의 변경을 백업 브랜치에만 남긴다 (지금 브랜치는 곧 원격으로 되돌린다).
+        await runGit(root, ["add", "-A", ":/"]).catch(fail);
+        await runGit(root, ["commit", "--no-verify", "-m", "강제 가져오기 전 백업"]).catch(fail);
+      }
+      const hasHead = await runGit(root, ["rev-parse", "-q", "--verify", "HEAD"]).then(() => true, () => false);
+      if (hasHead) await runGit(root, ["branch", backup, "HEAD"]).catch(fail);
+      await runGit(root, ["reset", "--hard", "@{u}"]).catch(fail);
+      return {
+        outcome: "force-pulled",
+        message: hasHead ? `원격과 똑같이 맞췄어요. 이전 상태는 ${backup} 브랜치에 남겨 두었어요.` : "원격과 똑같이 맞췄어요.",
+        backupBranch: hasHead ? backup : undefined,
+      };
+    });
+  }
+
+  /**
+   * 강제 푸시: 원격을 내 커밋으로 덮어쓴다. 원격에만 있던 커밋은 백업 브랜치(내 컴퓨터)에 남긴다.
+   * --force-with-lease라서 방금 확인한 뒤에 누가 새로 올렸다면 덮어쓰지 않고 실패한다.
+   */
+  forcePush(root: string): Promise<GitOpResult> {
+    return this.enqueue(root, async () => {
+      const status = await this.readStatus(root);
+      if (!status.isRepo) throw new Error("아직 git 저장소가 아니에요.");
+      if (!status.hasRemote) throw new Error("원격 저장소가 연결되지 않았어요. 먼저 주소를 연결해 주세요.");
+      if (!status.lastCommit) throw new Error("아직 커밋이 없어요. 먼저 커밋해 주세요.");
+      if (status.merging) await runGit(root, ["merge", "--abort"]).catch(() => {});
+
+      await runGit(root, ["fetch", "--prune"], { timeoutMs: NETWORK_TIMEOUT_MS }).catch(fail);
+      const fetched = await this.readStatus(root);
+      let backup: string | undefined;
+      if (fetched.upstream && fetched.behind > 0) {
+        backup = backupBranchName("remote");
+        await runGit(root, ["branch", backup, "@{u}"]).catch(fail);
+      }
+      const args = fetched.upstream ? ["push", "--force-with-lease"] : ["push", "--force-with-lease", "-u", "origin", "HEAD"];
+      await runGit(root, args, { timeoutMs: NETWORK_TIMEOUT_MS }).catch(fail);
+      return {
+        outcome: "force-pushed",
+        message: backup ? `원격을 내 글로 덮어썼어요. 원격에만 있던 커밋은 ${backup} 브랜치에 남겨 두었어요.` : "원격을 내 글로 덮어썼어요.",
+        backupBranch: backup,
+      };
+    });
   }
 
   /** 커밋 → 가져오기 → 푸시. 충돌하면 거기서 멈춘다. */

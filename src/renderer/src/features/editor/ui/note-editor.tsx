@@ -31,6 +31,8 @@ import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
 
+const SPELL_HOVER_CLOSE_MS = 250;
+
 const SAVE_DELAY_MS = 600;
 
 type SaveStatus = "loading" | "saved" | "saving" | "error";
@@ -74,6 +76,13 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
 
   const [findOpen, setFindOpen] = useState(false);
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
+  // 마우스를 올려 띄운 제안 창은 마우스가 밑줄과 창을 모두 떠나면 잠시 뒤 닫는다.
+  const spellCloseRef = useRef<number | undefined>(undefined);
+  const cancelSpellClose = () => window.clearTimeout(spellCloseRef.current);
+  const scheduleSpellClose = () => {
+    cancelSpellClose();
+    spellCloseRef.current = window.setTimeout(() => setSpellTarget((prev) => (prev?.hover ? null : prev)), SPELL_HOVER_CLOSE_MS);
+  };
 
   const extensions = useMemo(
     () =>
@@ -82,7 +91,12 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           isEnabled: () => useSpellStore.getState().enabled,
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
           onItems: (items) => useSpellStore.getState().setItems(items),
-          onSelect: setSpellTarget,
+          onSelect: (target) => {
+            cancelSpellClose();
+            // 눌러서 연 창은 마우스를 올려 바뀌지 않게 둔다.
+            setSpellTarget((prev) => (target.hover && prev && !prev.hover ? prev : target));
+          },
+          onHoverEnd: () => scheduleSpellClose(),
           checkOnline: (text) => api.spell.check(text),
           isOnlineEnabled: () => useSpellStore.getState().online,
           onOnlineStatus: (status) => useSpellStore.getState().setOnlineState(status),
@@ -344,6 +358,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
             setSpellTarget(null);
           }}
           onClose={() => setSpellTarget(null)}
+          onMouseEnter={cancelSpellClose}
+          onMouseLeave={() => spellTarget.hover && scheduleSpellClose()}
         />
       )}
       <footer className="flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">

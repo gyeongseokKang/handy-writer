@@ -1,4 +1,5 @@
 import { ListTree, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useOutlineStore } from "@/entities/note/model/use-outline-store";
@@ -7,7 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 /**
- * 에디터 왼쪽 위에 떠 있는 목차. 평소에는 지금 보고 있는 제목만 한 줄로 보여주고,
+ * 에디터 왼쪽 위에 떠 있는 목차. 평소에는 지금 보고 있는 제목과 그 위 제목들(h1 → h2 → h3)만 보여주고,
  * 마우스를 올리거나 키보드로 들어오면 전체 목차를 펼친다. 누르면 그 제목으로 옮겨 간다.
  */
 export function OutlinePanel() {
@@ -18,18 +19,34 @@ export function OutlinePanel() {
   // 가장 높은 제목 수준을 왼쪽 끝에 맞춘다 (## 부터 쓰는 글도 들여쓰기 없이 시작).
   const top = Math.min(...headings.map((h) => h.level), 6);
   const current = headings.find((h) => h.pos === activePos) ?? headings[0];
+  const trail = useTrailLines(current ? headingTrail(headings, headings.indexOf(current)) : []);
 
   return (
     <nav
       aria-label="목차"
       // 목록이 접혀 있으면 안의 버튼에 갈 수 없으므로, 목차 자체가 포커스를 받아 펼친다.
       tabIndex={0}
-      className="group outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 absolute top-4 left-4 z-10 w-max max-w-56 rounded-lg border bg-card/90 text-sm shadow-sm backdrop-blur hover:w-64 hover:max-w-64 focus-within:w-64 focus-within:max-w-64"
+      className="outline-panel group outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 absolute top-4 left-4 z-10 w-max max-w-56 rounded-lg border bg-card/90 text-sm shadow-sm backdrop-blur hover:w-64 hover:max-w-64 focus-within:w-64 focus-within:max-w-64"
     >
-      {/* 접힌 모습: 지금 보고 있는 제목 하나 */}
-      <div aria-hidden data-outline-current className="flex items-center gap-2 px-3 py-2 text-muted-foreground group-focus-within:hidden group-hover:hidden">
-        <ListTree className="size-4 shrink-0" />
-        <span className="truncate">{current?.text ?? "목차"}</span>
+      {/* 접힌 모습: 지금 보고 있는 제목과 그 위 제목들 */}
+      <div aria-hidden data-outline-current className="flex gap-2 px-3 py-2 text-muted-foreground group-focus-within:hidden group-hover:hidden">
+        <ListTree className="mt-0.5 size-4 shrink-0" />
+        <div className="min-w-0 space-y-0.5">
+          {trail.length === 0 ? (
+            <div>목차</div>
+          ) : (
+            trail.map(({ heading, depth, last, leaving }) => (
+              <div
+                key={heading.pos}
+                data-leaving={leaving || undefined}
+                style={{ paddingLeft: `${depth * 0.75}rem` }}
+                className={cn("outline-trail-line truncate", last ? "text-sm leading-5 text-foreground/80" : "text-xs leading-5")}
+              >
+                {heading.text}
+              </div>
+            ))
+          )}
+        </div>
       </div>
 
       {/* 펼친 모습: 전체 목차 */}
@@ -69,4 +86,53 @@ export function OutlinePanel() {
       </div>
     </nav>
   );
+}
+
+const LEAVE_MS = 180;
+
+interface TrailLine<T> {
+  heading: T;
+  depth: number;
+  last: boolean;
+  leaving: boolean;
+}
+
+/** 이어진 제목 줄이 바뀔 때 빠지는 줄을 잠깐 남겨 두어 접히며 사라지게 한다. */
+function useTrailLines<T extends { pos: number }>(trail: T[]): TrailLine<T>[] {
+  const key = trail.map((h) => h.pos).join(",");
+  const [lines, setLines] = useState<TrailLine<T>[]>(() => toLines(trail));
+
+  useEffect(() => {
+    const next = toLines(trail);
+    setLines((prev) => {
+      const merged = [...next];
+      prev.forEach((line, index) => {
+        if (!line.leaving && !next.some((n) => n.heading.pos === line.heading.pos)) {
+          merged.splice(Math.min(index, merged.length), 0, { ...line, leaving: true });
+        }
+      });
+      return merged;
+    });
+    const timer = window.setTimeout(() => setLines(next), LEAVE_MS);
+    return () => window.clearTimeout(timer);
+    // 제목 위치가 같으면 다시 돌리지 않는다 (글자만 바뀐 것은 아래 효과에서 반영).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  // 제목 글자를 고친 경우: 줄은 그대로 두고 내용만 바꾼다.
+  const fresh = new Map(trail.map((h) => [h.pos, h]));
+  return lines.map((line) => ({ ...line, heading: fresh.get(line.heading.pos) ?? line.heading }));
+}
+
+function toLines<T>(trail: T[]): TrailLine<T>[] {
+  return trail.map((heading, depth) => ({ heading, depth, last: depth === trail.length - 1, leaving: false }));
+}
+
+/** index번 제목과 그 위로 이어지는 상위 제목들 (위에서부터). 예: 들어가며(h1) → 영상에서 얻은 힌트(h2) → 제가 꽂힌 한 문장(h3) */
+function headingTrail<T extends { level: number }>(headings: T[], index: number): T[] {
+  const trail = [headings[index]!];
+  for (let i = index - 1; i >= 0; i--) {
+    if (headings[i]!.level < trail[0]!.level) trail.unshift(headings[i]!);
+  }
+  return trail;
 }

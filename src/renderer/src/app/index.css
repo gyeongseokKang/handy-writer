@@ -352,3 +352,28 @@
 .note-prose .footnote-label:hover { text-decoration: underline; }
 .note-prose .footnote-body { flex: 1; min-width: 0; }
 .note-prose .footnote-def.footnote-unused .footnote-label { color: var(--muted-foreground); }
+
+/* 떠 있는 목차: 접힌 줄이 바뀔 때와 펼칠 때 부드럽게 */
+.outline-panel {
+  interpolate-size: allow-keywords;
+  transition: width 200ms ease, max-width 200ms ease;
+}
+.outline-trail-line {
+  transition: font-size 180ms ease, color 180ms ease, padding-left 180ms ease;
+  animation: outline-line-in 200ms ease both;
+}
+.outline-trail-line[data-leaving] {
+  animation: outline-line-out 180ms ease both;
+}
+@keyframes outline-line-in {
+  from { opacity: 0; max-height: 0; transform: translateY(-0.25rem); }
+  to { opacity: 1; max-height: 1.25rem; transform: none; }
+}
+@keyframes outline-line-out {
+  from { opacity: 1; max-height: 1.25rem; }
+  to { opacity: 0; max-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .outline-panel, .outline-trail-line { transition: none; animation: none; }
+  .outline-trail-line[data-leaving] { display: none; }
+}

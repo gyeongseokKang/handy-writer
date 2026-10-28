@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { parseStreamLine, runClaude, WEB_TOOLS } from "./claude-cli";
+import { parseStreamLine, READ_TOOLS, runClaude, WEB_TOOLS } from "./claude-cli";
 
 describe("parseStreamLine", () => {
   it("text_delta만 조각으로 꺼내고 thinking 같은 다른 조각은 무시한다", () => {
@@ -96,6 +96,12 @@ describe.skipIf(!posix)("runClaude", () => {
     const off = await read();
     expect(off[off.indexOf("--tools") + 1]).toBe("");
     expect(off).not.toContain("--allowedTools");
+
+    await runClaude({ exe, cwd: dir, prompt: "x", signal: new AbortController().signal, onDelta: () => {}, readDirs: ["/tmp/프로젝트"] });
+    const read2 = await read();
+    expect(read2[read2.indexOf("--tools") + 1]).toBe(READ_TOOLS);
+    expect(read2[read2.indexOf("--allowedTools") + 1]).toBe(READ_TOOLS);
+    expect(read2[read2.indexOf("--add-dir") + 1]).toBe("/tmp/프로젝트");
   });
 
   it("도구를 쓰는 동안 상태를 알리고, 도구 뒤의 새 턴이 시작되면 앞의 중간 발화를 지우게 한다", async () => {

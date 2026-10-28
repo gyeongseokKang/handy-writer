@@ -10,12 +10,14 @@ interface SpellPopoverProps {
   onApply: (replacement?: string) => void;
   onIgnore: () => void;
   onClose: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
 }
 
 const MARGIN = 8;
 
-/** 밑줄 친 낱말을 눌렀을 때 뜨는 작은 창. 고친 낱말로 바꾸거나 무시할 수 있다. */
-export function SpellPopover({ target, onApply, onIgnore, onClose }: SpellPopoverProps) {
+/** 밑줄 친 낱말에 마우스를 올리거나 눌렀을 때 뜨는 작은 창. 고친 낱말로 바꾸거나 무시할 수 있다. */
+export function SpellPopover({ target, onApply, onIgnore, onClose, onMouseEnter, onMouseLeave }: SpellPopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const { issue, rect } = target;
 
@@ -40,6 +42,8 @@ export function SpellPopover({ target, onApply, onIgnore, onClose }: SpellPopove
       role="dialog"
       aria-label="맞춤법 제안"
       data-spell-key={issueKey(issue)}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{ position: "fixed", left, top: rect.bottom + 6, zIndex: 50 }}
       className="w-70 space-y-2 rounded-lg border bg-card p-3 shadow-lg"
     >

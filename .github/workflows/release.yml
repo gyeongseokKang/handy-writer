@@ -17,8 +17,14 @@ jobs:
         # 지금은 맥에서만 쓰므로 맥용만 만든다. 다시 필요하면 windows-latest, ubuntu-latest를 더한다.
         os: [macos-latest]
     runs-on: ${{ matrix.os }}
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 지난 태그부터의 커밋으로 릴리스 노트를 만든다.
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
@@ -27,7 +33,30 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
       - run: pnpm build
-      - name: Build and publish
+
+      # electron-builder는 파일을 동시에 올리면서 릴리스가 없으면 저마다 새로 만들어 릴리스가 갈라진다.
+      # 그래서 노트를 담은 초안 릴리스를 먼저 만들고, electron-builder는 그 초안에 올리기만 하게 한다.
+      - name: Create draft release with notes
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "이미 $TAG 릴리스가 있어요. 그 릴리스에 올려요."
+            exit 0
+          fi
+          node scripts/release-notes.mjs "$TAG" > release-notes.md
+          cat release-notes.md
+          gh release create "$TAG" --verify-tag --draft --title "${TAG#v}" --notes-file release-notes.md
+
+      - name: Build and upload
         run: pnpm exec electron-builder --publish always
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 파일이 다 올라간 뒤에만 공개한다. 빠진 파일이 있으면 초안으로 남겨 앱이 받지 않게 한다.
+      - name: Check files and publish
+        run: |
+          assets=$(gh release view "$TAG" --json assets -q '.assets[].name')
+          echo "$assets"
+          for pattern in '\.dmg$' '\.zip$' '\.zip\.blockmap$' '^latest-mac\.yml$'; do
+            echo "$assets" | grep -Eq "$pattern" || { echo "::error::$pattern 파일이 릴리스에 없어요"; exit 1; }
+          done
+          count=$(gh api "repos/$GITHUB_REPOSITORY/releases" -q "[.[] | select(.tag_name == \"$TAG\")] | length")
+          [ "$count" = "1" ] || { echo "::error::$TAG 릴리스가 $count개예요"; exit 1; }
+          gh release edit "$TAG" --draft=false --latest

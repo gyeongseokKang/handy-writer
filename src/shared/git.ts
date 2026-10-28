@@ -45,13 +45,17 @@ export type GitOutcome =
   | "conflict"
   | "pushed"
   | "no-upstream"
-  | "synced";
+  | "synced"
+  | "force-pulled"
+  | "force-pushed";
 
 export interface GitOpResult {
   outcome: GitOutcome;
   /** 사용자에게 보여줄 한 줄 요약 */
   message: string;
   conflictFiles?: string[];
+  /** 강제 가져오기·푸시로 덮어쓰기 전 상태를 남긴 브랜치 */
+  backupBranch?: string;
 }
 
 export type GitEvent =

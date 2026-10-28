@@ -13,6 +13,8 @@ const RUN_TIMEOUT_MS = 180_000;
 const LONG_RUN_TIMEOUT_MS = 300_000;
 
 export const WEB_TOOLS = "WebSearch,WebFetch";
+/** 붙인 프로젝트 폴더를 읽기만 하는 도구 */
+export const READ_TOOLS = "Read,Glob,Grep";
 
 export type StreamPiece =
   | { kind: "delta"; text: string }
@@ -152,14 +154,23 @@ interface RunOptions {
   onReset?: () => void;
   /** 긴 글을 쓰는 요청이라 시간 제한을 늘린다. */
   long?: boolean;
+  /** 읽기 도구(Read, Glob, Grep)로 읽어도 되는 폴더. 있으면 읽기 도구를 켠다. */
+  readDirs?: string[];
 }
 
-const TOOL_STATUS: Record<string, string> = { WebSearch: "웹 검색 중…", WebFetch: "웹 페이지 읽는 중…" };
+const TOOL_STATUS: Record<string, string> = {
+  WebSearch: "웹 검색 중…",
+  WebFetch: "웹 페이지 읽는 중…",
+  Read: "프로젝트 파일 읽는 중…",
+  Glob: "프로젝트 파일 찾는 중…",
+  Grep: "프로젝트에서 찾는 중…",
+};
 
 /** 도구를 모두 끈 채로 `claude -p`를 실행하고 결과 글을 돌려준다. 프롬프트는 stdin으로 넘긴다. */
-export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false, onStatus, onReset, long = false }: RunOptions): Promise<string> {
+export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false, onStatus, onReset, long = false, readDirs = [] }: RunOptions): Promise<string> {
   const promptFile = await ensureSystemPromptFile();
   const env = await childEnv(exe);
+  const tools = [web ? WEB_TOOLS : "", readDirs.length > 0 ? READ_TOOLS : ""].filter(Boolean).join(",");
   const args = [
     "-p",
     "--output-format",
@@ -167,8 +178,9 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
     "--verbose",
     "--include-partial-messages",
     "--tools",
-    web ? WEB_TOOLS : "",
-    ...(web ? ["--allowedTools", WEB_TOOLS] : []),
+    tools,
+    ...(tools ? ["--allowedTools", tools] : []),
+    ...readDirs.flatMap((dir) => ["--add-dir", dir]),
     "--no-session-persistence",
     "--disable-slash-commands",
     "--append-system-prompt-file",
@@ -211,7 +223,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
     const timer = setTimeout(() => {
       child.kill();
       finish(new Error("시간이 너무 오래 걸려서 중단했어요."));
-    }, web || long ? LONG_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
+    }, web || long || readDirs.length > 0 ? LONG_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
 
     const handleLine = (line: string) => {
       const piece = parseStreamLine(line.trim());
