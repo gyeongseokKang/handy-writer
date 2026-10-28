@@ -22,9 +22,33 @@ await page.reload();
 await page.click("nav[aria-label='글 목록'] >> text=맞춤법");
 await page.waitForSelector(".note-prose .spell-error");
 
+// --- 밑줄에 마우스를 올리면 제안 창이 뜬다
+const popover = page.getByRole("dialog", { name: "맞춤법 제안" });
+const word = page.locator(".note-prose .spell-error").first();
+await word.hover();
+await popover.waitFor({ timeout: 2000 }).catch(() => {});
+assert(await popover.isVisible(), "밑줄에 마우스를 올리면 제안 창이 뜬다");
+assert((await popover.innerText()).includes("됐다고") || (await popover.innerText()).includes("됐"), "제안 창에 고칠 말이 보인다");
+await page.screenshot({ path: path.join(OUT, "spell-hover.png") });
+await popover.hover();
+await sleep(500);
+assert(await popover.isVisible(), "제안 창으로 마우스를 옮겨도 창이 남아 있다");
+await page.mouse.move(700, 700);
+await sleep(600);
+assert(!(await popover.isVisible()), "마우스가 떠나면 제안 창이 닫힌다");
+await word.click();
+await sleep(400);
+await page.mouse.move(700, 700);
+await sleep(600);
+assert(await popover.isVisible(), "눌러서 연 창은 마우스가 떠나도 남아 있다");
+await page.keyboard.press("Escape");
+// 커서가 낱말 안에 있으면 그 낱말은 밑줄을 숨기므로 글 맨 앞으로 옮긴다.
+await page.keyboard.press("Meta+ArrowUp");
+await sleep(300);
+
 // --- 맞춤법 탭
 const tab = page.getByRole("tab", { name: /맞춤법/ });
-assert((await tab.innerText()).includes("3"), "맞춤법 탭에 항목 수가 보인다");
+assert((await tab.innerText()).includes("3"), `맞춤법 탭에 항목 수가 보인다 (${await tab.innerText()} / ${await page.locator(".note-prose .spell-error").count()})`);
 await tab.click();
 const list = page.getByRole("region", { name: "맞춤법 목록" }).or(page.locator("section[aria-label='맞춤법 목록']"));
 const rows = list.locator("li");
