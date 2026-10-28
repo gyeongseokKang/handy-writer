@@ -257,3 +257,7 @@
 .note-prose .template-block:focus-within .template-block-header button,
 .note-prose .template-block-selected .template-block-header button { opacity: 1; }
 .note-prose .template-block-body > * + * { margin-top: 0.4em; }
+
+/* 글 안에서 찾기 */
+.note-prose .find-match { background: color-mix(in oklch, oklch(0.85 0.17 90) 45%, transparent); border-radius: 2px; }
+.note-prose .find-match-current { background: oklch(0.8 0.18 70); color: oklch(0.2 0 0); outline: 1px solid oklch(0.6 0.18 60); }

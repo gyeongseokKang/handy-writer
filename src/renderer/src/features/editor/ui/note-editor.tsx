@@ -21,6 +21,9 @@ import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
+import { FindBar } from "./find-bar";
+import { TableMenu } from "./table-menu";
+import { TextCount } from "./text-count";
 import { ExportMenu } from "./export-menu";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
@@ -59,6 +62,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
 
+  const [findOpen, setFindOpen] = useState(false);
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
 
   const extensions = useMemo(
@@ -207,6 +211,18 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   // 글을 바꾸거나 닫기 전에 저장 대기 중인 내용을 쓸 수 있게 등록
   useEffect(() => registerFlusher(path, () => flushRef.current()), [path]);
 
+  // Cmd/Ctrl+F로 글 안에서 찾기를 연다. 이미 열려 있으면 찾는 칸으로 포커스를 돌린다.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== "f") return;
+      event.preventDefault();
+      setFindOpen(true);
+      document.querySelector<HTMLInputElement>("[role='search'] input")?.select();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
   // 창을 닫을 때도 마지막 내용을 저장
   useEffect(() => {
     const onHide = () => void flushRef.current();
@@ -265,7 +281,8 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   if (!editor) return null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="relative flex h-full min-h-0 flex-col">
+      {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
       <div data-note-scroller className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll}>
         <div className="mx-auto w-full max-w-3xl px-12 pt-14 pb-40">
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
@@ -280,6 +297,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
         </div>
       </div>
       <BubbleToolbar editor={editor} />
+      <TableMenu editor={editor} />
       {spellTarget && (
         <SpellPopover
           target={spellTarget}
@@ -293,6 +311,7 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
       )}
       <footer className="flex items-center gap-4 border-t px-6 py-1.5 text-xs text-muted-foreground">
         <span className="truncate">{linkTargetToName(name)}</span>
+        <TextCount editor={editor} />
         <SpellMenu />
         <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} />
         <span role="status">{STATUS_LABEL[status]}</span>

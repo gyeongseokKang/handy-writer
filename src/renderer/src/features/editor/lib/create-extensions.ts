@@ -10,6 +10,7 @@ import { AttachmentDrop } from "./attachment-drop";
 import { Callout } from "./callout";
 import { CodeBlock } from "./code-block";
 import { Embed } from "./embed";
+import { FindReplace } from "./find-replace";
 import { SlashCommand } from "./slash-command";
 import { SpellCheck, type SpellCheckOptions } from "./spell-check";
 import { TemplateBlock } from "./template-block";
@@ -52,6 +53,7 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wi
     Callout,
     SlashCommand,
     AttachmentDrop,
+    FindReplace,
     ...(spell ? [SpellCheck.configure(spell)] : []),
   ];
 }
