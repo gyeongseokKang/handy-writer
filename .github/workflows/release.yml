@@ -1,10 +1,12 @@
 name: Release
 
 # v0.2.0 처럼 v로 시작하는 태그를 올리면 설치 파일을 만들어 GitHub Release에 올린다.
+# 태그를 올릴 수 없는 곳에서는 Actions에서 수동 실행하면 package.json 버전으로 태그를 만들고 같은 일을 한다.
 # 앱은 이 Release의 latest*.yml 을 보고 자동 업데이트한다.
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -19,12 +21,29 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
           # 지난 태그부터의 커밋으로 릴리스 노트를 만든다.
           fetch-depth: 0
+
+      # 태그로 실행되면 그 태그를, 수동 실행이면 package.json 버전(v붙임)을 쓰고 태그가 없으면 지금 커밋에 만든다.
+      # GITHUB_TOKEN으로 올린 태그는 이 워크플로를 다시 실행하지 않는다.
+      - name: Resolve tag
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            echo "TAG=${{ github.ref_name }}" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          TAG="v$(node -p "require('./package.json').version")"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+          if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then
+            [ "$(git rev-list -n1 "$TAG")" = "$(git rev-parse HEAD)" ] || { echo "::error::$TAG 태그가 이미 다른 커밋에 있어요"; exit 1; }
+            echo "$TAG 태그가 이미 이 커밋에 있어요."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
