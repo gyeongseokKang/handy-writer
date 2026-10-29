@@ -21,6 +21,7 @@ import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
+import { EditorWidthHandles } from "./editor-width-handles";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
@@ -61,6 +62,8 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   const timerRef = useRef<number | undefined>(undefined);
 
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
+  const editorWidth = useUiStore((s) => s.editorWidth);
+  const columnRef = useRef<HTMLDivElement>(null);
   // 마우스를 올려 띄운 제안 창은 마우스가 밑줄과 창을 모두 떠나면 잠시 뒤 닫는다.
   const spellCloseRef = useRef<number | undefined>(undefined);
   const cancelSpellClose = () => window.clearTimeout(spellCloseRef.current);
@@ -280,7 +283,8 @@ export function NoteEditor({ path, name }: NoteEditorProps) {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div data-note-scroller className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll}>
-        <div className="mx-auto w-full max-w-3xl px-12 pt-14 pb-40">
+        <div ref={columnRef} data-note-column className="relative mx-auto w-full px-12 pt-14 pb-40" style={{ maxWidth: editorWidth }}>
+          <EditorWidthHandles columnRef={columnRef} />
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
           <div className="relative mt-6">
             <DragHandle editor={editor}>

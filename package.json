@@ -28,7 +28,8 @@
     "test:e2e:tree-menu": "node e2e/tree-menu.e2e.mjs",
     "test:e2e:code-block": "node e2e/code-block.e2e.mjs",
     "test:e2e:spell-panel": "node e2e/spell-panel.e2e.mjs",
-    "test:e2e:draft-sources": "node e2e/draft-sources.e2e.mjs"
+    "test:e2e:draft-sources": "node e2e/draft-sources.e2e.mjs",
+    "test:e2e:editor-width": "node e2e/editor-width.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
