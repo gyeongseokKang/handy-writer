@@ -1,4 +1,5 @@
 import type { AiEvent } from "@shared/ai";
+import { buildHtmlDocument, exportFileName } from "@shared/export";
 import { createLogBook, type LogEntry } from "@shared/log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
@@ -183,6 +184,23 @@ export function createMockApi(): HandyApi {
       onState: () => () => {},
     },
     spell: { check: async () => ({ status: "offline" as const, typos: [] }) },
+    export: {
+      // 브라우저 미리보기에서는 파일을 내려받는 것으로 대신한다 (PDF는 만들 수 없다).
+      note: async ({ name, format, content }) => {
+        if (format === "pdf") throw new Error("브라우저 미리보기에서는 PDF로 내보낼 수 없어요");
+        const text = format === "html" ? buildHtmlDocument(name, content) : content;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: format === "html" ? "text/html" : "text/markdown" }));
+        link.download = exportFileName(name, format);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        return { path: link.download };
+      },
+      reveal: async () => {},
+      copy: async (html, text) => {
+        await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
+      },
+    },
     attachments: {
       list: async () => [],
       pick: async () => ({ imported: [], skipped: [] }),
@@ -203,6 +221,25 @@ export function createMockApi(): HandyApi {
       },
     },
     git: {
+      // 브라우저 미리보기용: 지금 글에서 문단을 하나씩 뺀 가짜 버전을 만든다.
+      history: async (path) => {
+        const paragraphs = (files.get(path) ?? "").split(/\n{2,}/).length;
+        const count = Math.min(4, Math.max(1, paragraphs - 1));
+        return {
+          available: true,
+          versions: Array.from({ length: count }, (_, i) => ({
+            hash: `${"abcdef0123"[i]}`.repeat(40),
+            time: Date.now() - (i + 1) * 3_600_000,
+            subject: `버전 ${count - i}`,
+            author: "미리보기",
+            blobPath: `${path}#${paragraphs - 1 - i}`,
+          })),
+        };
+      },
+      readVersion: async (_hash, blobPath) => {
+        const [path = "", keep = "0"] = blobPath.split("#");
+        return (files.get(path) ?? "").split(/\n{2,}/).slice(0, Number(keep)).join("\n\n").replace("오늘은", "어제는");
+      },
       status: async () => gitStatus,
       init: async () => gitStatus,
       setRemote: async () => gitStatus,
@@ -291,6 +328,7 @@ export function createMockApi(): HandyApi {
         return () => logListeners.delete(listener);
       },
     },
+    onCloseTab: () => () => {},
     onNotesChanged: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

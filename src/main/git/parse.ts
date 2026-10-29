@@ -1,4 +1,4 @@
-import type { GitChangeKind, GitFileChange, GitStatus } from "../../shared/git";
+import type { GitChangeKind, GitFileChange, GitStatus, NoteVersion } from "../../shared/git";
 
 export interface ParsedStatus {
   branch: string | null;
@@ -100,4 +100,22 @@ export function explainGitError(stderr: string): string {
     return "원격 저장소를 찾지 못했어요. 주소가 맞는지, 접근 권한이 있는지 확인해 주세요.";
   }
   return text || "git 명령이 실패했어요.";
+}
+
+const RECORD = "\x1e";
+
+/**
+ * `git log --follow --name-only -z --format=%x1e%H%x00%ct%x00%an%x00%s`의 출력을 읽는다.
+ * 커밋마다 `0x1e 해시 NUL 시각 NUL 작성자 NUL 제목 NUL 줄바꿈 경로 NUL` 순서로 온다.
+ * 경로는 그 커밋에서 글이 있던 자리(저장소 루트 기준)라서, 이름을 바꾸기 전 버전도 읽을 수 있다.
+ */
+export function parseNoteLog(output: string): NoteVersion[] {
+  const versions: NoteVersion[] = [];
+  for (const record of output.split("\x1e")) {
+    const [hash = "", time = "", author = "", subject = "", ...paths] = record.split("\0");
+    const blobPath = paths.map((path) => path.replace(/^\n+/, "")).find(Boolean) ?? "";
+    if (!/^[0-9a-f]{7,64}$/.test(hash) || !blobPath) continue;
+    versions.push({ hash, time: Number(time) * 1000, author, subject, blobPath });
+  }
+  return versions;
 }

@@ -1,6 +1,7 @@
-import { Copy, FilePlus2, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Trash2 } from "lucide-react";
+import { Columns2, Copy, FilePlus2, History, PanelTop, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { ContextMenu, type MenuItem } from "@/shared/ui/context-menu";
@@ -53,9 +54,13 @@ function itemsFor(target: TreeTarget): MenuItem[] {
 
   const { note } = target;
   return [
+    { label: "새 탭에서 열기", icon: <PanelTop />, onSelect: () => void ws.openNote(note.path, { newTab: true }) },
+    { label: "옆에 열기", icon: <Columns2 />, disabled: note.path === ws.activePath, onSelect: () => void ws.openSplit(note.path) },
+    "separator",
     { label: "이름 바꾸기", icon: <Pencil />, onSelect: () => ui.startRename("note", note.path) },
     { label: "복제", icon: <Copy />, onSelect: () => void ws.duplicateNote(note.path) },
     { label: "다른 폴더로 옮기기…", icon: <FolderInput />, onSelect: () => ui.setMoving(note) },
+    { label: "변경 기록", icon: <History />, onSelect: () => useUiStore.getState().setHistoryTarget({ path: note.path, name: note.name }) },
     "separator",
     { label: "링크 복사", icon: <Link2 />, onSelect: () => copy(`[[${note.name}]]`, "링크") },
     { label: "경로 복사", icon: <Copy />, onSelect: () => copy(note.path, "경로") },

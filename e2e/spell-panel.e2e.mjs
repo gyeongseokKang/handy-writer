@@ -43,11 +43,11 @@ await sleep(600);
 assert(await popover.isVisible(), "눌러서 연 창은 마우스가 떠나도 남아 있다");
 await page.keyboard.press("Escape");
 // 커서가 낱말 안에 있으면 그 낱말은 밑줄을 숨기므로 글 맨 앞으로 옮긴다.
-await page.keyboard.press("Meta+ArrowUp");
+await page.keyboard.press(process.platform === "darwin" ? "Meta+ArrowUp" : "Control+Home");
 await sleep(300);
 
 // --- 맞춤법 탭
-const tab = page.getByRole("tab", { name: /맞춤법/ });
+const tab = page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /맞춤법/ });
 assert((await tab.innerText()).includes("3"), `맞춤법 탭에 항목 수가 보인다 (${await tab.innerText()} / ${await page.locator(".note-prose .spell-error").count()})`);
 await tab.click();
 const list = page.getByRole("region", { name: "맞춤법 목록" }).or(page.locator("section[aria-label='맞춤법 목록']"));
@@ -103,7 +103,7 @@ assert(fs.existsSync(path.join(ws, ".git")), "Git 화면에서 저장소를 만�
 await page.screenshot({ path: path.join(OUT, "git-view.png") });
 await page.getByRole("button", { name: "Git 닫기" }).click();
 await page.getByRole("tablist", { name: "패널 보기" }).waitFor();
-assert((await page.getByRole("tab", { name: /맞춤법/ }).getAttribute("aria-selected")) === "true", "X를 누르면 보던 탭으로 돌아간다");
+assert((await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /맞춤법/ }).getAttribute("aria-selected")) === "true", "X를 누르면 보던 탭으로 돌아간다");
 await gitButton.click();
 await gitView.waitFor();
 await gitButton.click();

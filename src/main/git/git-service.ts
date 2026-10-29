@@ -6,11 +6,14 @@ import {
   type GitOpResult,
   type GitSettings,
   type GitStatus,
+  type NoteHistory,
 } from "../../shared/git";
-import { explainGitError, parseStatusV2, relativizeChanges, toGitStatus } from "./parse";
+import { explainGitError, parseNoteLog, parseStatusV2, relativizeChanges, toGitStatus } from "./parse";
 import { GitError, isGitMissing, runGit } from "./runner";
 
 const NETWORK_TIMEOUT_MS = 90_000;
+/** 기록 화면에 보여줄 최대 버전 수 */
+export const HISTORY_LIMIT = 300;
 
 /** `{date}`를 `2026-10-23 14:05`로 바꾼다. */
 export function formatCommitMessage(template: string, now = new Date()) {
@@ -82,6 +85,33 @@ export class GitService {
       },
       prefix,
     );
+  }
+
+  /** 글 한 편의 커밋 기록 (최근 것부터). 이름을 바꾼 적이 있어도 따라간다. 읽기만 한다. */
+  async history(root: string, notePath: string): Promise<NoteHistory> {
+    try {
+      const inside = await runGit(root, ["rev-parse", "--is-inside-work-tree"], { readOnly: true });
+      if (inside.stdout.trim() !== "true") return { available: false, versions: [] };
+    } catch {
+      return { available: false, versions: [] };
+    }
+    const log = await runGit(
+      root,
+      ["log", "--follow", "--name-only", "-z", `--max-count=${HISTORY_LIMIT}`, "--format=%x1e%H%x00%ct%x00%an%x00%s", "--", notePath],
+      { readOnly: true },
+    ).catch((error: unknown) => {
+      // 커밋이 하나도 없는 저장소
+      if (error instanceof GitError && /does not have any commits|bad default revision/.test(error.stderr)) return { stdout: "" };
+      fail(error);
+    });
+    return { available: true, versions: parseNoteLog(log.stdout) };
+  }
+
+  /** 어떤 커밋에서의 글 내용. 그 커밋에 글이 없으면 빈 문자열이다. */
+  async readVersion(root: string, hash: string, blobPath: string): Promise<string> {
+    if (!/^[0-9a-f]{7,64}$/.test(hash)) throw new Error("잘못된 커밋이에요.");
+    if (!blobPath.endsWith(".md") || blobPath.startsWith("-")) throw new Error("마크다운 글만 읽을 수 있어요.");
+    return runGit(root, ["show", `${hash}:${blobPath}`], { readOnly: true }).then((r) => r.stdout, () => "");
   }
 
   async init(root: string): Promise<GitStatus> {

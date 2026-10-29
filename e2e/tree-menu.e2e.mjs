@@ -46,9 +46,10 @@ assert(await tree.getByText("비어 있음").isVisible(), "빈 폴더를 펼치�
 await row("메모").click({ button: "right" });
 await menu.waitFor();
 assert((await menu.getAttribute("aria-label")) === "글 메뉴", "글을 우클릭하면 글 메뉴가 뜬다");
-assert((await page.evaluate(() => document.activeElement?.textContent)) === "이름 바꾸기", "메뉴를 열면 첫 항목에 포커스가 간다");
+assert((await page.evaluate(() => document.activeElement?.textContent)) === "새 탭에서 열기", "메뉴를 열면 첫 항목에 포커스가 간다");
 await page.keyboard.press("ArrowDown");
-assert((await page.evaluate(() => document.activeElement?.textContent)) === "복제", "화살표로 항목을 옮겨 다닌다");
+// 지금 연 글이면 "옆에 열기"는 꺼져 있어서 건너뛴다.
+assert(["옆에 열기", "이름 바꾸기"].includes(await page.evaluate(() => document.activeElement?.textContent)), "화살표로 항목을 옮겨 다닌다");
 await page.screenshot({ path: path.join(OUT, "tree-menu-note.png") });
 await page.keyboard.press("Escape");
 assert((await menu.count()) === 0, "Esc로 메뉴를 닫는다");

@@ -3,6 +3,7 @@ import type { FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { ExportRequest } from "../shared/export";
 import type { Template } from "../shared/templates";
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
@@ -11,6 +12,7 @@ import { fetchYoutube } from "./youtube";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
 import type { ProjectSource } from "../shared/draft-sources";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
+import { copyNote, exportNote } from "./export";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
@@ -87,6 +89,15 @@ export async function registerIpc() {
   ipcMain.handle(IPC.notesRename, (_e, path: string, newName: string) =>
     indexer.renameWithLinks(requireRoot(), path, newName),
   );
+  ipcMain.handle(IPC.exportNote, (event, request: ExportRequest) =>
+    exportNote(requireRoot(), BrowserWindow.fromWebContents(event.sender), {
+      name: String(request?.name ?? ""),
+      format: request?.format,
+      content: String(request?.content ?? ""),
+    }),
+  );
+  ipcMain.handle(IPC.exportCopy, (_e, html: string, text: string) => copyNote(requireRoot(), String(html ?? ""), String(text ?? "")));
+  ipcMain.handle(IPC.exportReveal, (_e, path: string) => shell.showItemInFolder(String(path)));
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
   ipcMain.handle(IPC.attachmentsList, () => listAttachments(requireRoot()));
   ipcMain.handle(IPC.attachmentsPick, async (event) => {

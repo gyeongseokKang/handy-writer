@@ -3,6 +3,7 @@ import { BrowserWindow, ipcMain } from "electron";
 import { IPC } from "../../shared/types";
 import { logEntry } from "../app-log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitOpResult } from "../../shared/git";
+import { resolveInside } from "../notes-fs";
 import { AutoTimer } from "./auto-timer";
 import { formatCommitMessage, GitService } from "./git-service";
 import { loadGitSettings, saveGitSettings } from "./git-settings";
@@ -98,6 +99,12 @@ export function createGitIpc(requireRoot: () => string) {
     ipcMain.handle(IPC.gitForcePull, () => op((root) => service.forcePull(root)));
     ipcMain.handle(IPC.gitForcePush, () => op((root) => service.forcePush(root)));
     ipcMain.handle(IPC.gitSync, () => op(async (root) => service.sync(root, await loadGitSettings(root))));
+    ipcMain.handle(IPC.gitHistory, (_e, path: string) => {
+      const root = requireRoot();
+      resolveInside(root, String(path));
+      return service.history(root, String(path));
+    });
+    ipcMain.handle(IPC.gitReadVersion, (_e, hash: string, blobPath: string) => service.readVersion(requireRoot(), String(hash), String(blobPath)));
     ipcMain.handle(IPC.gitGetSettings, async () => loadGitSettings(requireRoot()));
     ipcMain.handle(IPC.gitSetSettings, async (_e, settings: unknown) => {
       const root = requireRoot();

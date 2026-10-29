@@ -15,6 +15,7 @@ import {
   Minus,
   Pilcrow,
   Quote,
+  Superscript,
   Table2,
 } from "lucide-react";
 
@@ -114,6 +115,13 @@ const ENTRIES: SlashEntry[] = [
       editor.chain().focus().deleteRange(range).run();
       void attachFromDialog();
     },
+  },
+  {
+    title: "각주",
+    description: "커서 자리에 각주 번호를, 글 끝에 내용 줄을 만들어요",
+    keywords: ["footnote", "note", "각주", "주석", "출처"],
+    icon: <Superscript className="size-4" />,
+    run: (editor, range) => editor.chain().focus().deleteRange(range).insertFootnote().run(),
   },
   {
     title: "구분선",

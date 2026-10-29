@@ -28,6 +28,11 @@ const api: HandyApi = {
     duplicate: (path) => ipcRenderer.invoke(IPC.notesDuplicate, path),
     reveal: (path) => ipcRenderer.invoke(IPC.notesReveal, path),
   },
+  export: {
+    note: (request) => ipcRenderer.invoke(IPC.exportNote, request),
+    reveal: (path) => ipcRenderer.invoke(IPC.exportReveal, path),
+    copy: (html, text) => ipcRenderer.invoke(IPC.exportCopy, html, text),
+  },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),
   },
@@ -79,6 +84,8 @@ const api: HandyApi = {
       ipcRenderer.on(IPC.gitEvent, handler);
       return () => ipcRenderer.removeListener(IPC.gitEvent, handler);
     },
+    history: (path) => ipcRenderer.invoke(IPC.gitHistory, path),
+    readVersion: (hash, blobPath) => ipcRenderer.invoke(IPC.gitReadVersion, hash, blobPath),
   },
   sources: {
     youtube: (url) => ipcRenderer.invoke(IPC.sourcesYoutube, url),
@@ -109,6 +116,11 @@ const api: HandyApi = {
     const handler = (_e: unknown, event: NotesChangedEvent) => listener(event);
     ipcRenderer.on(IPC.notesChanged, handler);
     return () => ipcRenderer.removeListener(IPC.notesChanged, handler);
+  },
+  onCloseTab: (listener) => {
+    const handler = () => listener();
+    ipcRenderer.on(IPC.tabsCloseCurrent, handler);
+    return () => ipcRenderer.removeListener(IPC.tabsCloseCurrent, handler);
   },
 };
 

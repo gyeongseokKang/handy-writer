@@ -4,9 +4,11 @@ import { useEffect } from "react";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { useLogStore } from "@/entities/log/model/use-log-store";
+import { api } from "@/shared/api/handy-api";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
+import { HistoryView } from "@/features/history/ui/history-view";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
 import { OutlinePanel } from "@/features/outline/ui/outline-panel";
@@ -14,6 +16,9 @@ import { TemplateDialogs } from "@/features/templates/ui/template-dialogs";
 import { CommandPalette } from "@/features/search/ui/command-palette";
 import { Button } from "@/shared/ui/button";
 
+import { TabBar, toggleSplit } from "@/features/note-tabs/ui/tab-bar";
+
+import { EditorArea } from "./editor-area";
 import { RightPanel } from "./right-panel";
 
 function WelcomeScreen() {
@@ -66,8 +71,58 @@ export function AppShell() {
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const outlineOpen = useUiStore((state) => state.outlineOpen);
   const draftOpen = useUiStore((state) => state.draftOpen);
+  const historyTarget = useUiStore((state) => state.historyTarget);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
+
+  // Cmd/Ctrl+Shift+H로 지금 글의 변경 기록을 연다.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "h") return;
+      const { activePath, splitPath, notes } = useWorkspaceStore.getState();
+      // 분할 화면이면 마지막으로 만진 쪽 글의 기록을 연다.
+      const target = splitPath && useUiStore.getState().focusedPane === "side" ? splitPath : activePath;
+      const note = notes.find((n) => n.path === target);
+      if (!note) return;
+      event.preventDefault();
+      useUiStore.getState().setHistoryTarget({ path: note.path, name: note.name });
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
+  // 탭 단축키: Ctrl+Tab(Shift면 거꾸로) 다음 탭, Cmd/Ctrl+1~9 그 순서의 탭(9는 마지막), Cmd/Ctrl+\ 분할 화면.
+  // Cmd/Ctrl+W는 기본 메뉴가 창을 닫지 않도록 메인 프로세스가 가로채서 보내 준다.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!useWorkspaceStore.getState().root || useUiStore.getState().historyTarget) return;
+      const ws = useWorkspaceStore.getState();
+      if (event.ctrlKey && !event.altKey && event.key === "Tab") {
+        event.preventDefault();
+        void ws.cycleTab(event.shiftKey ? -1 : 1);
+        return;
+      }
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
+      if (event.key === "\\") {
+        event.preventDefault();
+        toggleSplit();
+      } else if (/^[1-9]$/.test(event.key) && ws.tabs.length > 0) {
+        event.preventDefault();
+        const index = event.key === "9" ? ws.tabs.length - 1 : Number(event.key) - 1;
+        const path = ws.tabs[index];
+        if (path) void ws.openNote(path);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    const offClose = api.onCloseTab(() => {
+      const { activePath, closeTab } = useWorkspaceStore.getState();
+      if (activePath && !useUiStore.getState().historyTarget) void closeTab(activePath);
+    });
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      offClose();
+    };
+  }, []);
 
   // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
   useEffect(() => {
@@ -88,14 +143,21 @@ export function AppShell() {
   return (
     <div className="flex h-screen">
       <Sidebar />
-      <main className="relative min-w-0 flex-1">
-        {view === "editor" && outlineOpen && activePath && <OutlinePanel />}
+      <main className="relative flex min-w-0 flex-1 flex-col">
         {view === "graph" ? (
           <GraphView />
-        ) : activePath && activeName !== undefined ? (
-          <NoteEditor key={activePath} path={activePath} name={activeName} />
         ) : (
-          <EmptyEditor />
+          <>
+            <TabBar />
+            <EditorArea
+              main={
+                <>
+                  {outlineOpen && activePath && <OutlinePanel />}
+                  {activePath && activeName !== undefined ? <NoteEditor key={activePath} path={activePath} name={activeName} /> : <EmptyEditor />}
+                </>
+              }
+            />
+          </>
         )}
         {logOpen && <LogPanel />}
       </main>
@@ -103,6 +165,7 @@ export function AppShell() {
       <CommandPalette />
       <TemplateDialogs />
       {draftOpen && <DraftDialog />}
+      {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );
 }

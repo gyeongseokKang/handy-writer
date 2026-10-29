@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { registerLogIpc } from "./app-log";
 import { handleAssetProtocol, registerAssetScheme } from "./asset-protocol";
 import { getWorkspaceRoot, registerIpc } from "./ipc";
+import { IPC } from "../shared/types";
 import { startAutoUpdate } from "./auto-update";
 
 registerAssetScheme();
@@ -26,6 +27,14 @@ function createWindow() {
   });
 
   win.on("ready-to-show", () => win.show());
+
+  // Ctrl/Cmd+W는 기본 메뉴가 창을 닫아 버리므로 가로채서 화면에 "지금 탭 닫기"로 보낸다.
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.type !== "keyDown" || input.key.toLowerCase() !== "w" || input.shift || input.alt) return;
+    if (!(process.platform === "darwin" ? input.meta : input.control)) return;
+    event.preventDefault();
+    win.webContents.send(IPC.tabsCloseCurrent);
+  });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);

@@ -258,6 +258,101 @@
 .note-prose .template-block-selected .template-block-header button { opacity: 1; }
 .note-prose .template-block-body > * + * { margin-top: 0.4em; }
 
+/* 글 안에서 찾기 */
+.note-prose .find-match { background: color-mix(in oklch, oklch(0.85 0.17 90) 45%, transparent); border-radius: 2px; }
+.note-prose .find-match-current { background: oklch(0.8 0.18 70); color: oklch(0.2 0 0); outline: 1px solid oklch(0.6 0.18 60); }
+
+/* 변경 기록: 버전 카드를 가로로 늘어놓은 캐러셀 */
+.history-stage { position: relative; flex: 1; min-height: 0; overflow: hidden; perspective: 1600px; }
+.history-card {
+  --card-w: min(780px, 72vw);
+  --gap: 2.5rem;
+  position: absolute; top: 1.25rem; bottom: 1.25rem; left: 50%; width: var(--card-w);
+  display: flex; flex-direction: column;
+  border: 1px solid var(--border); border-radius: 0.875rem; background: var(--card); color: var(--card-foreground);
+  box-shadow: 0 10px 40px -12px rgb(0 0 0 / 0.25);
+  transform: translateX(calc(-50% + var(--offset) * (var(--card-w) + var(--gap)))) scale(calc(1 - min(var(--dist), 1) * 0.08)) rotateY(calc(var(--offset) * -6deg));
+  opacity: calc(1 - var(--dist) * 0.35);
+  transition: transform 0.45s cubic-bezier(0.22, 0.8, 0.2, 1), opacity 0.45s ease, filter 0.45s ease;
+  cursor: pointer; overflow: hidden;
+}
+.history-card:not(.is-active) { filter: saturate(0.6); }
+.history-card:not(.is-active) > div { pointer-events: none; }
+.history-card.is-active { cursor: default; z-index: 2; }
+
+.history-diff { font-size: 0.9375rem; line-height: 1.8; white-space: pre-wrap; word-break: break-word; }
+.history-line { position: relative; padding-left: 0.75rem; border-left: 3px solid transparent; border-radius: 2px; }
+.history-line[data-tone="added"] { border-left-color: oklch(0.65 0.17 150); background: color-mix(in oklch, oklch(0.75 0.17 150) 8%, transparent); }
+.history-line[data-tone="removed"] { border-left-color: oklch(0.62 0.2 25); background: color-mix(in oklch, oklch(0.7 0.2 25) 7%, transparent); }
+.history-line[data-tone="mixed"] { border-left-color: oklch(0.75 0.15 75); }
+.history-diff ins { text-decoration: none; border-radius: 3px; padding: 0 1px; background: color-mix(in oklch, oklch(0.72 0.19 150) 30%, transparent); color: oklch(0.38 0.12 150); }
+.history-diff del {
+  border-radius: 3px; padding: 0 1px; color: oklch(0.45 0.18 25); text-decoration: none;
+  background: linear-gradient(currentColor, currentColor) no-repeat 0 55% / 100% 1.5px, color-mix(in oklch, oklch(0.7 0.2 25) 22%, transparent);
+}
+.dark .history-diff ins { color: oklch(0.85 0.14 150); }
+.dark .history-diff del { color: oklch(0.8 0.13 25); }
+.history-gap { margin: 0.35rem 0; padding: 0.15rem 0.75rem; font-size: 0.75rem; color: var(--muted-foreground); border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
+
+/* 카드가 가운데로 오면 변경을 차례로 강조한다: 추가는 초록으로 번지고, 삭제는 줄이 그어진다. */
+.history-card.is-active .history-diff ins { animation: history-add 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(0.12s + var(--i, 0) * 35ms); }
+.history-card.is-active .history-diff del { animation: history-remove 0.7s ease both; animation-delay: calc(0.12s + var(--i, 0) * 35ms); }
+@keyframes history-add {
+  0% { background-color: transparent; box-shadow: 0 0 0 0 oklch(0.72 0.19 150 / 0); opacity: 0.2; }
+  45% { background-color: oklch(0.72 0.19 150 / 0.65); box-shadow: 0 0 0 3px oklch(0.72 0.19 150 / 0.35); opacity: 1; }
+  100% { box-shadow: 0 0 0 0 oklch(0.72 0.19 150 / 0); }
+}
+@keyframes history-remove {
+  0% { background-size: 0% 1.5px, auto; background-color: oklch(0.7 0.2 25 / 0.55); }
+  60% { background-size: 100% 1.5px, auto; }
+  100% { background-size: 100% 1.5px, auto; }
+}
+.history-stage[data-direction="1"] .history-card.is-active { animation: history-in-right 0.45s cubic-bezier(0.22, 0.8, 0.2, 1); }
+.history-stage[data-direction="-1"] .history-card.is-active { animation: history-in-left 0.45s cubic-bezier(0.22, 0.8, 0.2, 1); }
+@keyframes history-in-right { from { box-shadow: 0 10px 60px -10px oklch(0.72 0.19 150 / 0.45); } }
+@keyframes history-in-left { from { box-shadow: 0 10px 60px -10px oklch(0.65 0.15 250 / 0.45); } }
+
+.history-nav {
+  position: absolute; top: 50%; z-index: 3; translate: 0 -50%;
+  display: flex; align-items: center; justify-content: center; width: 2.5rem; height: 2.5rem;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--card); box-shadow: 0 2px 10px rgb(0 0 0 / 0.12);
+}
+.history-nav:hover:not(:disabled) { background: var(--accent); }
+.history-nav:disabled { opacity: 0.3; }
+
+.history-timeline { display: flex; align-items: center; gap: 0.35rem; overflow-x: auto; padding: 0.4rem 0.25rem; scrollbar-width: thin; }
+.history-timeline li { display: flex; flex-shrink: 0; }
+.history-dot { width: 0.6rem; height: 0.6rem; border-radius: 999px; background: var(--border); transition: transform 0.25s ease, background 0.25s ease; }
+.history-dot.is-past { background: color-mix(in oklch, var(--primary) 45%, var(--border)); }
+.history-dot.is-current { outline: 1.5px dashed var(--muted-foreground); outline-offset: 1px; }
+.history-dot:hover { transform: scale(1.4); }
+.history-dot[aria-current="step"] { background: var(--primary); transform: scale(1.6); }
+.history-view kbd { border: 1px solid var(--border); border-radius: 4px; padding: 0 0.3rem; font-family: inherit; font-size: 0.6875rem; background: var(--muted); }
+.history-legend { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 3px; }
+.history-legend.added { background: oklch(0.72 0.19 150 / 0.6); }
+.history-legend.removed { background: oklch(0.7 0.2 25 / 0.55); }
+
+@media (prefers-reduced-motion: reduce) {
+  .history-card, .history-dot { transition: none; }
+  .history-card.is-active .history-diff ins, .history-card.is-active .history-diff del, .history-stage .history-card.is-active { animation: none; }
+}
+
+/* 각주: 본문에는 번호만 위첨자로, 내용 줄은 번호 + 내용. 번호는 데코레이션이 --fn으로 넘겨 준다. */
+.note-prose sup.footnote-ref { font-size: 0.7rem; line-height: 0; cursor: pointer; color: var(--primary); padding: 0 0.1em; }
+.note-prose [data-number] .footnote-text { display: none; }
+.note-prose sup.footnote-ref[data-number]::before { content: "[" var(--fn) "]"; }
+.note-prose sup.footnote-ref:hover { text-decoration: underline; text-underline-offset: 2px; }
+.note-prose sup.footnote-ref.footnote-missing { color: var(--destructive); }
+.note-prose sup.footnote-ref.ProseMirror-selectednode { outline: 2px solid var(--ring); border-radius: 2px; }
+.note-prose .footnote-def { display: flex; gap: 0.5rem; font-size: 0.875rem; color: var(--muted-foreground); padding-left: 0.25rem; }
+.note-prose .footnote-def + .footnote-def { margin-top: 0.15em; }
+.note-prose * + .footnote-def:not(.footnote-def + .footnote-def) { margin-top: 1.5em; padding-top: 0.75em; border-top: 1px solid var(--border); }
+.note-prose .footnote-label { flex-shrink: 0; min-width: 1.75rem; color: var(--primary); cursor: pointer; user-select: none; font-variant-numeric: tabular-nums; }
+.note-prose .footnote-def[data-number] .footnote-label::before { content: var(--fn) "."; }
+.note-prose .footnote-label:hover { text-decoration: underline; }
+.note-prose .footnote-body { flex: 1; min-width: 0; }
+.note-prose .footnote-def.footnote-unused .footnote-label { color: var(--muted-foreground); }
+
 /* 떠 있는 목차: 접힌 줄이 바뀔 때와 펼칠 때 부드럽게 */
 .outline-panel {
   interpolate-size: allow-keywords;

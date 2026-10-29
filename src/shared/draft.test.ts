@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
 import { buildUserPrompt } from "./ai-prompt";
-import { EMPTY_BRIEF, outlineHeadings, parseBrief, parseOutline, tidyDraftOutput } from "./draft";
+import { draftGoal, draftTargetChars, EMPTY_BRIEF, outlineHeadings, parseBrief, parseOutline, tidyDraftOutput } from "./draft";
 
 const request: AiRequest = {
   runId: "r1",
@@ -56,5 +56,26 @@ describe("초안 만들기", () => {
       { level: 2, text: "시작" },
       { level: 3, text: "작은 제목" },
     ]);
+  });
+});
+
+describe("분량을 직접 정하기", () => {
+  it("원고지 매수로 정하면 글자 수로 바꿔 알려주고, 목표는 매수 그대로 남긴다", () => {
+    const brief = { ...EMPTY_BRIEF, topic: "주제", length: "custom" as const, customGoal: { unit: "sheets" as const, value: 30 } };
+    expect(draftTargetChars(brief)).toBe(6000);
+    expect(draftGoal(brief)).toEqual({ unit: "sheets", value: 30 });
+    const prompt = buildUserPrompt({ ...request, brief });
+    expect(prompt).toContain("- 분량: 200자 원고지 30매 (본문 약 6,000자)");
+    expect(prompt).toContain("5~8개");
+    expect(buildUserPrompt({ ...request, task: "draft", outline: "## 하나", brief })).toContain("본문은 약 6,000자(공백 포함)");
+  });
+
+  it("미리 정한 분량은 글자 수 목표가 된다", () => {
+    expect(draftGoal({ ...EMPTY_BRIEF, length: "long" })).toEqual({ unit: "chars", value: 5000 });
+  });
+
+  it("렌더러에서 온 이상한 목표는 기본값으로 바꾸고 너무 큰 값은 줄인다", () => {
+    expect(parseBrief({ length: "custom", customGoal: { unit: "x", value: -1 } })).toMatchObject({ length: "custom", customGoal: { unit: "chars", value: 3000 } });
+    expect(parseBrief({ length: "custom", customGoal: { unit: "sheets", value: 9999 } }).customGoal).toEqual({ unit: "sheets", value: 250 });
   });
 });

@@ -75,3 +75,21 @@ export const EMPTY_GIT_STATUS: GitStatus = {
   changes: [],
   lastCommit: null,
 };
+
+/** 글 한 편의 지난 버전 하나 (커밋 하나) */
+export interface NoteVersion {
+  hash: string;
+  /** 밀리초 */
+  time: number;
+  subject: string;
+  author: string;
+  /** 그 커밋에서 이 글이 있던 저장소 루트 기준 경로 (이름을 바꾼 적이 있으면 지금과 다르다) */
+  blobPath: string;
+}
+
+export interface NoteHistory {
+  /** git 저장소가 아니거나 git이 없으면 false */
+  available: boolean;
+  /** 최근 것부터 */
+  versions: NoteVersion[];
+}

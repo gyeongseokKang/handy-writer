@@ -263,3 +263,52 @@ describe("동기화", () => {
     expect(git(remote, "show", "main:첫 글.md")).toContain("b 버전");
   });
 });
+
+describe("글 기록", () => {
+  it("git 저장소가 아니면 available이 false다", async () => {
+    expect(await service.history(a, "글.md")).toEqual({ available: false, versions: [] });
+  });
+
+  it("커밋이 없으면 빈 기록이다", async () => {
+    await service.init(a);
+    await writeFile(join(a, "글.md"), "하나\n");
+    expect(await service.history(a, "글.md")).toEqual({ available: true, versions: [] });
+  });
+
+  it("이름을 바꾼 글도 따라가서 버전마다 그때의 내용을 읽는다", async () => {
+    await service.init(a);
+    await mkdir(join(a, "폴더"));
+    await writeFile(join(a, "폴더", "옛 이름.md"), "하나\n");
+    await service.commit(a, "처음");
+    await writeFile(join(a, "다른 글.md"), "상관없음\n");
+    await service.commit(a, "다른 글만");
+    git(a, "mv", "폴더/옛 이름.md", "폴더/새 이름.md");
+    await writeFile(join(a, "폴더", "새 이름.md"), "하나\n둘\n");
+    await service.commit(a, "이름 바꾸고 고침");
+
+    const { available, versions } = await service.history(a, "폴더/새 이름.md");
+    expect(available).toBe(true);
+    expect(versions.map((v) => v.subject)).toEqual(["이름 바꾸고 고침", "처음"]);
+    expect(versions[0]).toMatchObject({ author: "테스터", blobPath: "폴더/새 이름.md" });
+    expect(versions[1]?.blobPath).toBe("폴더/옛 이름.md");
+    expect(versions[0]!.time).toBeGreaterThan(1_600_000_000_000);
+    expect(await service.readVersion(a, versions[1]!.hash, versions[1]!.blobPath)).toBe("하나\n");
+    expect(await service.readVersion(a, versions[0]!.hash, versions[0]!.blobPath)).toBe("하나\n둘\n");
+  });
+
+  it("작업 폴더가 저장소의 하위 폴더여도 저장소 루트 기준 경로를 돌려준다", async () => {
+    await service.init(a);
+    await mkdir(join(a, "볼트"));
+    await writeFile(join(a, "볼트", "글.md"), "내용\n");
+    await service.commit(a, "첫");
+    const sub = join(a, "볼트");
+    const { versions } = await service.history(sub, "글.md");
+    expect(versions[0]?.blobPath).toBe("볼트/글.md");
+    expect(await service.readVersion(sub, versions[0]!.hash, versions[0]!.blobPath)).toBe("내용\n");
+  });
+
+  it("잘못된 커밋이나 마크다운이 아닌 경로는 거부한다", async () => {
+    await expect(service.readVersion(a, "HEAD", "글.md")).rejects.toThrow();
+    await expect(service.readVersion(a, "abcdef1", "비밀.txt")).rejects.toThrow();
+  });
+});
