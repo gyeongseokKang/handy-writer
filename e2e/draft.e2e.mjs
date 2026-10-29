@@ -37,7 +37,9 @@ await outline.getByRole("button", { name: "둘째 장" }).click();
 await sleep(700);
 const top = await page.evaluate(() => {
   const heading = [...document.querySelectorAll(".note-prose h2")].find((h) => h.textContent === "둘째 장");
-  return heading?.getBoundingClientRect().top ?? -1;
+  // 글 위에 탭 막대가 있을 수 있어 스크롤 영역의 위쪽을 기준으로 잰다.
+  const scroller = document.querySelector("[data-note-scroller]")?.getBoundingClientRect().top ?? 0;
+  return heading ? heading.getBoundingClientRect().top - scroller : -1;
 });
 assert(top >= 0 && top < 120, `목차를 누르면 그 제목이 화면 위쪽으로 온다 (top=${Math.round(top)})`);
 await away();
