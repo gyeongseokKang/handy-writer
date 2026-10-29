@@ -9,6 +9,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { AttachmentDrop } from "./attachment-drop";
 import { Callout } from "./callout";
 import { CodeBlock } from "./code-block";
+import { CrossRef } from "./cross-ref";
 import { Embed } from "./embed";
 import { FindReplace } from "./find-replace";
 import { FootnoteDef, FootnoteRef } from "./footnote";
@@ -51,6 +52,8 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, ...wi
     FootnoteRef,
     // 임베드(`![[...]]`)는 위키링크(`[[...]]`)보다 먼저 읽어야 앞의 `!`가 글자로 남지 않는다.
     Embed.configure({ renderView: renderEmbeds }),
+    // 이 글 안을 가리키는 링크(`[[#^fig-1]]`)의 클릭을 위키링크보다 먼저 받는다.
+    CrossRef,
     WikiLink.configure(wikiLink),
     TagHighlight.configure({ onTagClick }),
     TemplateBlock.configure({ renderView: renderEmbeds }),

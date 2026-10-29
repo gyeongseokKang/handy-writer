@@ -3,7 +3,26 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import Suggestion from "@tiptap/suggestion";
 
+import { collectLabels, labelName } from "./cross-ref";
 import { createSuggestionRender, type SuggestionItem } from "./suggestion-render";
+
+/** `[[#` 자동완성: 이 글의 그림·표 캡션과 제목 */
+function inNoteTargets(editor: { state: { doc: import("@tiptap/pm/model").Node } }, query: string): SuggestionItem<string>[] {
+  const needle = query.replace(/^\^/, "").trim().toLowerCase();
+  const items: SuggestionItem<string>[] = [];
+  for (const info of collectLabels(editor.state.doc).values()) {
+    const title = info.kind === "other" ? `^${info.id}` : `${labelName(info)}${info.caption ? ` · ${info.caption}` : ""}`;
+    if (!needle || title.toLowerCase().includes(needle) || info.id.toLowerCase().includes(needle)) items.push({ id: `#^${info.id}`, title, payload: `#^${info.id}` });
+  }
+  editor.state.doc.descendants((node) => {
+    if (node.type.name === "heading") {
+      const text = node.textContent.trim();
+      if (text && (!needle || text.toLowerCase().includes(needle))) items.push({ id: `#${text}`, title: `# ${text}`, payload: `#${text}` });
+    }
+    return !node.isTextblock;
+  });
+  return items;
+}
 
 export interface WikiLinkOptions {
   /** `[[` 자동완성에 보여줄 글 이름들 */
@@ -61,7 +80,8 @@ export const WikiLink = Node.create<WikiLinkOptions>({
         "data-wikilink": target,
         ...(alias ? { "data-alias": alias } : {}),
       }),
-      alias ?? target,
+      // 그림·표 참조는 이 글자를 숨기고 번호("그림 1")를 대신 보여 준다.
+      ["span", { class: "wikilink-text" }, alias ?? target],
     ];
   },
 
@@ -142,7 +162,9 @@ export const WikiLink = Node.create<WikiLinkOptions>({
         allowSpaces: true,
         allowedPrefixes: null,
         allow: ({ state }) => !state.selection.$from.parent.type.spec.code,
-        items: ({ query }) => {
+        items: ({ query, editor }) => {
+          // `[[#`로 시작하면 이 글의 그림·표(블록 ID)와 제목을 고른다.
+          if (query.startsWith("#")) return inNoteTargets(editor, query.slice(1));
           const needle = query.trim().toLowerCase();
           const names = options.getNoteNames();
           const matches = names

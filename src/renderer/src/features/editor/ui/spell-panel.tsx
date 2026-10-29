@@ -16,7 +16,7 @@ const sameRange = (a: SpellRange | null, b: SpellRange) => a?.from === b.from &&
  */
 export function SpellPanel() {
   const items = useSpellStore((s) => s.items);
-  const enabled = useSpellStore((s) => s.enabled);
+  const enabled = useSpellStore((s) => s.enabled || s.style);
   const activePath = useWorkspaceStore((s) => s.activePath);
   const [current, setCurrent] = useState<SpellRange | null>(null);
   /** 고치거나 건너뛴 항목의 순서. 목록이 새로 오면 같은 순서의 다음 항목을 고른다. */
@@ -84,23 +84,36 @@ export function SpellPanel() {
           const others = item.issue.suggestions?.slice(1, 4) ?? [];
           return (
             <li key={`${item.from}-${item.to}`} aria-current={active} className={cn("px-4 py-2.5", active && "bg-accent/60")}>
-              <button type="button" className="block w-full text-left" aria-label={`${item.issue.text} → ${item.issue.replacement}`} onClick={() => reveal(item)}>
-                <p className="text-sm">
-                  <span className="text-muted-foreground line-through decoration-red-500/70">{item.issue.text}</span>
-                  <span className="mx-1.5 text-muted-foreground">→</span>
-                  <span className="font-semibold">{item.issue.replacement}</span>
-                </p>
+              <button
+                type="button"
+                className="block w-full text-left"
+                aria-label={item.issue.noFix ? `다듬기: ${item.issue.hint}` : `${item.issue.text} → ${item.issue.replacement}`}
+                onClick={() => reveal(item)}
+              >
+                {item.issue.noFix ? (
+                  <p className="text-sm">
+                    <span className="mr-1.5 rounded bg-sky-500/15 px-1 text-xs text-sky-700 dark:text-sky-300">다듬기</span>
+                    {item.issue.hint}
+                  </p>
+                ) : (
+                  <p className="text-sm">
+                    {item.issue.source === "style" && <span className="mr-1.5 rounded bg-sky-500/15 px-1 text-xs text-sky-700 dark:text-sky-300">다듬기</span>}
+                    <span className="text-muted-foreground line-through decoration-red-500/70">{item.issue.text.trim() || "␣␣"}</span>
+                    <span className="mx-1.5 text-muted-foreground">→</span>
+                    <span className="font-semibold">{item.issue.replacement.trim() || "␣"}</span>
+                  </p>
+                )}
                 <p className="mt-0.5 truncate text-xs text-muted-foreground">
                   {item.before.length >= SPELL_CONTEXT && "…"}
                   {item.before.trimStart()}
-                  <mark className="rounded-sm bg-red-500/15 px-0.5 text-foreground">{item.issue.text}</mark>
+                  <mark className={cn("rounded-sm px-0.5 text-foreground", item.issue.source === "style" ? "bg-sky-500/15" : "bg-red-500/15")}>{item.issue.text}</mark>
                   {item.after.trimEnd()}
                   {item.after.length >= SPELL_CONTEXT && "…"}
                 </p>
               </button>
               {active && (
                 <div className="mt-1.5 space-y-1.5">
-                  <p className="text-xs text-muted-foreground">{item.issue.hint}</p>
+                  {!item.issue.noFix && <p className="text-xs text-muted-foreground">{item.issue.hint}</p>}
                   {others.length > 0 && (
                     <div className="flex flex-wrap gap-1.5" aria-label="다른 제안">
                       {others.map((suggestion) => (
@@ -113,10 +126,12 @@ export function SpellPanel() {
                 </div>
               )}
               <div className="mt-1.5 flex items-center gap-1.5">
-                <Button size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => fix(index, item)}>
-                  <Check className="size-3.5" />
-                  고치기
-                </Button>
+                {!item.issue.noFix && (
+                  <Button size="sm" className="h-7 gap-1 px-2 text-xs" onClick={() => fix(index, item)}>
+                    <Check className="size-3.5" />
+                    고치기
+                  </Button>
+                )}
                 <Button size="sm" variant="outline" className="h-7 gap-1 px-2 text-xs" onClick={() => skip(index, item)}>
                   <SkipForward className="size-3.5" />
                   건너뛰기

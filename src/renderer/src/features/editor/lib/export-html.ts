@@ -1,9 +1,14 @@
+import { labelName, refId, type LabelInfo } from "./cross-ref";
 import { assetUrl, isRemoteUrl, kindOfPath, resolveAttachment, type AttachmentMeta } from "@shared/attachments";
 
 export interface ExportContext {
   attachments: AttachmentMeta[];
   /** 글이 있는 폴더 (임베드 대상을 찾는 기준) */
   noteFolder: string;
+  /** 각주 이름 → 화면에 보이는 번호 */
+  footnotes?: Map<string, number>;
+  /** 블록 ID → 그림·표 번호 */
+  labels?: Map<string, Pick<LabelInfo, "id" | "kind" | "number">>;
 }
 
 const KIND_LABEL = { video: "영상", audio: "오디오", pdf: "PDF", image: "이미지", other: "첨부" } as const;
@@ -62,7 +67,48 @@ export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   for (const el of doc.body.querySelectorAll<HTMLElement>("[data-embed]")) el.replaceWith(renderEmbed(doc, el, ctx));
   for (const el of doc.body.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) el.disabled = true;
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
+  numberFootnotes(doc, ctx.footnotes);
+  numberLabels(doc, ctx.labels);
   return doc.body.innerHTML;
+}
+
+/** 각주 표시와 내용 줄의 이름을 화면과 같은 번호로 바꾼다. */
+function numberFootnotes(doc: Document, numbers: ExportContext["footnotes"]) {
+  if (!numbers) return;
+  for (const el of doc.body.querySelectorAll<HTMLElement>("sup[data-footnote], .footnote-def .footnote-label")) {
+    const label = el.closest<HTMLElement>("[data-footnote]")?.dataset["footnote"] ?? "";
+    const number = numbers.get(label);
+    if (number !== undefined) el.textContent = String(number);
+  }
+}
+
+/** 캡션 문단에서 `^id`를 떼고 "그림 1."을 붙이며, `[[#^id]]` 참조는 그 캡션으로 가는 "그림 1" 링크로 바꾼다. */
+function numberLabels(doc: Document, labels: ExportContext["labels"]) {
+  if (!labels) return;
+  for (const p of doc.body.querySelectorAll("p")) {
+    const last = [...p.childNodes].reverse().find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
+    const match = last?.textContent ? /(^|\s+)\^([A-Za-z0-9][\w-]*)\s*$/.exec(last.textContent) : null;
+    const info = match ? labels.get(match[2] ?? "") : undefined;
+    if (!last || !match || !info) continue;
+    last.textContent = last.textContent!.slice(0, match.index);
+    p.id = info.id;
+    if (info.kind === "other") continue;
+    p.classList.add("caption");
+    const label = doc.createElement("strong");
+    label.className = "caption-label";
+    label.textContent = `${labelName(info)}. `;
+    p.prepend(label);
+  }
+  for (const el of doc.body.querySelectorAll<HTMLElement>("[data-wikilink]")) {
+    const id = refId(el.dataset["wikilink"] ?? "");
+    const info = id === null ? undefined : labels.get(id);
+    if (!info) continue;
+    const link = doc.createElement("a");
+    link.href = `#${info.id}`;
+    link.className = "xref";
+    link.textContent = labelName(info);
+    el.replaceWith(link);
+  }
 }
 
 /** 붙여 넣는 곳(블로그·메일 편집기)은 <style>을 버리므로, 모양이 깨지기 쉬운 요소에만 style 속성을 직접 넣는다. */

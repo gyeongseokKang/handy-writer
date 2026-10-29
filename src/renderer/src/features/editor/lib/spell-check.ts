@@ -4,6 +4,7 @@ import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { mapTyposToIssues, maskForOnline, mergeIssues, type OnlineSpellResult } from "@shared/online-spell";
 import { checkSpelling, issueKey, SPELL_CONTEXT, type SpellIssue, type SpellItem } from "@shared/spellcheck";
+import { checkStyle } from "@shared/style-lint";
 
 export interface SpellTarget {
   issue: SpellIssue;
@@ -28,6 +29,8 @@ export interface SpellCheckOptions {
   onSelect: (target: SpellTarget) => void;
   /** 마우스가 밑줄을 떠났을 때 */
   onHoverEnd?: () => void;
+  /** 문장 다듬기(긴 문장, 겹말, 이중 피동 등)도 표시할지 */
+  isStyleEnabled?: () => boolean;
   /** 온라인 검사. 없으면 규칙 기반 검사만 한다. */
   checkOnline?: (maskedText: string) => Promise<OnlineSpellResult>;
   isOnlineEnabled?: () => boolean;
@@ -121,7 +124,10 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
 
     /** pos에 있는 밑줄 친 낱말과 그 화면 위치 */
     const targetAt = (view: EditorView, pos: number): SpellTarget | null => {
-      const hit = key.getState(view.state)?.items.find((item) => pos >= item.from && pos <= item.to);
+      // 긴 문장 안의 맞춤법 낱말처럼 겹치면 더 좁은 항목을 고른다.
+      const hit = (key.getState(view.state)?.items ?? [])
+        .filter((item) => pos >= item.from && pos <= item.to)
+        .sort((a, b) => a.to - a.from - (b.to - b.from))[0];
       if (!hit) return null;
       const start = view.coordsAtPos(hit.from);
       const end = view.coordsAtPos(hit.to);
@@ -133,20 +139,27 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
     const compute = (state: EditorState, skipped: Range[], active: Range | null): PluginState => {
       const items: SpellItem[] = [];
       const missing = new Set<string>();
-      if (options.isEnabled()) {
+      const spelling = options.isEnabled();
+      const style = options.isStyleEnabled?.() ?? false;
+      if (spelling || style) {
         const codeMark = state.schema.marks["code"];
-        const useOnline = onlineOn();
+        const useOnline = spelling && onlineOn();
         const { empty, from: cursor } = state.selection;
         state.doc.descendants((node, pos) => {
           if (!node.isTextblock) return true;
           if (node.type.spec.code) return false;
           const text = blockText(node, codeMark);
-          let issues = checkSpelling(text);
+          let issues = spelling ? checkSpelling(text) : [];
           if (useOnline && text.length >= MIN_ONLINE_LENGTH) {
             const masked = maskForOnline(text);
             const cached = onlineCache.get(masked);
             if (cached) issues = mergeIssues(issues, cached);
             else missing.add(masked);
+          }
+          if (style) {
+            // 맞춤법 항목과 겹치는 다듬기 항목은 빼되, 문장 전체를 가리키는 긴 문장 표시는 남긴다.
+            const extra = checkStyle(text).filter((s) => s.ruleId === "style:long" || !issues.some((i) => s.start < i.end && s.end > i.start));
+            issues = [...issues, ...extra].sort((a, b) => a.start - b.start || b.end - a.end);
           }
           for (const issue of issues) {
             const from = pos + 1 + issue.start;
@@ -168,7 +181,8 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
         state.doc,
         items.map((item) => {
           const isActive = active?.from === item.from && active.to === item.to;
-          return Decoration.inline(item.from, item.to, { class: isActive ? "spell-error spell-active" : "spell-error", "data-spell": item.issue.ruleId });
+          const kind = item.issue.source === "style" ? (item.issue.ruleId === "style:long" ? " style-issue style-long" : " style-issue") : "";
+          return Decoration.inline(item.from, item.to, { class: `spell-error${kind}${isActive ? " spell-active" : ""}`, "data-spell": item.issue.ruleId });
         }),
       );
       return { items, decorations, missing: [...missing], skipped, active };

@@ -40,18 +40,21 @@ export function SpellPopover({ target, onApply, onIgnore, onClose, onMouseEnter,
     <div
       ref={ref}
       role="dialog"
-      aria-label="맞춤법 제안"
+      aria-label={issue.source === "style" ? "문장 다듬기 제안" : "맞춤법 제안"}
       data-spell-key={issueKey(issue)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{ position: "fixed", left, top: rect.bottom + 6, zIndex: 50 }}
       className="w-70 space-y-2 rounded-lg border bg-card p-3 shadow-lg"
     >
-      <p className="text-sm">
-        <span className="text-muted-foreground line-through">{issue.text}</span>
-        <span className="mx-1.5 text-muted-foreground">→</span>
-        <span className="font-semibold">{issue.replacement}</span>
-      </p>
+      {issue.source === "style" && <p className="text-xs font-medium text-sky-700 dark:text-sky-300">문장 다듬기</p>}
+      {!issue.noFix && (
+        <p className="text-sm">
+          <span className="text-muted-foreground line-through">{issue.text.trim() || "␣␣"}</span>
+          <span className="mx-1.5 text-muted-foreground">→</span>
+          <span className="font-semibold">{issue.replacement.trim() || "␣"}</span>
+        </p>
+      )}
       <p className="text-xs text-muted-foreground">{issue.hint}</p>
       {issue.source === "online" && (
         <p className="text-xs text-muted-foreground">온라인 맞춤법 검사기(다음·네이버)의 제안이에요.</p>
@@ -73,9 +76,11 @@ export function SpellPopover({ target, onApply, onIgnore, onClose, onMouseEnter,
         </div>
       )}
       <div className="flex gap-2">
-        <Button size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => onApply()}>
-          바꾸기
-        </Button>
+        {!issue.noFix && (
+          <Button size="sm" onMouseDown={(event) => event.preventDefault()} onClick={() => onApply()}>
+            바꾸기
+          </Button>
+        )}
         <Button size="sm" variant="ghost" onMouseDown={(event) => event.preventDefault()} onClick={onIgnore}>
           무시
         </Button>

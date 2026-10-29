@@ -8,7 +8,9 @@ import { cn } from "@/shared/lib/utils";
 import { EXPORT_FORMATS, type ExportFormat } from "@shared/export";
 import { serializeNote } from "@shared/frontmatter";
 
-import { toExportHtml, withPasteStyles } from "../lib/export-html";
+import { collectLabels } from "../lib/cross-ref";
+import { toExportHtml, withPasteStyles, type ExportContext } from "../lib/export-html";
+import { collectFootnotes } from "../lib/footnote";
 
 interface ExportMenuProps {
   editor: Editor;
@@ -21,6 +23,17 @@ interface ExportMenuProps {
 }
 
 /** 아래 막대의 "내보내기" 버튼. 지금 글을 마크다운, HTML, PDF 파일로 저장한다. */
+/** 내보낸 글에도 화면과 같은 각주·그림·표 번호가 나오게 지금 문서에서 번호를 모은다. */
+function exportContext(editor: Editor, path: string): ExportContext {
+  const { attachments, notes } = useWorkspaceStore.getState();
+  return {
+    attachments,
+    noteFolder: notes.find((note) => note.path === path)?.folder ?? "",
+    footnotes: new Map([...collectFootnotes(editor.state.doc).values()].map((info) => [info.label, info.number])),
+    labels: collectLabels(editor.state.doc),
+  };
+}
+
 export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarget = () => true }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,11 +58,7 @@ export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarge
     if (busy) return;
     setBusy(true);
     try {
-      const { attachments, notes } = useWorkspaceStore.getState();
-      const content =
-        format === "md"
-          ? serializeNote(getFrontmatter(), editor.getMarkdown())
-          : toExportHtml(editor.getHTML(), { attachments, noteFolder: notes.find((note) => note.path === path)?.folder ?? "" });
+      const content = format === "md" ? serializeNote(getFrontmatter(), editor.getMarkdown()) : toExportHtml(editor.getHTML(), exportContext(editor, path));
       const { path: saved } = await api.export.note({ name, format, content });
       if (saved) {
         toast.success("내보냈어요.", { description: saved, action: { label: "위치 보기", onClick: () => void api.export.reveal(saved) } });
@@ -65,8 +74,7 @@ export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarge
   const copyRich = async () => {
     setOpen(false);
     try {
-      const { attachments, notes } = useWorkspaceStore.getState();
-      const html = toExportHtml(editor.getHTML(), { attachments, noteFolder: notes.find((note) => note.path === path)?.folder ?? "" });
+      const html = toExportHtml(editor.getHTML(), exportContext(editor, path));
       await api.export.copy(withPasteStyles(html), editor.getText({ blockSeparator: "\n\n" }));
       toast.success("서식 있는 글로 복사했어요. 블로그나 메일에 붙여 넣으세요.");
     } catch (error) {

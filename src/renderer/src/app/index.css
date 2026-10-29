@@ -233,6 +233,10 @@
   text-underline-offset: 4px;
   cursor: pointer;
 }
+/* 문장 다듬기: 맞춤법과 구분되게 파란 점선. 긴 문장은 밑줄 대신 옅은 바탕으로 (안의 맞춤법 밑줄과 겹치지 않게) */
+.note-prose .spell-error.style-issue { text-decoration: underline dotted oklch(0.62 0.13 235); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.note-prose .spell-error.style-long { text-decoration: none; background: color-mix(in oklch, oklch(0.7 0.12 235) 9%, transparent); border-radius: 0.2rem; }
+.note-prose .style-issue.spell-active { background: color-mix(in oklch, oklch(0.62 0.13 235) 20%, transparent); box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.62 0.13 235) 20%, transparent); }
 /* 맞춤법 탭에서 고른 낱말 */
 .note-prose .spell-active { background: color-mix(in oklch, oklch(0.65 0.2 25) 18%, transparent); border-radius: 0.2rem; box-shadow: 0 0 0 2px color-mix(in oklch, oklch(0.65 0.2 25) 18%, transparent); }
 
@@ -377,3 +381,11 @@
   .outline-panel, .outline-trail-line { transition: none; animation: none; }
   .outline-trail-line[data-leaving] { display: none; }
 }
+
+/* 그림·표 번호: 캡션 문단 앞에 "그림 1."(데코레이션이 --caption으로 넘겨 준다), 블록 ID는 흐리게, 참조는 번호로 */
+.note-prose p.caption { text-align: center; font-size: 0.875rem; color: var(--muted-foreground); }
+.note-prose p.caption::before { content: var(--caption); font-weight: 600; color: var(--foreground); }
+.note-prose .block-id { font-size: 0.75em; color: color-mix(in oklch, var(--muted-foreground) 70%, transparent); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.note-prose .wikilink.xref .wikilink-text { display: none; }
+.note-prose .wikilink.xref::before { content: var(--xref); }
+.note-prose .wikilink.xref-missing::before { color: var(--destructive); }

@@ -124,6 +124,20 @@ const ENTRIES: SlashEntry[] = [
     run: (editor, range) => editor.chain().focus().deleteRange(range).insertFootnote().run(),
   },
   {
+    title: "그림 번호",
+    description: "그림 아래에 ‘그림 N.’ 캡션을 달아요. [[#로 참조해요",
+    keywords: ["figure", "caption", "fig", "그림", "캡션", "번호"],
+    icon: <ImagePlus className="size-4" />,
+    run: (editor, range) => editor.chain().focus().deleteRange(range).insertCaption("fig").run(),
+  },
+  {
+    title: "표 번호",
+    description: "표 아래에 ‘표 N.’ 캡션을 달아요. [[#로 참조해요",
+    keywords: ["table", "caption", "tbl", "표", "캡션", "번호"],
+    icon: <Table2 className="size-4" />,
+    run: (editor, range) => editor.chain().focus().deleteRange(range).insertCaption("tbl").run(),
+  },
+  {
     title: "구분선",
     description: "가로 줄",
     keywords: ["divider", "hr", "rule", "line", "구분"],

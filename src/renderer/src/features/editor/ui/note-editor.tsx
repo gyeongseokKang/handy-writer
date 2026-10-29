@@ -89,6 +89,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       createExtensions({
         spell: !isMain ? undefined : {
           isEnabled: () => useSpellStore.getState().enabled,
+          isStyleEnabled: () => useSpellStore.getState().style,
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
           onItems: (items) => useSpellStore.getState().setItems(items),
           onSelect: (target) => {
@@ -103,7 +104,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         },
         getNoteNames: () => useWorkspaceStore.getState().notes.map((note) => note.name),
         onNavigate: (target) => void useWorkspaceStore.getState().openLink(target),
-        isResolved: (target) => useNoteIndexStore.getState().resolve(target) !== null,
+        // `#`으로 시작하는 링크는 이 글 안을 가리킨다 (그림·표 참조는 따로 표시한다).
+        isResolved: (target) => target.startsWith("#") || useNoteIndexStore.getState().resolve(target) !== null,
         onTagClick: (tag) => useUiStore.getState().showTag(tag),
       }),
     [],
@@ -211,9 +213,10 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   const spellEnabled = useSpellStore((state) => state.enabled);
   const spellIgnored = useSpellStore((state) => state.ignored);
   const spellOnline = useSpellStore((state) => state.online);
+  const spellStyle = useSpellStore((state) => state.style);
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
-  }, [editor, spellEnabled, spellIgnored, spellOnline]);
+  }, [editor, spellEnabled, spellIgnored, spellOnline, spellStyle]);
   useEffect(() => () => {
     if (isMain) useSpellStore.getState().setItems([]);
   }, []);

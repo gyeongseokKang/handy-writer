@@ -11,7 +11,10 @@ export interface SpellIssue {
   hint: string;
   /** 온라인 검사처럼 제안이 여러 개일 때의 전체 목록 (첫 번째가 replacement) */
   suggestions?: string[];
-  source?: "rule" | "online";
+  /** rule·online은 맞춤법, style은 문장 다듬기 제안 */
+  source?: "rule" | "online" | "style";
+  /** 바꿀 말 없이 알려 주기만 하는 항목 (예: 너무 긴 문장). replacement는 text와 같다. */
+  noFix?: boolean;
 }
 
 /** 맞춤법 탭 항목에 함께 보여줄 앞뒤 글의 길이 */

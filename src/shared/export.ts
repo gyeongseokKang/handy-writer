@@ -60,6 +60,9 @@ sup.footnote-ref::before { content: "["; } sup.footnote-ref::after { content: "]
 .footnote-def:not(.footnote-def + .footnote-def) { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #d0d7de; }
 .footnote-label { min-width: 1.5rem; color: #0969da; }
 .footnote-label::after { content: "."; }
+p.caption { text-align: center; font-size: 0.9rem; color: #57606a; }
+.caption-label { color: #1f2328; }
+a.xref { text-decoration: none; }
 @media print { main { max-width: none; padding: 0; } pre, table, img, blockquote, .callout, .template-block { break-inside: avoid; } h1, h2, h3, h4 { break-after: avoid; } }
 @page { margin: 18mm 16mm; }
 `;

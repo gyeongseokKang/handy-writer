@@ -39,3 +39,26 @@ describe("withPasteStyles", () => {
     expect(html).toContain('<p><code style="background');
   });
 });
+
+describe("번호 매기기", () => {
+  it("각주 이름을 화면 번호로, 캡션과 그림·표 참조를 번호로 바꾼다", () => {
+    const html = toExportHtml(
+      '<p>본문<sup class="footnote-ref" data-footnote="출처"><span class="footnote-text">출처</span></sup> <span class="wikilink" data-wikilink="#^fig-a"><span class="wikilink-text">#^fig-a</span></span></p>' +
+        '<p>첫 그림 설명 ^fig-a</p><p>그냥 문단 ^plain</p>' +
+        '<div class="footnote-def" data-footnote="출처"><span class="footnote-label"><span class="footnote-text">출처</span></span><span class="footnote-body">내용</span></div>',
+      {
+        ...ctx,
+        footnotes: new Map([["출처", 1]]),
+        labels: new Map([
+          ["fig-a", { id: "fig-a", kind: "fig" as const, number: 2 }],
+          ["plain", { id: "plain", kind: "other" as const, number: 0 }],
+        ]),
+      },
+    );
+    expect(html).toContain('data-footnote="출처">1</sup>');
+    expect(html).toContain('<span class="footnote-label">1</span>');
+    expect(html).toContain('<a href="#fig-a" class="xref">그림 2</a>');
+    expect(html).toContain('<p id="fig-a" class="caption"><strong class="caption-label">그림 2. </strong>첫 그림 설명</p>');
+    expect(html).toContain('<p id="plain">그냥 문단</p>');
+  });
+});

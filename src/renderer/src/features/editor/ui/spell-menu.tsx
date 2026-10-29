@@ -15,6 +15,7 @@ export function SpellMenu() {
   const online = useSpellStore((s) => s.online);
   const onlineState = useSpellStore((s) => s.onlineState);
   const count = useSpellStore((s) => s.count);
+  const style = useSpellStore((s) => s.style);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -52,6 +53,13 @@ export function SpellMenu() {
             <input type="checkbox" checked={enabled} onChange={(e) => useSpellStore.getState().setEnabled(e.target.checked)} />
             맞춤법 표시
           </label>
+          <div className="space-y-1">
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={style} onChange={(e) => useSpellStore.getState().setStyle(e.target.checked)} />
+              문장 다듬기 표시
+            </label>
+            <p className="pl-6 text-xs text-muted-foreground">긴 문장, 한 문장 안의 되풀이, 겹말, 이중 피동, 번역투를 파란 점선으로 알려 줘요.</p>
+          </div>
           <div className="space-y-1">
             <label className="flex items-center gap-2">
               <input type="checkbox" checked={online} disabled={!enabled} onChange={(e) => useSpellStore.getState().setOnline(e.target.checked)} />
