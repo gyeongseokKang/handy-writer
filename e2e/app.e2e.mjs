@@ -356,7 +356,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   git(clone, "add", "-A");
   git(clone, "commit", "-m", "B에서 추가");
   git(clone, "push");
-  await page.getByRole("button", { name: "가져오기" }).click();
+  await page.getByRole("button", { name: "가져오기", exact: true }).click();
   await page.waitForSelector("nav[aria-label='글 목록'] >> text=B가 만든 글", { timeout: 15000 });
   assert(fs.readFileSync(path.join(ws, "B가 만든 글.md"), "utf8") === "다른 기기에서 쓴 글\n", "원격의 새 글을 가져와 목록에 나타난다");
 
@@ -369,7 +369,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.fill("input[aria-label='커밋 메시지']", "A가 오늘 수정");
   await page.getByRole("button", { name: "커밋", exact: true }).click();
   await sleep(1500);
-  await page.getByRole("button", { name: "가져오기" }).click();
+  await page.getByRole("button", { name: "가져오기", exact: true }).click();
   await page.waitForSelector("text=합치지 못했어요", { timeout: 15000 });
   const mine = fs.readFileSync(path.join(ws, "일기", "오늘.md"), "utf8");
   assert(mine === "A 버전\n", `충돌해도 글에 충돌 표시가 남지 않고 내 버전이 그대로다 (${JSON.stringify(mine)})`);

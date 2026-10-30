@@ -4,9 +4,11 @@ import type { ProjectSource, YoutubeSource } from "./draft-sources";
 import type { OnlineSpellResult } from "./online-spell";
 import type { UpdateState } from "./update";
 import type { LogEntry, LogInput } from "./log";
+import type { TagSuggestion } from "./tag-suggest";
 import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { ExportRequest, ExportResult } from "./export";
+import type { ExtractResult } from "./extract";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus, NoteHistory } from "./git";
 
 export interface NoteMeta {
@@ -120,6 +122,19 @@ export interface HandyApi {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
   };
+  extract: {
+    /** 웹 페이지의 본문(유튜브면 설명·자막)을 뽑는다. */
+    fromUrl: (url: string) => Promise<ExtractResult>;
+  };
+  tags: {
+    /** 이 글에 붙일 만한 태그를 작업 폴더의 기존 태그에서 고른다. text는 지금 에디터의 본문 */
+    suggest: (path: string, text: string) => Promise<TagSuggestion[]>;
+  };
+  /** 작업 폴더의 내 표기 사전 (.handy-writer/style.md) */
+  styleDictionary: {
+    get: () => Promise<string>;
+    set: (content: string) => Promise<void>;
+  };
   git: {
     status: () => Promise<GitStatus>;
     init: () => Promise<GitStatus>;
@@ -167,6 +182,12 @@ export interface HandyApi {
   onNotesChanged: (listener: (event: NotesChangedEvent) => void) => () => void;
   /** Ctrl/Cmd+W를 눌렀을 때 (창 대신 지금 탭을 닫는다) */
   onCloseTab: (listener: () => void) => () => void;
+  app: {
+    /** 창을 닫기 전에 불린다. 저장할 것을 모두 쓴 뒤 closeReady로 답해야 창이 닫힌다. */
+    onBeforeClose: (listener: () => void) => () => void;
+    /** 저장하지 못한 글의 경로를 알린다. 비어 있으면 바로 닫고, 있으면 닫을지 묻는다. */
+    closeReady: (unsavedPaths: string[]) => void;
+  };
 }
 
 export const IPC = {
@@ -210,6 +231,10 @@ export const IPC = {
   attachmentsReveal: "attachments:reveal",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
+  extractFromUrl: "extract:from-url",
+  tagsSuggest: "tags:suggest",
+  styleDictionaryGet: "style-dictionary:get",
+  styleDictionarySet: "style-dictionary:set",
   gitStatus: "git:status",
   gitInit: "git:init",
   gitSetRemote: "git:set-remote",
@@ -232,4 +257,6 @@ export const IPC = {
   sourcesPickProject: "sources:pick-project",
   notesChanged: "notes:changed",
   tabsCloseCurrent: "tabs:close-current",
+  appBeforeClose: "app:before-close",
+  appCloseReady: "app:close-ready",
 } as const;

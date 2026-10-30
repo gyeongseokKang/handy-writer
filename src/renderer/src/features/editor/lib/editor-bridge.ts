@@ -68,10 +68,17 @@ function sectionNodes(doc: ProseMirrorNode, top: number): ProseMirrorNode[] {
   return children.slice(start, end);
 }
 
-export function createEditorBridge(editor: Editor, getNoteName: () => string): EditorBridge {
+/** frontmatter는 에디터 밖(NoteEditor)에서 들고 있으므로, 태그를 더하는 일은 거기서 넘겨받는다. */
+export interface FrontmatterActions {
+  addTags: (tags: string[]) => void;
+}
+
+export function createEditorBridge(editor: Editor, getNoteName: () => string, frontmatter?: FrontmatterActions): EditorBridge {
   const docEnd = () => editor.state.doc.content.size;
 
   return {
+    addTags: (tags) => frontmatter?.addTags(tags),
+    getBodyText: () => editor.getText({ blockSeparator: "\n\n" }),
     getContext(): EditorContext {
       const { from, to, empty } = editor.state.selection;
       const range = empty ? { from: 0, to: docEnd() } : { from, to };

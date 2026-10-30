@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkStyle, LONG_SENTENCE } from "./style-lint";
+import { checkStyle, LONG_SENTENCE, parseStyleDictionary, STYLE_DICTIONARY_TEMPLATE } from "./style-lint";
 
 const pick = (text: string) => checkStyle(text).map((i) => [i.ruleId.replace(/^style:/, ""), i.text, i.noFix ? null : i.replacement]);
 
@@ -45,3 +45,40 @@ describe("문장 다듬기", () => {
     expect(pick("`미리 예약` https://x.com/미리예약 그리고 미리 예약")).toEqual([["미리 예약", "미리 예약", "예약"]]);
   });
 });
+
+describe("다듬기 설정", () => {
+  it("끈 규칙 묶음은 검사하지 않는다", () => {
+    const text = "미리 예약했고 보여진 결과다.";
+    expect(checkStyle(text, { off: ["redundant"] }).map((i) => i.ruleId)).toEqual(["style:보여진"]);
+    expect(checkStyle(text, { off: ["redundant", "passive"] })).toEqual([]);
+  });
+
+  it("긴 문장 기준을 바꿀 수 있다", () => {
+    const text = "열두 글자가 넘는 문장이다.";
+    expect(checkStyle(text).some((i) => i.ruleId === "style:long")).toBe(false);
+    expect(checkStyle(text, { longSentence: 10 }).some((i) => i.ruleId === "style:long")).toBe(true);
+  });
+});
+
+describe("내 표기 사전", () => {
+  it("틀린 말 -> 고친 말, 설명, 알려 주기만 하는 줄을 읽고 주석은 건너뛴다", () => {
+    expect(parseStyleDictionary(`${STYLE_DICTIONARY_TEMPLATE}컨텐츠 -> 콘텐츠 # 외래어 표기법\n핸드폰->휴대폰\n어쨌든 ->\n잘못된 줄\n`)).toEqual([
+      { wrong: "컨텐츠", right: "콘텐츠", hint: "외래어 표기법" },
+      { wrong: "핸드폰", right: "휴대폰", hint: "내 표기 사전: ‘휴대폰’로 써요." },
+      { wrong: "어쨌든", right: null, hint: "내 표기 사전에 넣은 표현이에요." },
+    ]);
+  });
+
+  it("사전의 표현을 찾아 고치기를 제안하고, 고친 말이 없으면 알려 주기만 한다", () => {
+    const dictionary = parseStyleDictionary("컨텐츠 -> 콘텐츠\n어쨌든 ->");
+    expect(pick2(checkStyle("컨텐츠는 어쨌든 중요하다.", { dictionary }))).toEqual([
+      ["custom:컨텐츠", "컨텐츠", "콘텐츠"],
+      ["custom:어쨌든", "어쨌든", null],
+    ]);
+    expect(checkStyle("컨텐츠", { dictionary, off: ["custom"] })).toEqual([]);
+  });
+});
+
+function pick2(items: ReturnType<typeof checkStyle>) {
+  return items.map((i) => [i.ruleId.replace(/^style:/, ""), i.text, i.noFix ? null : i.replacement]);
+}

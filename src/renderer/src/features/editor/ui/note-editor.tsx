@@ -15,15 +15,19 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
+import { addFrontmatterTags } from "@shared/frontmatter-tags";
 import { formatGoal, parseGoal, setFrontmatterLine, type WritingGoal } from "@shared/text-stats";
 import { issueKey } from "@shared/spellcheck";
 import { registerFlusher } from "@/shared/lib/pending-saves";
+import { cn } from "@/shared/lib/utils";
 
 import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
+import { createSourceKeeper } from "../lib/source-keeper";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { EditorWidthHandles } from "./editor-width-handles";
+import { ConflictBar } from "./conflict-bar";
 import { FindBar } from "./find-bar";
 import { TableMenu } from "./table-menu";
 import { TextCount } from "./text-count";
@@ -36,13 +40,17 @@ const SPELL_HOVER_CLOSE_MS = 250;
 
 const SAVE_DELAY_MS = 600;
 
-type SaveStatus = "loading" | "saved" | "saving" | "error";
+type SaveStatus = "loading" | "saved" | "saving" | "error" | "conflict";
+
+/** 저장에 실패하면 이 간격(초)으로 다시 시도한다. 마지막 간격을 계속 쓴다. */
+const RETRY_SECONDS = [2, 4, 8, 16, 30];
 
 const STATUS_LABEL: Record<SaveStatus, string> = {
   loading: "불러오는 중…",
   saved: "저장됨",
   saving: "저장 중…",
-  error: "저장 실패",
+  error: "저장 실패 · 다시 시도 중",
+  conflict: "충돌 · 저장 멈춤",
 };
 
 interface NoteEditorProps {
@@ -93,6 +101,10 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         spell: !isMain ? undefined : {
           isEnabled: () => useSpellStore.getState().enabled,
           isStyleEnabled: () => useSpellStore.getState().style,
+          getStyleOptions: () => {
+            const { longSentence, styleOff, dictionary } = useSpellStore.getState();
+            return { longSentence, off: styleOff, dictionary };
+          },
           isIgnored: (key) => useSpellStore.getState().ignored.includes(key),
           onItems: (items) => useSpellStore.getState().setItems(items),
           onSelect: (target) => {
@@ -115,6 +127,9 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   );
 
   const flushRef = useRef<() => Promise<void>>(async () => {});
+  // 저장할 때 손대지 않은 블록은 원문 그대로 쓴다 (표 간격, 주소 표기 등이 바뀌지 않게).
+  const keeperRef = useRef<ReturnType<typeof createSourceKeeper> | null>(null);
+  const toMarkdown = () => keeperRef.current?.serialize() ?? editor?.getMarkdown() ?? "";
 
   const editor = useEditor({
     extensions,
@@ -127,25 +142,81 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     },
   });
 
+  // 저장 실패와 바깥 변경 충돌. 둘 다 디스크에 쓰지 못한 내용이 남아 있다는 뜻이다.
+  const statusRef = useRef<SaveStatus>("loading");
+  statusRef.current = status;
+  const retryRef = useRef({ count: 0, timer: undefined as number | undefined });
+  const [conflict, setConflict] = useState<{ theirs: string } | null>(null);
+  const conflictRef = useRef(conflict);
+  conflictRef.current = conflict;
+
+  const scheduleRetry = () => {
+    const retry = retryRef.current;
+    window.clearTimeout(retry.timer);
+    const seconds = RETRY_SECONDS[Math.min(retry.count, RETRY_SECONDS.length - 1)]!;
+    retry.count++;
+    retry.timer = window.setTimeout(() => void flushRef.current(), seconds * 1000);
+  };
+
   flushRef.current = async () => {
     window.clearTimeout(timerRef.current);
-    if (!editor || editor.isDestroyed || !dirtyRef.current) return;
+    window.clearTimeout(retryRef.current.timer);
+    // 충돌을 고를 때까지는 바깥 변경을 덮어쓰지 않는다.
+    if (!editor || editor.isDestroyed || !dirtyRef.current || conflictRef.current) return;
     dirtyRef.current = false;
-    const next = serializeNote(frontmatterRef.current, editor.getMarkdown());
+    const next = serializeNote(frontmatterRef.current, toMarkdown());
     if (next === lastSavedRef.current) {
       setStatus("saved");
       return;
     }
     setStatus("saving");
     try {
+      // 마지막으로 읽거나 쓴 뒤에 다른 프로그램이 파일을 바꿨으면 쓰지 않고 고르게 한다.
+      const disk = await api.notes.read(path).catch(() => null);
+      if (disk !== null && disk !== lastSavedRef.current && disk !== next) {
+        dirtyRef.current = true;
+        setConflict({ theirs: disk });
+        setStatus("conflict");
+        return;
+      }
       await api.notes.write(path, next);
       lastSavedRef.current = next;
+      keeperRef.current?.setBase(splitFrontmatter(next).body);
+      retryRef.current.count = 0;
       setStatus(dirtyRef.current ? "saving" : "saved");
     } catch (error) {
       dirtyRef.current = true;
       setStatus("error");
-      toast.error(`저장하지 못했어요: ${error instanceof Error ? error.message : String(error)}`);
+      // 처음 실패할 때만 알리고, 그 뒤로는 조용히 다시 시도한다.
+      if (retryRef.current.count === 0) toast.error(`저장하지 못했어요. 잠시 뒤 다시 시도할게요: ${error instanceof Error ? error.message : String(error)}`);
+      scheduleRetry();
     }
+  };
+
+  /** 충돌 고르기: mine이면 내 내용으로 덮어쓰고, theirs면 바깥 내용을 불러온다. */
+  const resolveConflict = (choice: "mine" | "theirs") => {
+    const current = conflictRef.current;
+    if (!editor || !current) return;
+    if (choice === "theirs") {
+      const { frontmatter, body } = splitFrontmatter(current.theirs);
+      frontmatterRef.current = frontmatter;
+      setFrontmatter(frontmatter);
+      lastSavedRef.current = current.theirs;
+      dirtyRef.current = false;
+      editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
+      keeperRef.current?.setBase(body);
+      if (isMain) syncPanels();
+      conflictRef.current = null;
+      setConflict(null);
+      setStatus("saved");
+      return;
+    }
+    // 바깥 내용을 마지막으로 읽은 것으로 보고 다시 저장한다.
+    lastSavedRef.current = current.theirs;
+    dirtyRef.current = true;
+    conflictRef.current = null;
+    setConflict(null);
+    void flushRef.current();
   };
 
   // 글 내용 불러오기
@@ -161,6 +232,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         setFrontmatter(frontmatter);
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
+        keeperRef.current ??= createSourceKeeper(editor);
+        keeperRef.current.setBase(body);
         setStatus("saved");
         if (isMain) syncPanels();
         if (raw === "" && isMain) editor.commands.focus("start");
@@ -184,7 +257,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   nameRef.current = name;
   useEffect(() => {
     if (!editor || !isMain) return;
-    const bridge = createEditorBridge(editor, () => nameRef.current);
+    const bridge = createEditorBridge(editor, () => nameRef.current, { addTags: (tags) => addTagsRef.current(tags) });
     useEditorBridge.getState().setBridge(bridge);
     // 첨부 패널이 보여줄 임베드 목록과 목차를 글이 바뀔 때마다 갱신한다.
     const syncEmbeds = () => {
@@ -217,9 +290,12 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   const spellIgnored = useSpellStore((state) => state.ignored);
   const spellOnline = useSpellStore((state) => state.online);
   const spellStyle = useSpellStore((state) => state.style);
+  const styleLong = useSpellStore((state) => state.longSentence);
+  const styleOff = useSpellStore((state) => state.styleOff);
+  const styleDictionary = useSpellStore((state) => state.dictionary);
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(SPELL_REFRESH, true));
-  }, [editor, spellEnabled, spellIgnored, spellOnline, spellStyle]);
+  }, [editor, spellEnabled, spellIgnored, spellOnline, spellStyle, styleLong, styleOff, styleDictionary]);
   useEffect(() => () => {
     if (isMain) useSpellStore.getState().setItems([]);
   }, []);
@@ -235,6 +311,21 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   }, [editor, pane]);
   // 분할 화면이 없으면 가운데 에디터가 언제나 단축키를 받는다.
   const isShortcutTarget = () => (isMain && !useWorkspaceStore.getState().splitPath) || useUiStore.getState().focusedPane === pane;
+
+  // 오른쪽 패널의 태그 추가: frontmatter의 tags에 더하고 바로 저장한다.
+  const addTagsRef = useRef<(tags: string[]) => void>(() => {});
+  addTagsRef.current = (tags) => {
+    try {
+      const next = addFrontmatterTags(frontmatterRef.current, tags);
+      if (next === frontmatterRef.current) return;
+      frontmatterRef.current = next;
+      setFrontmatter(next);
+      dirtyRef.current = true;
+      void flushRef.current();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
 
   const changeGoal = (goal: WritingGoal | null) => {
     const next = setFrontmatterLine(frontmatterRef.current, "goal", goal ? formatGoal(goal) : null);
@@ -262,7 +353,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   }, [editor, indexEntries]);
 
   // 글을 바꾸거나 닫기 전에 저장 대기 중인 내용을 쓸 수 있게 등록
-  useEffect(() => registerFlusher(path, () => flushRef.current()), [path]);
+  useEffect(() => registerFlusher(path, () => flushRef.current(), () => dirtyRef.current || statusRef.current === "error" || statusRef.current === "conflict"), [path]);
+  useEffect(() => () => window.clearTimeout(retryRef.current.timer), []);
 
   // Cmd/Ctrl+F로 글 안에서 찾기를 연다. 이미 열려 있으면 찾는 칸으로 포커스를 돌린다.
   useEffect(() => {
@@ -297,12 +389,14 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       .then((raw) => {
         if (cancelled || editor.isDestroyed || raw === lastSavedRef.current) return;
         // 방금 우리가 쓴 내용이 뒤늦게 감지된 경우
-        if (raw === serializeNote(frontmatterRef.current, editor.getMarkdown())) {
+        if (raw === serializeNote(frontmatterRef.current, toMarkdown())) {
           lastSavedRef.current = raw;
           return;
         }
-        if (dirtyRef.current) {
-          toast.warning("이 글이 다른 곳에서도 바뀌었어요. 지금 저장하면 그 변경을 덮어써요.");
+        // 아직 저장하지 않은 내 변경이 있으면 덮어쓰지도, 버리지도 않고 고르게 한다.
+        if (dirtyRef.current || statusRef.current === "error") {
+          setConflict({ theirs: raw });
+          setStatus("conflict");
           return;
         }
         const { frontmatter, body } = splitFrontmatter(raw);
@@ -310,6 +404,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         setFrontmatter(frontmatter);
         lastSavedRef.current = raw;
         editor.commands.setContent(body, { contentType: "markdown", emitUpdate: false });
+        keeperRef.current?.setBase(body);
         if (isMain) syncPanels();
         toast.info("다른 곳에서 바뀐 내용을 불러왔어요.");
       })
@@ -338,7 +433,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
-      <div data-note-scroller className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll}>
+      {/* 글 칸이 화면보다 넓게 정해져 있으면 양옆 너비 손잡이가 칸 밖으로 조금 나가 가로 스크롤이 생기므로 가로는 숨긴다. */}
+      <div data-note-scroller className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" onScroll={onScroll}>
         <div ref={columnRef} data-note-column className="relative mx-auto w-full px-12 pt-14 pb-40" style={{ maxWidth: editorWidth }}>
           <EditorWidthHandles columnRef={columnRef} />
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
@@ -369,6 +465,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           onMouseLeave={() => spellTarget.hover && scheduleSpellClose()}
         />
       )}
+      {/* 떠 있는 목차와 겹치지 않게 아래 막대 바로 위에 띄운다. */}
+      {conflict && <ConflictBar mine={serializeNote(frontmatterRef.current, toMarkdown())} theirs={conflict.theirs} onResolve={resolveConflict} />}
       <footer className="flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
         <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
@@ -381,8 +479,14 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         >
           기록
         </button>
-        <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} isShortcutTarget={isShortcutTarget} />
-        <span role="status">{STATUS_LABEL[status]}</span>
+        <ExportMenu editor={editor} path={path} name={name} getFrontmatter={() => frontmatterRef.current} getMarkdown={toMarkdown} isShortcutTarget={isShortcutTarget} />
+        {status === "error" ? (
+          <button type="button" role="status" title="지금 다시 저장하기" onClick={() => { retryRef.current.count = 0; void flushRef.current(); }} className="rounded px-1.5 py-0.5 text-destructive hover:bg-accent">
+            {STATUS_LABEL[status]}
+          </button>
+        ) : (
+          <span role="status" className={cn(status === "conflict" && "text-amber-600 dark:text-amber-400")}>{STATUS_LABEL[status]}</span>
+        )}
         {isMain && <LogIndicator />}
       </footer>
     </div>

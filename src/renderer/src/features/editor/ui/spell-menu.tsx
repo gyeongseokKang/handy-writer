@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { cn } from "@/shared/lib/utils";
 
+import { StyleSettings } from "./style-settings";
+
 const ONLINE_STATE_TEXT = {
   unknown: "아직 확인하지 않았어요",
   ok: "연결됨",
@@ -17,6 +19,7 @@ export function SpellMenu() {
   const count = useSpellStore((s) => s.count);
   const style = useSpellStore((s) => s.style);
   const [open, setOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -48,7 +51,7 @@ export function SpellMenu() {
         {label}
       </button>
       {open && (
-        <div role="dialog" aria-label="맞춤법 설정" className="absolute right-0 bottom-full z-40 mb-2 w-72 space-y-3 rounded-lg border bg-card p-3 text-sm text-foreground shadow-lg">
+        <div role="dialog" aria-label="맞춤법 설정" className="absolute right-0 whitespace-normal bottom-full z-40 mb-2 w-72 space-y-3 rounded-lg border bg-card p-3 text-sm text-foreground shadow-lg">
           <label className="flex items-center gap-2">
             <input type="checkbox" checked={enabled} onChange={(e) => useSpellStore.getState().setEnabled(e.target.checked)} />
             맞춤법 표시
@@ -59,6 +62,9 @@ export function SpellMenu() {
               문장 다듬기 표시
             </label>
             <p className="pl-6 text-xs text-muted-foreground">긴 문장, 한 문장 안의 되풀이, 겹말, 이중 피동, 번역투를 파란 점선으로 알려 줘요.</p>
+            <button type="button" onClick={() => (setOpen(false), setSettingsOpen(true))} className="ml-6 text-xs text-primary underline-offset-2 hover:underline">
+              다듬기 설정·내 표기 사전…
+            </button>
           </div>
           <div className="space-y-1">
             <label className="flex items-center gap-2">
@@ -74,6 +80,7 @@ export function SpellMenu() {
           </p>
         </div>
       )}
+      {settingsOpen && <StyleSettings onClose={() => setSettingsOpen(false)} />}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { ChevronLeft, ChevronRight, GitBranch, History, Loader2, Pause, Play, RotateCcw, X } from "lucide-react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -9,15 +9,14 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { splitFrontmatter } from "@shared/frontmatter";
 
-import { diffVersions, isGap, type DiffLine } from "../lib/history-diff";
+import { DiffBody } from "@/shared/ui/diff-body";
+import { diffVersions } from "@/shared/lib/text-diff";
 import { useHistoryStore, type HistorySlide } from "../model/use-history-store";
 
 /** 자동 재생할 때 한 장에 머무는 시간 */
 const PLAY_INTERVAL_MS = 1400;
 /** 지금 장 양옆으로 그려 둘 장 수 */
 const VISIBLE_NEIGHBORS = 2;
-/** 변경 표시 애니메이션을 차례로 띄울 때 최대 지연 단계 */
-const MAX_STAGGER = 24;
 
 const dateFormat = new Intl.DateTimeFormat("ko-KR", { dateStyle: "medium", timeStyle: "short" });
 const relativeFormat = new Intl.RelativeTimeFormat("ko-KR", { numeric: "auto" });
@@ -33,65 +32,6 @@ function relativeTime(time: number) {
 }
 
 const body = (raw: string | undefined) => (raw === undefined ? undefined : splitFrontmatter(raw).body);
-
-function lineTone(line: DiffLine) {
-  const types = new Set(line.segments.filter((s) => s.text.trim()).map((s) => s.type));
-  if (types.has("added") && types.has("removed")) return "mixed";
-  if (types.has("added")) return "added";
-  if (types.has("removed")) return "removed";
-  return "same";
-}
-
-function DiffBody({ before, after, collapse, active }: { before: string; after: string; collapse: boolean; active: boolean }) {
-  const diff = useMemo(() => diffVersions(before, after, collapse), [before, after, collapse]);
-  const ref = useRef<HTMLDivElement>(null);
-
-  // 이 장이 가운데로 오면 첫 변경으로 스크롤한다.
-  useLayoutEffect(() => {
-    if (!active) return;
-    const first = ref.current?.querySelector<HTMLElement>("[data-changed='true']");
-    const scroller = ref.current?.parentElement;
-    if (first && scroller) scroller.scrollTo({ top: Math.max(0, first.offsetTop - scroller.clientHeight / 3) });
-    else scroller?.scrollTo({ top: 0 });
-  }, [active, diff]);
-
-  let change = 0;
-  const changedLines = diff.rows.filter((row) => !isGap(row) && row.changed).length;
-
-  return (
-    <div ref={ref} className="history-diff">
-      {changedLines === 0 && <p className="py-6 text-center text-sm text-muted-foreground">본문은 그대로예요 (글 머리 정보나 공백만 바뀌었어요).</p>}
-      {diff.rows.map((row, index) => {
-        if (isGap(row)) {
-          return (
-            <div key={`gap-${index}`} className="history-gap">
-              ⋯ {row.gap}줄 같음
-            </div>
-          );
-        }
-        return (
-          <div key={index} data-changed={row.changed} data-tone={lineTone(row)} className="history-line">
-            {row.segments.length === 0
-              ? " "
-              : row.segments.map((segment, i) => {
-                  if (segment.type === "same") return <span key={i}>{segment.text}</span>;
-                  const style = { "--i": Math.min(change++, MAX_STAGGER) } as React.CSSProperties;
-                  return segment.type === "added" ? (
-                    <ins key={i} style={style}>
-                      {segment.text}
-                    </ins>
-                  ) : (
-                    <del key={i} style={style}>
-                      {segment.text}
-                    </del>
-                  );
-                })}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function SlideCard({ slide, previous, offset, collapse, onSelect }: { slide: HistorySlide; previous: HistorySlide | undefined; offset: number; collapse: boolean; onSelect: () => void }) {
   const after = useHistoryStore((s) => body(s.contents[slide.key]));
