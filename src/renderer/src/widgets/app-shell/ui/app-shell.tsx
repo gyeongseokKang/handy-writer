@@ -1,4 +1,4 @@
-import { FilePlus2, FolderOpen, PenLine, Sparkles } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, PenLine, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
@@ -10,6 +10,7 @@ import { flushAll, unsavedPaths } from "@/shared/lib/pending-saves";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
+import { ExtractDialog } from "@/features/editor/ui/extract-dialog";
 import { HistoryView } from "@/features/history/ui/history-view";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
@@ -60,6 +61,9 @@ function EmptyEditor() {
         <Button variant="outline" size="sm" onClick={() => useUiStore.getState().setDraftOpen(true)}>
           <Sparkles /> AI로 초안 만들기
         </Button>
+        <Button variant="outline" size="sm" onClick={() => useUiStore.getState().setExtract({ mode: "new" })}>
+          <Download /> 링크에서 가져오기
+        </Button>
       </div>
     </div>
   );
@@ -74,6 +78,7 @@ export function AppShell() {
   const outlineOpen = useUiStore((state) => state.outlineOpen);
   const draftOpen = useUiStore((state) => state.draftOpen);
   const historyTarget = useUiStore((state) => state.historyTarget);
+  const extract = useUiStore((state) => state.extract);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
@@ -177,6 +182,7 @@ export function AppShell() {
       <CommandPalette />
       <TemplateDialogs />
       {draftOpen && <DraftDialog />}
+      {extract && <ExtractDialog mode={extract.mode} />}
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );

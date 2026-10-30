@@ -4,6 +4,7 @@ import { createLogBook, type LogEntry } from "@shared/log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
 import { parseNote } from "@shared/note-parser";
 import { searchNotes } from "@shared/search";
+import { suggestTags } from "@shared/tag-suggest";
 import { BUILTIN_TEMPLATES } from "@shared/templates";
 import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
@@ -213,6 +214,18 @@ export function createMockApi(): HandyApi {
         searchNotes(
           [...files.entries()].map(([path, content]) => ({ path, name: toMeta(path).name, body: splitFrontmatter(content).body, tags: parseNote(content).tags })),
           query,
+        ),
+    },
+    extract: {
+      fromUrl: async () => {
+        throw new Error("브라우저 미리보기에서는 링크에서 글을 가져올 수 없어요");
+      },
+    },
+    tags: {
+      suggest: async (path, text) =>
+        suggestTags(
+          { path, text },
+          [...files.entries()].map(([p, content]) => ({ path: p, name: toMeta(p).name, body: splitFrontmatter(content).body, tags: parseNote(content).tags })),
         ),
     },
     styleDictionary: {

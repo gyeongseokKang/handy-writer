@@ -6,6 +6,8 @@ import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-st
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 
+import { TagAdder } from "./tag-adder";
+
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
     <section className="px-4 py-3">
@@ -37,23 +39,21 @@ export function LinksPanel() {
   return (
     <div aria-label="연결 정보" role="region" className="flex flex-col divide-y">
       <Section title="태그" count={entry?.tags.length ?? 0}>
-        {entry && entry.tags.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {entry.tags.map((tag) => (
-              <button
-                key={tag}
-                type="button"
-                onClick={() => showTag(tag)}
-                className="flex items-center gap-0.5 rounded-full bg-accent px-2 py-0.5 text-xs hover:bg-accent/70"
-              >
-                <Hash className="size-3" />
-                {tag}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">이 글에는 태그가 없어요</p>
-        )}
+        <div className="flex flex-wrap items-center gap-1.5">
+          {(entry?.tags ?? []).map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => showTag(tag)}
+              className="flex items-center gap-0.5 rounded-full bg-accent px-2 py-0.5 text-xs hover:bg-accent/70"
+            >
+              <Hash className="size-3" />
+              {tag}
+            </button>
+          ))}
+          {entry && entry.tags.length === 0 && <span className="text-sm text-muted-foreground">이 글에는 태그가 없어요</span>}
+          <TagAdder path={activePath} currentTags={entry?.tags ?? []} />
+        </div>
       </Section>
 
       <Section title="백링크" count={backlinks.length}>

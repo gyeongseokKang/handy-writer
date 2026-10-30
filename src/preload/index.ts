@@ -67,6 +67,12 @@ const api: HandyApi = {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
   },
+  extract: {
+    fromUrl: (url) => ipcRenderer.invoke(IPC.extractFromUrl, url),
+  },
+  tags: {
+    suggest: (path, text) => ipcRenderer.invoke(IPC.tagsSuggest, path, text),
+  },
   styleDictionary: {
     get: () => ipcRenderer.invoke(IPC.styleDictionaryGet),
     set: (content) => ipcRenderer.invoke(IPC.styleDictionarySet, content),

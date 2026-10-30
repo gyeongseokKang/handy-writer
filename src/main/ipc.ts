@@ -14,6 +14,8 @@ import type { ProjectSource } from "../shared/draft-sources";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { copyNote, exportNote } from "./export";
 import { readStyleDictionary, writeStyleDictionary } from "./style-dictionary";
+import { extractFromUrl } from "./extract";
+import { suggestTags } from "../shared/tag-suggest";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
@@ -119,6 +121,12 @@ export async function registerIpc() {
   ipcMain.handle(IPC.templatesList, () => listTemplates(requireRoot()));
   ipcMain.handle(IPC.templatesSave, (_e, template: Template) => saveTemplate(requireRoot(), template));
   ipcMain.handle(IPC.templatesRemove, (_e, id: string) => removeTemplate(requireRoot(), String(id)));
+  ipcMain.handle(IPC.extractFromUrl, (_e, url: string) => extractFromUrl(String(url ?? "")));
+  ipcMain.handle(IPC.tagsSuggest, async (_e, path: string, text: string) => {
+    const root = requireRoot();
+    const [docs, index] = await Promise.all([searcher.docs(root), indexer.build(root)]);
+    return suggestTags({ path: String(path), text: String(text ?? "") }, docs, index);
+  });
   ipcMain.handle(IPC.styleDictionaryGet, () => readStyleDictionary(requireRoot()));
   ipcMain.handle(IPC.styleDictionarySet, (_e, content: string) => writeStyleDictionary(requireRoot(), String(content ?? "")));
   ipcMain.handle(IPC.spellCheck, (_e, text: string) => onlineSpeller.check(String(text ?? "")));

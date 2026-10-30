@@ -1,4 +1,4 @@
-import { FolderOpen, GitBranch, ListTree, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
+import { Download, FolderOpen, GitBranch, ListTree, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
 
 import { UpdateRow } from "./update-row";
 import { useGitStore } from "@/entities/git/model/use-git-store";
@@ -105,6 +105,9 @@ export function Sidebar() {
         </label>
         <Button size="icon" variant="outline" className="size-8" title="전체 검색 (Ctrl/Cmd+K)" aria-label="전체 검색" onClick={() => useUiStore.getState().setPaletteOpen(true)}>
           <Search />
+        </Button>
+        <Button size="icon" variant="outline" className="size-8" title="링크에서 글 가져오기" aria-label="링크에서 글 가져오기" onClick={() => useUiStore.getState().setExtract({ mode: "new" })}>
+          <Download />
         </Button>
         <Button size="icon" variant="outline" className="size-8" title="새 글" aria-label="새 글" onClick={() => void createNote()}>
           <Plus />

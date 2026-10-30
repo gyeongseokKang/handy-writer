@@ -29,6 +29,7 @@
     "test:e2e:code-block": "node e2e/code-block.e2e.mjs",
     "test:e2e:editor-tools": "node e2e/editor-tools.e2e.mjs",
     "test:e2e:footnote-tabs": "node e2e/footnote-tabs.e2e.mjs",
+    "test:e2e:extract-tags": "node e2e/extract-tags.e2e.mjs",
     "test:e2e:keep-safe": "node e2e/keep-safe.e2e.mjs",
     "test:e2e:style-xref": "node e2e/style-xref.e2e.mjs",
     "test:e2e:history": "node e2e/history.e2e.mjs",
@@ -39,6 +40,7 @@
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
+    "@mozilla/readability": "0.6.0",
     "@radix-ui/react-slot": "^1.5.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tiptap/core": "^3.32.0",

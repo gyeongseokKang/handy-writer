@@ -40,6 +40,8 @@ interface UiState {
   editorWidth: number;
   /** 변경 기록 화면에서 보고 있는 글 */
   historyTarget: { path: string; name: string } | null;
+  /** 링크에서 글 가져오기 창. new: 새 글로, insert: 지금 글의 커서 아래에 넣는 것을 먼저 권한다. */
+  extract: { mode: "new" | "insert" } | null;
   /** 단축키(찾기, 복사 등)가 향할 에디터. 분할 화면이면 마지막으로 포커스한 쪽 */
   focusedPane: "main" | "side";
 
@@ -60,6 +62,7 @@ interface UiState {
   setEditorWidth: (width: number) => void;
   setHistoryTarget: (target: { path: string; name: string } | null) => void;
   setFocusedPane: (pane: "main" | "side") => void;
+  setExtract: (extract: { mode: "new" | "insert" } | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -76,6 +79,7 @@ export const useUiStore = create<UiState>((set) => ({
   editorWidth: readEditorWidth(),
   historyTarget: null,
   focusedPane: "main",
+  extract: null,
 
   setView: (view) => set({ view }),
   setSidebarView: (sidebarView) => set({ sidebarView }),
@@ -100,4 +104,5 @@ export const useUiStore = create<UiState>((set) => ({
   },
   setHistoryTarget: (historyTarget) => set({ historyTarget }),
   setFocusedPane: (focusedPane) => set({ focusedPane }),
+  setExtract: (extract) => set({ extract }),
 }));

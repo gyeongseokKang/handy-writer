@@ -96,14 +96,14 @@ const PHRASES: Array<[string, string, string, StyleGroup]> = [
 ];
 
 /** 같은 문장에서 다시 써도 거슬리지 않는 낱말 */
-const COMMON = new Set(
+export const COMMON = new Set(
   "그것 이것 저것 우리 저희 그리고 하지만 그러나 그래서 그런데 때문 정도 경우 사람 생각 이렇게 그렇게 어떻게 하나 모두 가장 다시 아주 정말 조금 많이 함께 있다 없다 하다 되다 한다 했다 된다 있는 없는 하는 되는 있고 없고 하고".split(" "),
 );
 
 /** 어절 끝의 조사를 떼어 낱말 줄기를 얻는다 (‘글을’, ‘글이’, ‘글에서’ → ‘글’). */
 const PARTICLE = /(에서부터|으로부터|에게서|이라는|에서는|으로는|에게는|처럼|보다|까지|부터|에게|한테|에서|으로|이나|이며|라는|에는|와는|과는|은|는|이|가|을|를|의|에|로|와|과|도|만|나)$/;
 
-function stem(word: string) {
+export function stem(word: string) {
   const bare = word.replace(PARTICLE, "");
   return bare.length >= 2 ? bare : word;
 }

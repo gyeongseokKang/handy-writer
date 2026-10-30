@@ -15,6 +15,7 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
+import { addFrontmatterTags } from "@shared/frontmatter-tags";
 import { formatGoal, parseGoal, setFrontmatterLine, type WritingGoal } from "@shared/text-stats";
 import { issueKey } from "@shared/spellcheck";
 import { registerFlusher } from "@/shared/lib/pending-saves";
@@ -256,7 +257,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   nameRef.current = name;
   useEffect(() => {
     if (!editor || !isMain) return;
-    const bridge = createEditorBridge(editor, () => nameRef.current);
+    const bridge = createEditorBridge(editor, () => nameRef.current, { addTags: (tags) => addTagsRef.current(tags) });
     useEditorBridge.getState().setBridge(bridge);
     // 첨부 패널이 보여줄 임베드 목록과 목차를 글이 바뀔 때마다 갱신한다.
     const syncEmbeds = () => {
@@ -310,6 +311,21 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   }, [editor, pane]);
   // 분할 화면이 없으면 가운데 에디터가 언제나 단축키를 받는다.
   const isShortcutTarget = () => (isMain && !useWorkspaceStore.getState().splitPath) || useUiStore.getState().focusedPane === pane;
+
+  // 오른쪽 패널의 태그 추가: frontmatter의 tags에 더하고 바로 저장한다.
+  const addTagsRef = useRef<(tags: string[]) => void>(() => {});
+  addTagsRef.current = (tags) => {
+    try {
+      const next = addFrontmatterTags(frontmatterRef.current, tags);
+      if (next === frontmatterRef.current) return;
+      frontmatterRef.current = next;
+      setFrontmatter(next);
+      dirtyRef.current = true;
+      void flushRef.current();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : String(error));
+    }
+  };
 
   const changeGoal = (goal: WritingGoal | null) => {
     const next = setFrontmatterLine(frontmatterRef.current, "goal", goal ? formatGoal(goal) : null);
@@ -417,7 +433,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
-      <div data-note-scroller className="min-h-0 flex-1 overflow-y-auto" onScroll={onScroll}>
+      {/* 글 칸이 화면보다 넓게 정해져 있으면 양옆 너비 손잡이가 칸 밖으로 조금 나가 가로 스크롤이 생기므로 가로는 숨긴다. */}
+      <div data-note-scroller className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" onScroll={onScroll}>
         <div ref={columnRef} data-note-column className="relative mx-auto w-full px-12 pt-14 pb-40" style={{ maxWidth: editorWidth }}>
           <EditorWidthHandles columnRef={columnRef} />
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />

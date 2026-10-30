@@ -88,6 +88,10 @@ export interface EditorBridge {
   applySpell: (range: SpellRange, text: string, replacement: string) => boolean;
   /** 그 자리의 항목만 건너뛴다 (같은 낱말의 다른 자리는 그대로 표시한다). */
   skipSpell: (range: SpellRange) => void;
+  /** frontmatter의 tags에 태그를 더하고 저장한다. */
+  addTags: (tags: string[]) => void;
+  /** 지금 에디터의 본문 글 (저장 전 내용 포함) */
+  getBodyText: () => string;
 }
 
 interface EditorBridgeState {

@@ -41,7 +41,18 @@ export class NoteSearcher {
     this.cache.delete(path);
   }
 
+  /** 모든 글의 본문과 태그 (바뀐 파일만 다시 읽는다). 태그 추천이 쓴다. */
+  async docs(root: string): Promise<SearchDoc[]> {
+    await this.refresh(root);
+    return [...this.cache.values()].map((cached) => cached.doc);
+  }
+
   async search(root: string, query: string, limit?: number): Promise<SearchResult[]> {
+    await this.refresh(root);
+    return searchNotes([...this.cache.values()].map((cached) => cached.doc), query, limit);
+  }
+
+  private async refresh(root: string) {
     this.setRoot(root);
     const notes = await listNotes(root);
     const alive = new Set(notes.map((note) => note.path));
@@ -64,7 +75,5 @@ export class NoteSearcher {
         }),
       );
     }
-
-    return searchNotes([...this.cache.values()].map((cached) => cached.doc), query, limit);
   }
 }

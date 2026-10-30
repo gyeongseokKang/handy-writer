@@ -3,6 +3,7 @@ import { PluginKey } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import {
   Code2,
+  Download,
   Heading1,
   Heading2,
   Heading3,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react";
 
 import { attachFromDialog } from "@/entities/note/model/attach-files";
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useTemplateDialogStore } from "@/entities/template/model/use-template-dialog-store";
 import { useTemplateStore } from "@/entities/template/model/use-template-store";
 
@@ -122,6 +124,16 @@ const ENTRIES: SlashEntry[] = [
     keywords: ["footnote", "note", "각주", "주석", "출처"],
     icon: <Superscript className="size-4" />,
     run: (editor, range) => editor.chain().focus().deleteRange(range).insertFootnote().run(),
+  },
+  {
+    title: "링크에서 가져오기",
+    description: "웹 글·유튜브 주소의 본문을 여기에 넣어요",
+    keywords: ["link", "url", "import", "extract", "web", "링크", "주소", "가져오기", "추출", "웹"],
+    icon: <Download className="size-4" />,
+    run: (editor, range) => {
+      editor.chain().focus().deleteRange(range).run();
+      useUiStore.getState().setExtract({ mode: "insert" });
+    },
   },
   {
     title: "그림 번호",
