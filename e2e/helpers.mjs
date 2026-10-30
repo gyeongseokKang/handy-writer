@@ -40,7 +40,7 @@ export function compositionSteps(syllable) {
 }
 
 /** 작업 폴더와 사용자 데이터 폴더를 만들고 앱을 띄운다. `files`는 { 상대경로: 내용 } */
-export async function launchApp({ files = {}, open, env: extraEnv = {} } = {}) {
+export async function launchApp({ files = {}, open, env: extraEnv = {}, onboarding = false } = {}) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ws-"));
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ud-"));
   fs.writeFileSync(path.join(ud, "config.json"), JSON.stringify({ workspaceRoot: ws }));
@@ -61,6 +61,12 @@ export async function launchApp({ files = {}, open, env: extraEnv = {} } = {}) {
   page.on("pageerror", (e) => logs.push(`pageerror: ${e.message}`));
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.waitForSelector("nav[aria-label='글 목록']");
+  // 처음 실행이면 시작 안내가 뜬다. 안내를 시험하는 테스트(onboarding: true)가 아니면 닫는다 (다시 뜨지 않는다).
+  if (!onboarding) {
+    const tour = page.getByRole("dialog", { name: "Handy Writer 시작 안내" });
+    await tour.waitFor({ timeout: 3000 }).catch(() => {});
+    if (await tour.isVisible()) await tour.getByRole("button", { name: "안내 닫기" }).click();
+  }
   if (open) {
     await page.click(`nav[aria-label='글 목록'] >> text=${open}`);
     await page.waitForSelector(".note-prose");

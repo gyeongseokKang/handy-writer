@@ -2,6 +2,7 @@ import type { Editor } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
@@ -98,6 +99,18 @@ export function ExportMenu({ editor, path, name, getFrontmatter, getMarkdown = (
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
+
+  // 명령 팔레트의 복사·내보내기 요청 (단축키를 받을 에디터만 처리한다)
+  const editorRequest = useUiStore((state) => state.editorRequest);
+  const handledRequest = useRef(useUiStore.getState().editorRequest?.seq ?? 0);
+  const runRef = useRef(run);
+  runRef.current = run;
+  useEffect(() => {
+    if (!editorRequest || editorRequest.seq === handledRequest.current || editorRequest.kind === "find" || !shortcutRef.current()) return;
+    handledRequest.current = editorRequest.seq;
+    if (editorRequest.kind === "copy-rich") void copyRef.current();
+    else void runRef.current(editorRequest.kind.replace("export-", "") as ExportFormat);
+  }, [editorRequest]);
 
   return (
     <div ref={ref} className="relative">

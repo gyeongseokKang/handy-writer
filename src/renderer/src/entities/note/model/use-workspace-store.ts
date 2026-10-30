@@ -82,6 +82,10 @@ interface WorkspaceState {
   /** 글을 연다. 이미 탭에 있으면 그 탭으로, 아니면 지금 탭을 바꾼다. newTab이면 새 탭으로 연다. */
   openNote: (path: string | null, options?: { newTab?: boolean }) => Promise<void>;
   closeTab: (path: string) => Promise<void>;
+  /** 마지막으로 닫은 탭을 다시 연다 (그사이 지워진 글은 건너뛴다). */
+  reopenClosedTab: () => Promise<void>;
+  /** 닫은 탭 (최근 것이 끝) */
+  closedTabs: string[];
   /** 탭을 순서대로 옮긴다 (1: 다음, -1: 이전). */
   cycleTab: (step: 1 | -1) => Promise<void>;
   moveTab: (from: number, to: number) => void;
@@ -162,6 +166,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     attachments: [],
     activePath: null,
     tabs: [],
+    closedTabs: [],
     splitPath: null,
     query: "",
     collapsedFolders: {},
@@ -231,7 +236,17 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     closeTab: async (path) => {
       await flushPath(path);
+      set((state) => ({ closedTabs: [...state.closedTabs.filter((p) => p !== path), path].slice(-MAX_TABS) }));
       remap((p) => (p === path ? null : p));
+    },
+
+    reopenClosedTab: async () => {
+      const { closedTabs, notes, tabs } = get();
+      const alive = new Set(notes.map((note) => note.path));
+      const candidates = closedTabs.filter((p) => alive.has(p) && !tabs.includes(p));
+      const path = candidates.at(-1);
+      set({ closedTabs: closedTabs.filter((p) => p !== path && alive.has(p)) });
+      if (path) await get().openNote(path, { newTab: true });
     },
 
     cycleTab: async (step) => {
