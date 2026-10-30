@@ -38,6 +38,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   page.on("pageerror", (e) => logs.push("pageerror: " + e.message));
   await page.setViewportSize({ width: 1280, height: 820 });
   await page.waitForSelector("nav[aria-label='글 목록']");
+  // 처음 실행이라 뜨는 시작 안내를 닫는다 (helpers.launchApp과 같은 처리).
+  const tour = page.getByRole("dialog", { name: "Handy Writer 시작 안내" });
+  await tour.waitFor({ timeout: 3000 }).catch(() => {});
+  if (await tour.isVisible()) await tour.getByRole("button", { name: "안내 닫기" }).click();
   await sleep(500);
 
   const names = await page.$$eval("nav[aria-label='글 목록'] span.truncate", (els) => els.map((e) => e.textContent));
