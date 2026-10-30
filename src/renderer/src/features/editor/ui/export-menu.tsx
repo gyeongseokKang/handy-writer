@@ -18,6 +18,8 @@ interface ExportMenuProps {
   name: string;
   /** 글에서 frontmatter만 따로 들고 있는 값. 마크다운으로 내보낼 때 다시 붙인다. */
   getFrontmatter: () => string;
+  /** 원문을 보존한 본문 마크다운 (없으면 에디터의 출력) */
+  getMarkdown?: () => string;
   /** 분할 화면에서 이 에디터가 단축키를 받을 차례인지 */
   isShortcutTarget?: () => boolean;
 }
@@ -34,7 +36,7 @@ function exportContext(editor: Editor, path: string): ExportContext {
   };
 }
 
-export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarget = () => true }: ExportMenuProps) {
+export function ExportMenu({ editor, path, name, getFrontmatter, getMarkdown = () => editor.getMarkdown(), isShortcutTarget = () => true }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -58,7 +60,7 @@ export function ExportMenu({ editor, path, name, getFrontmatter, isShortcutTarge
     if (busy) return;
     setBusy(true);
     try {
-      const content = format === "md" ? serializeNote(getFrontmatter(), editor.getMarkdown()) : toExportHtml(editor.getHTML(), exportContext(editor, path));
+      const content = format === "md" ? serializeNote(getFrontmatter(), getMarkdown()) : toExportHtml(editor.getHTML(), exportContext(editor, path));
       const { path: saved } = await api.export.note({ name, format, content });
       if (saved) {
         toast.success("내보냈어요.", { description: saved, action: { label: "위치 보기", onClick: () => void api.export.reveal(saved) } });

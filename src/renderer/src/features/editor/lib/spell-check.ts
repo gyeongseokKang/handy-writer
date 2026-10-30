@@ -4,7 +4,7 @@ import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { mapTyposToIssues, maskForOnline, mergeIssues, type OnlineSpellResult } from "@shared/online-spell";
 import { checkSpelling, issueKey, SPELL_CONTEXT, type SpellIssue, type SpellItem } from "@shared/spellcheck";
-import { checkStyle } from "@shared/style-lint";
+import { checkStyle, type StyleOptions } from "@shared/style-lint";
 
 export interface SpellTarget {
   issue: SpellIssue;
@@ -31,6 +31,8 @@ export interface SpellCheckOptions {
   onHoverEnd?: () => void;
   /** 문장 다듬기(긴 문장, 겹말, 이중 피동 등)도 표시할지 */
   isStyleEnabled?: () => boolean;
+  /** 다듬기 설정 (긴 문장 기준, 끈 규칙, 내 표기 사전) */
+  getStyleOptions?: () => StyleOptions;
   /** 온라인 검사. 없으면 규칙 기반 검사만 한다. */
   checkOnline?: (maskedText: string) => Promise<OnlineSpellResult>;
   isOnlineEnabled?: () => boolean;
@@ -144,6 +146,7 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
       if (spelling || style) {
         const codeMark = state.schema.marks["code"];
         const useOnline = spelling && onlineOn();
+        const styleOptions = style ? (options.getStyleOptions?.() ?? {}) : {};
         const { empty, from: cursor } = state.selection;
         state.doc.descendants((node, pos) => {
           if (!node.isTextblock) return true;
@@ -158,7 +161,7 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
           }
           if (style) {
             // 맞춤법 항목과 겹치는 다듬기 항목은 빼되, 문장 전체를 가리키는 긴 문장 표시는 남긴다.
-            const extra = checkStyle(text).filter((s) => s.ruleId === "style:long" || !issues.some((i) => s.start < i.end && s.end > i.start));
+            const extra = checkStyle(text, styleOptions).filter((s) => s.ruleId === "style:long" || !issues.some((i) => s.start < i.end && s.end > i.start));
             issues = [...issues, ...extra].sort((a, b) => a.start - b.start || b.end - a.end);
           }
           for (const issue of issues) {

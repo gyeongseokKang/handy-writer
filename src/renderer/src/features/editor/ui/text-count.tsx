@@ -90,7 +90,7 @@ function StatsPopover({ total, goal, progress, onGoalChange }: { total: ReturnTy
   ];
 
   return (
-    <div role="dialog" aria-label="글자 수와 목표 분량" className="absolute bottom-full left-0 z-40 mb-2 w-72 space-y-3 rounded-lg border bg-card p-3 text-sm text-foreground shadow-lg">
+    <div role="dialog" aria-label="글자 수와 목표 분량" className="absolute bottom-full whitespace-normal left-0 z-40 mb-2 w-72 space-y-3 rounded-lg border bg-card p-3 text-sm text-foreground shadow-lg">
       <dl className="grid grid-cols-2 gap-x-3 gap-y-1">
         {rows.map(([k, v]) => (
           <div key={k} className="contents">

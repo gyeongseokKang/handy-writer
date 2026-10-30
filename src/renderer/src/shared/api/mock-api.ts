@@ -49,6 +49,7 @@ function toMeta(path: string): NoteMeta {
 
 export function createMockApi(): HandyApi {
   const files = new Map(Object.entries(SEED));
+  let styleDictionary = "";
   const listeners = new Set<(event: NotesChangedEvent) => void>();
   const aiListeners = new Set<(event: AiEvent) => void>();
   const logBook = createLogBook();
@@ -214,6 +215,12 @@ export function createMockApi(): HandyApi {
           query,
         ),
     },
+    styleDictionary: {
+      get: async () => styleDictionary,
+      set: async (content) => {
+        styleDictionary = content;
+      },
+    },
     rules: {
       get: async () => rules,
       set: async (content) => {
@@ -329,6 +336,7 @@ export function createMockApi(): HandyApi {
       },
     },
     onCloseTab: () => () => {},
+    app: { onBeforeClose: () => () => {}, closeReady: () => {} },
     onNotesChanged: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

@@ -13,6 +13,7 @@ import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
 import type { ProjectSource } from "../shared/draft-sources";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { copyNote, exportNote } from "./export";
+import { readStyleDictionary, writeStyleDictionary } from "./style-dictionary";
 import { createGitIpc } from "./git/ipc-git";
 import { NoteIndexer } from "./notes-index";
 import { NoteSearcher } from "./notes-search";
@@ -118,6 +119,8 @@ export async function registerIpc() {
   ipcMain.handle(IPC.templatesList, () => listTemplates(requireRoot()));
   ipcMain.handle(IPC.templatesSave, (_e, template: Template) => saveTemplate(requireRoot(), template));
   ipcMain.handle(IPC.templatesRemove, (_e, id: string) => removeTemplate(requireRoot(), String(id)));
+  ipcMain.handle(IPC.styleDictionaryGet, () => readStyleDictionary(requireRoot()));
+  ipcMain.handle(IPC.styleDictionarySet, (_e, content: string) => writeStyleDictionary(requireRoot(), String(content ?? "")));
   ipcMain.handle(IPC.spellCheck, (_e, text: string) => onlineSpeller.check(String(text ?? "")));
   ipcMain.handle(IPC.searchQuery, (_e, query: string) => searcher.search(requireRoot(), String(query ?? "")));
 

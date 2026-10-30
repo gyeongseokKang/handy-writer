@@ -120,6 +120,11 @@ export interface HandyApi {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
   };
+  /** 작업 폴더의 내 표기 사전 (.handy-writer/style.md) */
+  styleDictionary: {
+    get: () => Promise<string>;
+    set: (content: string) => Promise<void>;
+  };
   git: {
     status: () => Promise<GitStatus>;
     init: () => Promise<GitStatus>;
@@ -167,6 +172,12 @@ export interface HandyApi {
   onNotesChanged: (listener: (event: NotesChangedEvent) => void) => () => void;
   /** Ctrl/Cmd+W를 눌렀을 때 (창 대신 지금 탭을 닫는다) */
   onCloseTab: (listener: () => void) => () => void;
+  app: {
+    /** 창을 닫기 전에 불린다. 저장할 것을 모두 쓴 뒤 closeReady로 답해야 창이 닫힌다. */
+    onBeforeClose: (listener: () => void) => () => void;
+    /** 저장하지 못한 글의 경로를 알린다. 비어 있으면 바로 닫고, 있으면 닫을지 묻는다. */
+    closeReady: (unsavedPaths: string[]) => void;
+  };
 }
 
 export const IPC = {
@@ -210,6 +221,8 @@ export const IPC = {
   attachmentsReveal: "attachments:reveal",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
+  styleDictionaryGet: "style-dictionary:get",
+  styleDictionarySet: "style-dictionary:set",
   gitStatus: "git:status",
   gitInit: "git:init",
   gitSetRemote: "git:set-remote",
@@ -232,4 +245,6 @@ export const IPC = {
   sourcesPickProject: "sources:pick-project",
   notesChanged: "notes:changed",
   tabsCloseCurrent: "tabs:close-current",
+  appBeforeClose: "app:before-close",
+  appCloseReady: "app:close-ready",
 } as const;

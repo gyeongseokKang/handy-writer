@@ -29,6 +29,7 @@
     "test:e2e:code-block": "node e2e/code-block.e2e.mjs",
     "test:e2e:editor-tools": "node e2e/editor-tools.e2e.mjs",
     "test:e2e:footnote-tabs": "node e2e/footnote-tabs.e2e.mjs",
+    "test:e2e:keep-safe": "node e2e/keep-safe.e2e.mjs",
     "test:e2e:style-xref": "node e2e/style-xref.e2e.mjs",
     "test:e2e:history": "node e2e/history.e2e.mjs",
     "test:e2e:export": "node e2e/export.e2e.mjs",

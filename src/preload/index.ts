@@ -67,6 +67,10 @@ const api: HandyApi = {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
   },
+  styleDictionary: {
+    get: () => ipcRenderer.invoke(IPC.styleDictionaryGet),
+    set: (content) => ipcRenderer.invoke(IPC.styleDictionarySet, content),
+  },
   git: {
     status: () => ipcRenderer.invoke(IPC.gitStatus),
     init: () => ipcRenderer.invoke(IPC.gitInit),
@@ -121,6 +125,14 @@ const api: HandyApi = {
     const handler = () => listener();
     ipcRenderer.on(IPC.tabsCloseCurrent, handler);
     return () => ipcRenderer.removeListener(IPC.tabsCloseCurrent, handler);
+  },
+  app: {
+    onBeforeClose: (listener) => {
+      const handler = () => listener();
+      ipcRenderer.on(IPC.appBeforeClose, handler);
+      return () => ipcRenderer.removeListener(IPC.appBeforeClose, handler);
+    },
+    closeReady: (unsavedPaths) => ipcRenderer.send(IPC.appCloseReady, unsavedPaths),
   },
 };
 

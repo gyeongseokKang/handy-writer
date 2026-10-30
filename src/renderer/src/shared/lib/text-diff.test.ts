@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { collapseLines, diffVersions, isGap, type DiffLine } from "./history-diff";
+import { collapseLines, diffVersions, isGap, type DiffLine } from "./text-diff";
 
 const text = (line: DiffLine) => line.segments.map((s) => `${s.type === "added" ? "+" : s.type === "removed" ? "-" : ""}${s.text}`).join("|");
 
