@@ -1,7 +1,6 @@
 import { Hash, Loader2, Plus, Sparkles, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
@@ -11,11 +10,24 @@ import type { TagSuggestion } from "@shared/tag-suggest";
  * 태그 추가. 열면 이 글에 어울리는 태그를 작업 폴더의 기존 태그에서 자동으로 골라 보여주고(새 태그 후보 몇 개 포함),
  * 누르면 frontmatter의 tags에 더한다. 직접 입력할 수도 있다 (기존 태그 자동완성).
  */
-export function TagAdder({ path, currentTags }: { path: string; currentTags: string[] }) {
+interface TagAdderProps {
+  path: string;
+  currentTags: string[];
+  /** 추천에 쓸 지금 본문 (저장 전 내용 포함) */
+  getText: () => string;
+  /** 고른 태그를 글에 더한다 (frontmatter의 tags) */
+  onAdd: (tags: string[]) => void;
+  /** 접힌 버튼의 모양: chip(목록 사이), subtle(제목 아래처럼 눈에 덜 띄게) */
+  variant?: "chip" | "subtle";
+}
+
+export function TagAdder({ path, currentTags, getText, onAdd, variant = "chip" }: TagAdderProps) {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [suggestions, setSuggestions] = useState<TagSuggestion[] | null>(null);
   const [added, setAdded] = useState<string[]>([]);
+  const getTextRef = useRef(getText);
+  getTextRef.current = getText;
   const entries = useNoteIndexStore((s) => s.entries);
   const allTags = useMemo(() => [...new Set(entries.flatMap((e) => e.tags))].sort((a, b) => a.localeCompare(b, "ko")), [entries]);
 
@@ -30,7 +42,7 @@ export function TagAdder({ path, currentTags }: { path: string; currentTags: str
     if (!open) return;
     let cancelled = false;
     setSuggestions(null);
-    const text = useEditorBridge.getState().bridge?.getBodyText() ?? "";
+    const text = getTextRef.current();
     api.tags
       .suggest(path, text)
       .then((result) => !cancelled && setSuggestions(result))
@@ -44,7 +56,7 @@ export function TagAdder({ path, currentTags }: { path: string; currentTags: str
   const add = (tags: string[]) => {
     const fresh = tags.map((t) => t.trim().replace(/^#/, "")).filter((t) => t && !have.has(t.toLowerCase()));
     if (fresh.length === 0) return;
-    useEditorBridge.getState().bridge?.addTags(fresh);
+    onAdd(fresh);
     setAdded((prev) => [...prev, ...fresh]);
   };
 
@@ -53,7 +65,10 @@ export function TagAdder({ path, currentTags }: { path: string; currentTags: str
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex items-center gap-0.5 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+        className={cn(
+          "flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground",
+          variant === "chip" ? "border border-dashed" : "opacity-70 hover:opacity-100",
+        )}
       >
         <Plus className="size-3" /> 태그
       </button>

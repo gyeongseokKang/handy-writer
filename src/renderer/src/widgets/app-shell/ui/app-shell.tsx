@@ -1,6 +1,7 @@
 import { Download, FilePlus2, FolderOpen, PenLine, Sparkles } from "lucide-react";
 import { useEffect } from "react";
 
+import { useCommandStore } from "@/entities/command/model/use-command-store";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
@@ -11,6 +12,7 @@ import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { ExtractDialog } from "@/features/editor/ui/extract-dialog";
+import { StyleSettings } from "@/features/editor/ui/style-settings";
 import { HistoryView } from "@/features/history/ui/history-view";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
@@ -22,7 +24,14 @@ import { Button } from "@/shared/ui/button";
 import { TabBar, toggleSplit } from "@/features/note-tabs/ui/tab-bar";
 
 import { EditorArea } from "./editor-area";
+import { buildCommands } from "../model/commands";
+import { OnboardingDialog, wasOnboarded } from "./onboarding-dialog";
 import { RightPanel } from "./right-panel";
+import { SettingsDialog } from "./settings-dialog";
+import { ShortcutsDialog } from "./shortcuts-dialog";
+
+/** 이보다 좁은 창에서는 오른쪽 패널을 저절로 접는다 */
+const NARROW_WINDOW = 1000;
 
 function WelcomeScreen() {
   const chooseFolder = useWorkspaceStore((state) => state.chooseFolder);
@@ -79,6 +88,10 @@ export function AppShell() {
   const draftOpen = useUiStore((state) => state.draftOpen);
   const historyTarget = useUiStore((state) => state.historyTarget);
   const extract = useUiStore((state) => state.extract);
+  const settingsOpen = useUiStore((state) => state.settingsOpen);
+  const shortcutsOpen = useUiStore((state) => state.shortcutsOpen);
+  const styleSettingsOpen = useUiStore((state) => state.styleSettingsOpen);
+  const onboardingOpen = useUiStore((state) => state.onboardingOpen);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
@@ -136,6 +149,35 @@ export function AppShell() {
     };
   }, []);
 
+  // 명령 팔레트와 단축키 안내가 쓰는 명령을 등록한다.
+  useEffect(() => useCommandStore.getState().setCommands(buildCommands()), []);
+
+  // 앱 단축키: Cmd/Ctrl+/ 단축키 안내, Cmd/Ctrl+, 설정, Cmd/Ctrl+Shift+P 명령, Cmd/Ctrl+Shift+T 닫은 탭 다시 열기
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || !useWorkspaceStore.getState().root) return;
+      const key = event.key.toLowerCase();
+      const ui = useUiStore.getState();
+      let handled = true;
+      if (!event.shiftKey && key === "/") ui.setShortcutsOpen(!ui.shortcutsOpen);
+      else if (!event.shiftKey && key === ",") ui.setSettingsOpen(true);
+      else if (event.shiftKey && key === "p") ui.setPaletteOpen(true, ">");
+      else if (event.shiftKey && key === "t") void useWorkspaceStore.getState().reopenClosedTab();
+      else handled = false;
+      if (handled) event.preventDefault();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
+  // 창이 좁으면 오른쪽 패널을 저절로 접고, 다시 넓어지면 펼친다.
+  useEffect(() => {
+    const onResize = () => useUiStore.getState().setNarrow(window.innerWidth < NARROW_WINDOW);
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   // Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 글 검색을 연다. 에디터가 먼저 키를 가져가지 못하게 캡처 단계에서 받는다.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -149,9 +191,11 @@ export function AppShell() {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
-  // 작업 폴더마다 내 표기 사전(.handy-writer/style.md)을 읽는다.
+  // 작업 폴더마다 내 표기 사전(.handy-writer/style.md)을 읽는다. 처음 실행이면 시작 안내를 띄운다.
   useEffect(() => {
-    if (root) void useSpellStore.getState().loadDictionary();
+    if (!root) return;
+    void useSpellStore.getState().loadDictionary();
+    if (!wasOnboarded()) useUiStore.getState().setOnboardingOpen(true);
   }, [root]);
 
   if (!ready) return null;
@@ -183,6 +227,10 @@ export function AppShell() {
       <TemplateDialogs />
       {draftOpen && <DraftDialog />}
       {extract && <ExtractDialog mode={extract.mode} />}
+      {settingsOpen && <SettingsDialog />}
+      {shortcutsOpen && <ShortcutsDialog />}
+      {styleSettingsOpen && <StyleSettings onClose={() => useUiStore.getState().setStyleSettingsOpen(false)} />}
+      {onboardingOpen && <OnboardingDialog />}
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );

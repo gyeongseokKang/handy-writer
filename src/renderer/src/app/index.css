@@ -389,3 +389,7 @@
 .note-prose .wikilink.xref .wikilink-text { display: none; }
 .note-prose .wikilink.xref::before { content: var(--xref); }
 .note-prose .wikilink.xref-missing::before { color: var(--destructive); }
+
+/* 본문 첫 제목이 글 제목과 같으면 작고 흐리게 (파일은 그대로) */
+.note-prose > h1.title-echo:first-child { font-size: 1rem; font-weight: 600; color: var(--muted-foreground); margin-top: 0; }
+.note-prose > h1.title-echo:first-child::before { content: "# "; opacity: 0.5; }

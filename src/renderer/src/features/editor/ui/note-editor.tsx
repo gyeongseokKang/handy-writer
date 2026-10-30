@@ -32,6 +32,7 @@ import { FindBar } from "./find-bar";
 import { TableMenu } from "./table-menu";
 import { TextCount } from "./text-count";
 import { ExportMenu } from "./export-menu";
+import { NoteTags } from "./note-tags";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
@@ -83,6 +84,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   const dirtyRef = useRef(false);
   const timerRef = useRef<number | undefined>(undefined);
 
+  const nameRef = useRef(name);
+  nameRef.current = name;
   const [findOpen, setFindOpen] = useState(false);
   const [spellTarget, setSpellTarget] = useState<SpellTarget | null>(null);
   const editorWidth = useUiStore((s) => s.editorWidth);
@@ -122,6 +125,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         // `#`으로 시작하는 링크는 이 글 안을 가리킨다 (그림·표 참조는 따로 표시한다).
         isResolved: (target) => target.startsWith("#") || useNoteIndexStore.getState().resolve(target) !== null,
         onTagClick: (tag) => useUiStore.getState().showTag(tag),
+        getTitle: () => nameRef.current,
       }),
     [],
   );
@@ -253,8 +257,6 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   }, [editor, path]);
 
   // AI 패널이 선택한 글을 읽고 결과를 적용할 수 있게 에디터를 등록
-  const nameRef = useRef(name);
-  nameRef.current = name;
   useEffect(() => {
     if (!editor || !isMain) return;
     const bridge = createEditorBridge(editor, () => nameRef.current, { addTags: (tags) => addTagsRef.current(tags) });
@@ -346,6 +348,11 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     setSpellTarget(null);
   };
 
+  // 글 이름을 바꾸면 본문 첫 제목이 글 제목과 같은지 다시 본다.
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta("refreshTitleEcho", true));
+  }, [editor, name]);
+
   // 색인이 바뀌면(글이 생기거나 지워지면) 없는 글로 가는 링크 표시를 다시 계산
   const indexEntries = useNoteIndexStore((state) => state.entries);
   useEffect(() => {
@@ -355,6 +362,15 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   // 글을 바꾸거나 닫기 전에 저장 대기 중인 내용을 쓸 수 있게 등록
   useEffect(() => registerFlusher(path, () => flushRef.current(), () => dirtyRef.current || statusRef.current === "error" || statusRef.current === "conflict"), [path]);
   useEffect(() => () => window.clearTimeout(retryRef.current.timer), []);
+
+  // 명령 팔레트에서 "글 안에서 찾기"를 고르면 단축키를 받을 에디터가 찾기를 연다.
+  const editorRequest = useUiStore((state) => state.editorRequest);
+  const handledRequest = useRef(useUiStore.getState().editorRequest?.seq ?? 0);
+  useEffect(() => {
+    if (!editorRequest || editorRequest.seq === handledRequest.current || editorRequest.kind !== "find" || !isShortcutTarget()) return;
+    handledRequest.current = editorRequest.seq;
+    setFindOpen(true);
+  }, [editorRequest]);
 
   // Cmd/Ctrl+F로 글 안에서 찾기를 연다. 이미 열려 있으면 찾는 칸으로 포커스를 돌린다.
   useEffect(() => {
@@ -438,6 +454,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         <div ref={columnRef} data-note-column className="relative mx-auto w-full px-12 pt-14 pb-40" style={{ maxWidth: editorWidth }}>
           <EditorWidthHandles columnRef={columnRef} />
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
+          <NoteTags path={path} frontmatter={frontmatter} getText={() => editor.getText({ blockSeparator: "\n\n" })} onAdd={(tags) => addTagsRef.current(tags)} />
           <div className="relative mt-6">
             <DragHandle editor={editor}>
               <div className="block-handle" title="드래그해서 옮기기">

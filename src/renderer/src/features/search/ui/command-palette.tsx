@@ -1,12 +1,14 @@
 import type { MatchRange, SearchResult } from "@shared/search";
 import { splitTerms } from "@shared/search";
-import { FileText, Folder, Hash, Search } from "lucide-react";
+import { ChevronRight, FileText, Folder, Hash, Search, TerminalSquare } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
+import { useCommandStore, type Command } from "@/entities/command/model/use-command-store";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
+import { matchesCommand, shortcutLabel } from "@/shared/lib/shortcut";
 import { cn } from "@/shared/lib/utils";
 
 const SEARCH_DELAY_MS = 120;
@@ -29,11 +31,16 @@ function Highlighted({ text, ranges }: { text: string; ranges: MatchRange[] }): 
   return parts;
 }
 
-/** Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 여는 글 검색. 제목, 태그, 본문을 한꺼번에 찾는다. */
+/**
+ * Cmd/Ctrl+K 또는 Cmd/Ctrl+P로 여는 글 검색. 제목, 태그, 본문을 한꺼번에 찾는다.
+ * `>`로 시작하면 명령을 찾아 실행한다 (Cmd/Ctrl+Shift+P로 바로 열 수 있다).
+ */
 export function CommandPalette() {
   const open = useUiStore((s) => s.paletteOpen);
   const setOpen = useUiStore((s) => s.setPaletteOpen);
   const notes = useWorkspaceStore((s) => s.notes);
+  const paletteInitial = useUiStore((s) => s.paletteInitial);
+  const commands = useCommandStore((s) => s.commands);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [selected, setSelected] = useState(0);
@@ -45,6 +52,7 @@ export function CommandPalette() {
   // 입력값은 열 때가 아니라 닫을 때 비운다. 열자마자 빨리 입력한 글자가 지워지지 않게 한다.
   useEffect(() => {
     if (open) {
+      if (paletteInitial) setQuery(paletteInitial);
       inputRef.current?.focus();
     } else {
       setQuery("");
@@ -62,8 +70,21 @@ export function CommandPalette() {
     [notes],
   );
 
+  const commandMode = query.startsWith(">");
+  const commandQuery = query.slice(1).trim();
+  const matchedCommands = useMemo(
+    () => {
+      if (!commandMode) return [];
+      const matched = commands.filter((c) => matchesCommand(commandQuery, c.title, c.group, ...(c.keywords ?? [])));
+      // 이름에 들어 있는 명령을 묶음·뜻으로만 맞은 명령보다 앞에 둔다.
+      const inTitle = (c: Command) => (matchesCommand(commandQuery, c.title) ? 0 : 1);
+      return matched.map((c, i) => ({ c, i })).sort((a, b) => inTitle(a.c) - inTitle(b.c) || a.i - b.i).map(({ c }) => c);
+    },
+    [commandMode, commandQuery, commands],
+  );
+
   useEffect(() => {
-    if (!open) return;
+    if (!open || commandMode) return;
     if (!query.trim()) {
       requestRef.current++;
       setResults(recent);
@@ -84,7 +105,9 @@ export function CommandPalette() {
         .catch(() => request === requestRef.current && setResults([]));
     }, SEARCH_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [open, query, recent]);
+  }, [open, query, recent, commandMode]);
+
+  useEffect(() => setSelected(0), [commandQuery]);
 
   if (!open) return null;
 
@@ -100,6 +123,14 @@ export function CommandPalette() {
     if (term && alreadyOpen) useEditorBridge.getState().bridge?.findAndSelect(term);
   };
 
+  const runCommand = (command: Command | undefined) => {
+    if (!command || command.enabled?.() === false) return;
+    close();
+    command.run();
+  };
+
+  const count = commandMode ? matchedCommands.length : results.length;
+
   const onKeyDown = (event: React.KeyboardEvent) => {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Escape") {
@@ -107,13 +138,14 @@ export function CommandPalette() {
       close();
     } else if (event.key === "ArrowDown") {
       event.preventDefault();
-      setSelected((i) => Math.min(i + 1, Math.max(results.length - 1, 0)));
+      setSelected((i) => Math.min(i + 1, Math.max(count - 1, 0)));
     } else if (event.key === "ArrowUp") {
       event.preventDefault();
       setSelected((i) => Math.max(i - 1, 0));
     } else if (event.key === "Enter") {
       event.preventDefault();
-      void choose(results[selected]);
+      if (commandMode) runCommand(matchedCommands[selected]);
+      else void choose(results[selected]);
     }
   };
 
@@ -122,23 +154,47 @@ export function CommandPalette() {
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="글 검색"
+        aria-label={commandMode ? "명령 실행" : "글 검색"}
         className="flex max-h-[70vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={onKeyDown}
       >
         <div className="flex items-center gap-3 border-b px-4">
-          <Search className="size-4 shrink-0 text-muted-foreground" />
+          {commandMode ? <TerminalSquare className="size-4 shrink-0 text-muted-foreground" /> : <Search className="size-4 shrink-0 text-muted-foreground" />}
           <input
             ref={inputRef}
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="제목, 태그, 본문에서 찾기"
+            placeholder="제목, 태그, 본문에서 찾기 · >를 입력하면 명령"
             aria-label="검색어"
             className="h-12 w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
           />
         </div>
 
+        {commandMode ? (
+          <ul role="listbox" aria-label="명령" className="min-h-0 flex-1 overflow-y-auto p-1.5">
+            {matchedCommands.length === 0 && <li className="px-3 py-8 text-center text-sm text-muted-foreground">일치하는 명령이 없어요</li>}
+            {matchedCommands.map((command, index) => {
+              const disabled = command.enabled?.() === false;
+              return (
+                <li key={command.id} role="option" aria-selected={index === selected} aria-disabled={disabled || undefined}>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    onMouseEnter={() => setSelected(index)}
+                    onClick={() => runCommand(command)}
+                    className={cn("flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm disabled:opacity-40", index === selected && "bg-accent")}
+                  >
+                    <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{command.title}</span>
+                    <span className="text-xs text-muted-foreground">{command.group}</span>
+                    {command.shortcut && <kbd className="ml-auto shrink-0 rounded border bg-muted px-1.5 font-sans text-[11px] text-muted-foreground">{shortcutLabel(command.shortcut)}</kbd>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
         <ul role="listbox" aria-label="검색 결과" className="min-h-0 flex-1 overflow-y-auto p-1.5">
           {results.length === 0 && (
             <li className="px-3 py-8 text-center text-sm text-muted-foreground">
@@ -180,12 +236,14 @@ export function CommandPalette() {
             </li>
           ))}
         </ul>
+        )}
 
         <div className="flex gap-4 border-t px-4 py-2 text-xs text-muted-foreground">
           <span>↑↓ 이동</span>
-          <span>Enter 열기</span>
+          <span>Enter {commandMode ? "실행" : "열기"}</span>
           <span>Esc 닫기</span>
-          <span className="ml-auto">{!query.trim() ? "최근 글" : resultsQuery === query ? `${results.length}개` : "검색 중…"}</span>
+          {!commandMode && !query && <span>&gt; 명령 · {shortcutLabel("Mod+/")} 단축키</span>}
+          <span className="ml-auto">{commandMode ? `명령 ${matchedCommands.length}개` : !query.trim() ? "최근 글" : resultsQuery === query ? `${results.length}개` : "검색 중…"}</span>
         </div>
       </div>
     </div>

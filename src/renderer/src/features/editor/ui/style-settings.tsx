@@ -37,7 +37,12 @@ export function StyleSettings({ onClose }: { onClose: () => void }) {
         role="dialog"
         aria-modal="true"
         aria-label="문장 다듬기 설정"
-        className="w-full max-w-lg space-y-4 rounded-xl border bg-card px-6 py-5 text-sm shadow-2xl"
+        // 다른 창(설정)에서 이어서 열려도 Esc가 먹도록 창에 포커스를 둔다.
+        tabIndex={-1}
+        ref={(el) => {
+          if (el && !el.contains(document.activeElement)) el.focus();
+        }}
+        className="w-full max-w-lg outline-none space-y-4 rounded-xl border bg-card px-6 py-5 text-sm shadow-2xl"
         onMouseDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.key === "Escape" && onClose()}
       >

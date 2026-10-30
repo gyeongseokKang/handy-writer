@@ -6,7 +6,8 @@ import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-st
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 
-import { TagAdder } from "./tag-adder";
+import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
+import { TagAdder } from "@/entities/note/ui/tag-adder";
 
 function Section({ title, count, children }: { title: string; count?: number; children: ReactNode }) {
   return (
@@ -52,7 +53,12 @@ export function LinksPanel() {
             </button>
           ))}
           {entry && entry.tags.length === 0 && <span className="text-sm text-muted-foreground">이 글에는 태그가 없어요</span>}
-          <TagAdder path={activePath} currentTags={entry?.tags ?? []} />
+          <TagAdder
+            path={activePath}
+            currentTags={entry?.tags ?? []}
+            getText={() => useEditorBridge.getState().bridge?.getBodyText() ?? ""}
+            onAdd={(tags) => useEditorBridge.getState().bridge?.addTags(tags)}
+          />
         </div>
       </Section>
 
