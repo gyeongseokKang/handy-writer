@@ -1,4 +1,6 @@
 import type { AiEvent } from "@shared/ai";
+import type { Manuscripts } from "@shared/manuscript";
+import { countChars, dateKey, writtenToday, type TodayFiles } from "@shared/writing-stats";
 import { buildHtmlDocument, exportFileName } from "@shared/export";
 import { createLogBook, type LogEntry } from "@shared/log";
 import { DEFAULT_GIT_SETTINGS, type GitEvent, type GitSettings, type GitStatus } from "@shared/git";
@@ -51,6 +53,9 @@ function toMeta(path: string): NoteMeta {
 export function createMockApi(): HandyApi {
   const files = new Map(Object.entries(SEED));
   let styleDictionary = "";
+  let manuscripts: Manuscripts = {};
+  const statsListeners = new Set<(today: number) => void>();
+  const todayFiles: TodayFiles = { date: dateKey(new Date()), files: {} };
   const listeners = new Set<(event: NotesChangedEvent) => void>();
   const aiListeners = new Set<(event: AiEvent) => void>();
   const logBook = createLogBook();
@@ -91,9 +96,15 @@ export function createMockApi(): HandyApi {
         if (content === undefined) throw new Error(`없는 글이에요: ${path}`);
         return content;
       },
-      write: async (path, content) => {
+      write: async (path, content, options) => {
+        const before = files.get(path);
         files.set(path, content);
         emit(path);
+        const start = before === undefined ? 0 : countChars(before);
+        const file = (todayFiles.files[path] ??= { base: start, now: start });
+        if (options?.countWriting === false) file.base += countChars(content) - file.now;
+        file.now = countChars(content);
+        for (const listener of statsListeners) listener(writtenToday(todayFiles));
       },
       create: async (folder, title) => {
         const prefix = folder ? `${folder}/` : "";
@@ -227,6 +238,22 @@ export function createMockApi(): HandyApi {
           { path, text },
           [...files.entries()].map(([p, content]) => ({ path: p, name: toMeta(p).name, body: splitFrontmatter(content).body, tags: parseNote(content).tags })),
         ),
+    },
+    writingStats: {
+      get: async () => ({ today: todayFiles.date, days: { [todayFiles.date]: writtenToday(todayFiles) } }),
+      onChange: (listener) => {
+        statsListeners.add(listener);
+        return () => statsListeners.delete(listener);
+      },
+    },
+    manuscripts: {
+      get: async () => manuscripts,
+      set: async (folder, config) => {
+        manuscripts = { ...manuscripts };
+        if (config) manuscripts[folder] = config;
+        else delete manuscripts[folder];
+        return manuscripts;
+      },
     },
     styleDictionary: {
       get: async () => styleDictionary,

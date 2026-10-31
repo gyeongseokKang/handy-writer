@@ -9,6 +9,8 @@ import type { Template } from "./templates";
 import type { SearchResult } from "./search";
 import type { ExportRequest, ExportResult } from "./export";
 import type { ExtractResult } from "./extract";
+import type { ManuscriptConfig, Manuscripts } from "./manuscript";
+import type { WritingStats } from "./writing-stats";
 import type { GitEvent, GitOpResult, GitSettings, GitStatus, NoteHistory } from "./git";
 
 export interface NoteMeta {
@@ -61,7 +63,8 @@ export interface HandyApi {
   notes: {
     list: () => Promise<NoteMeta[]>;
     read: (path: string) => Promise<string>;
-    write: (path: string, content: string) => Promise<void>;
+    /** countWriting이 false면 오늘 쓴 양에 넣지 않는다 (가져온 글, 되돌린 버전 등) */
+    write: (path: string, content: string, options?: { countWriting?: boolean }) => Promise<void>;
     create: (folder: string, title?: string) => Promise<NoteMeta>;
     rename: (path: string, newName: string) => Promise<RenameResult>;
     remove: (path: string) => Promise<void>;
@@ -129,6 +132,18 @@ export interface HandyApi {
   tags: {
     /** 이 글에 붙일 만한 태그를 작업 폴더의 기존 태그에서 고른다. text는 지금 에디터의 본문 */
     suggest: (path: string, text: string) => Promise<TagSuggestion[]>;
+  };
+  /** 하루에 쓴 글자 수 (작업 폴더마다, 이 컴퓨터에만 기록) */
+  writingStats: {
+    get: () => Promise<WritingStats>;
+    /** 글을 저장해서 오늘 쓴 양이 바뀌면 불린다. */
+    onChange: (listener: (today: number) => void) => () => void;
+  };
+  /** 원고(폴더를 장으로 묶은 책) 설정 (.handy-writer/manuscripts.json) */
+  manuscripts: {
+    get: () => Promise<Manuscripts>;
+    /** 원고 하나의 설정을 바꾸고 전체를 돌려준다. null이면 지운다. */
+    set: (folder: string, config: ManuscriptConfig | null) => Promise<Manuscripts>;
   };
   /** 작업 폴더의 내 표기 사전 (.handy-writer/style.md) */
   styleDictionary: {
@@ -233,6 +248,10 @@ export const IPC = {
   rulesSet: "rules:set",
   extractFromUrl: "extract:from-url",
   tagsSuggest: "tags:suggest",
+  writingStatsGet: "writing-stats:get",
+  writingStatsChanged: "writing-stats:changed",
+  manuscriptsGet: "manuscripts:get",
+  manuscriptsSet: "manuscripts:set",
   styleDictionaryGet: "style-dictionary:get",
   styleDictionarySet: "style-dictionary:set",
   gitStatus: "git:status",

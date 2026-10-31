@@ -26,6 +26,7 @@ import { TabBar, toggleSplit } from "@/features/note-tabs/ui/tab-bar";
 import { EditorArea } from "./editor-area";
 import { buildCommands } from "../model/commands";
 import { OnboardingDialog, wasOnboarded } from "./onboarding-dialog";
+import { ManuscriptDialog } from "@/features/manuscript/ui/manuscript-dialog";
 import { RightPanel } from "./right-panel";
 import { SettingsDialog } from "./settings-dialog";
 import { ShortcutsDialog } from "./shortcuts-dialog";
@@ -92,6 +93,7 @@ export function AppShell() {
   const shortcutsOpen = useUiStore((state) => state.shortcutsOpen);
   const styleSettingsOpen = useUiStore((state) => state.styleSettingsOpen);
   const onboardingOpen = useUiStore((state) => state.onboardingOpen);
+  const manuscriptFolder = useUiStore((state) => state.manuscriptFolder);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
@@ -231,6 +233,7 @@ export function AppShell() {
       {shortcutsOpen && <ShortcutsDialog />}
       {styleSettingsOpen && <StyleSettings onClose={() => useUiStore.getState().setStyleSettingsOpen(false)} />}
       {onboardingOpen && <OnboardingDialog />}
+      {manuscriptFolder !== null && <ManuscriptDialog key={manuscriptFolder} folder={manuscriptFolder} />}
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );

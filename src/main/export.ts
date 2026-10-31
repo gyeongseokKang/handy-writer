@@ -1,8 +1,34 @@
-import { BrowserWindow, clipboard, ClipboardItem, dialog } from "electron";
+import { BrowserWindow, clipboard, ClipboardItem, dialog, nativeImage, net } from "electron";
 import { readFile, writeFile } from "node:fs/promises";
 
-import { buildHtmlDocument, EXPORT_FORMATS, exportFileName, inlineAssets, type ExportRequest, type ExportResult } from "../shared/export";
+import { ASSET_SCHEME } from "../shared/attachments";
+import { isDocModel } from "../shared/docx-model";
+import { assetPathOf, buildHtmlDocument, EXPORT_FORMATS, exportFileName, inlineAssets, type ExportRequest, type ExportResult } from "../shared/export";
 import { mimeOf, resolveAssetFile } from "./attachments";
+import { buildDocx, imageTypeOf, type ImageLoader } from "./docx";
+
+/** 원격 그림을 받을 때 기다리는 시간과 최대 크기 */
+const REMOTE_IMAGE_TIMEOUT_MS = 15_000;
+const MAX_IMAGE_BYTES = 30 * 1024 * 1024;
+
+/** Word에 넣을 그림을 읽는다. Word가 못 받는 형식(webp, svg 등)은 PNG로 바꿔 본다. */
+function docxImageLoader(root: string): ImageLoader {
+  return async (src) => {
+    let data: Uint8Array;
+    if (src.startsWith(`${ASSET_SCHEME}://`)) data = await readFile(resolveAssetFile(root, assetPathOf(src)));
+    else if (src.startsWith("data:")) data = Buffer.from(src.slice(src.indexOf(",") + 1), "base64");
+    else if (/^https?:\/\//i.test(src)) {
+      const response = await net.fetch(src, { signal: AbortSignal.timeout(REMOTE_IMAGE_TIMEOUT_MS) });
+      if (!response.ok) return null;
+      data = new Uint8Array(await response.arrayBuffer());
+    } else return null;
+    if (data.byteLength > MAX_IMAGE_BYTES) return null;
+    const type = imageTypeOf(data);
+    if (type) return { data, type };
+    const image = nativeImage.createFromBuffer(Buffer.from(data));
+    return image.isEmpty() ? null : { data: image.toPNG(), type: "png" };
+  };
+}
 
 /** 본문 HTML을 보이지 않는 창에 그려서 PDF로 뽑는다. 스크립트는 켜지 않는다. */
 async function renderPdf(html: string) {
@@ -43,6 +69,13 @@ export async function exportNote(root: string, parent: BrowserWindow | null, req
 
   if (format === "md") {
     await writeFile(picked.filePath, request.content, "utf8");
+    return { path: picked.filePath };
+  }
+
+  if (format === "docx") {
+    const model: unknown = JSON.parse(request.content);
+    if (!isDocModel(model)) throw new Error("Word로 바꿀 내용을 읽지 못했어요.");
+    await writeFile(picked.filePath, await buildDocx(model, docxImageLoader(root)));
     return { path: picked.filePath };
   }
 
