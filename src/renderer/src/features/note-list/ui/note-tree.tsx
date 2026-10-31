@@ -7,6 +7,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { cn } from "@/shared/lib/utils";
 
 import { useTreeUi, type TreeTarget } from "../model/use-tree-ui";
+import { Favorites } from "./favorites";
 import { MoveDialog } from "./move-dialog";
 import { TreeMenu } from "./tree-menu";
 
@@ -152,6 +153,7 @@ function FolderRow({ folder, depth, forceOpen }: { folder: FolderNode; depth: nu
         <RenameInput initial={folder.name} label={`${folder.name} 폴더 새 이름`} depth={depth} onSubmit={(name) => useWorkspaceStore.getState().renameFolder(folder.path, name)} />
       ) : (
         <div
+          data-folder-path={folder.path}
           onContextMenu={onContextMenu({ kind: "folder", path: folder.path, name: folder.name })}
           className="group flex items-center rounded-md pr-1 text-sm text-muted-foreground hover:bg-accent/70"
         >
@@ -215,6 +217,7 @@ export function NoteTree() {
   return (
     // 빈 곳을 우클릭하면 맨 위에 새 글·새 폴더를 만드는 메뉴가 뜬다.
     <div className="min-h-full pb-4" onContextMenu={onContextMenu({ kind: "root" })}>
+      {!needle && <Favorites />}
       {tree.folders.length === 0 && tree.notes.length === 0 ? (
         <p className="px-3 py-6 text-center text-sm text-muted-foreground">{needle ? "검색 결과가 없어요" : "아직 글이 없어요"}</p>
       ) : (

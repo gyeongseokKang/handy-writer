@@ -18,7 +18,7 @@ function readEditorWidth() {
 }
 
 /** 명령 팔레트가 지금 에디터에 시키는 일 */
-export type EditorRequestKind = "find" | "copy-rich" | "export-md" | "export-html" | "export-pdf";
+export type EditorRequestKind = "find" | "copy-rich" | "export-md" | "export-html" | "export-pdf" | "export-docx";
 
 type MainView = "editor" | "graph";
 type SidebarView = "notes" | "tags";
@@ -38,6 +38,10 @@ interface UiState {
   shortcutsOpen: boolean;
   styleSettingsOpen: boolean;
   onboardingOpen: boolean;
+  /** 원고 창에 띄운 폴더 (""은 작업 폴더 전체, null이면 닫힘) */
+  manuscriptFolder: string | null;
+  /** 오늘 쓴 양 창 */
+  statsOpen: boolean;
   /** 사이드바 옆의 목차 패널 */
   outlineOpen: boolean;
   /** AI 초안 만들기 창 */
@@ -72,6 +76,8 @@ interface UiState {
   setShortcutsOpen: (open: boolean) => void;
   setStyleSettingsOpen: (open: boolean) => void;
   setOnboardingOpen: (open: boolean) => void;
+  setManuscriptFolder: (folder: string | null) => void;
+  setStatsOpen: (open: boolean) => void;
   toggleOutline: () => void;
   setDraftOpen: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
@@ -97,6 +103,8 @@ export const useUiStore = create<UiState>((set) => ({
   shortcutsOpen: false,
   styleSettingsOpen: false,
   onboardingOpen: false,
+  manuscriptFolder: null,
+  statsOpen: false,
   outlineOpen: true,
   draftOpen: false,
   rightTab: "links",
@@ -125,6 +133,8 @@ export const useUiStore = create<UiState>((set) => ({
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
   setStyleSettingsOpen: (styleSettingsOpen) => set({ styleSettingsOpen }),
   setOnboardingOpen: (onboardingOpen) => set({ onboardingOpen }),
+  setManuscriptFolder: (manuscriptFolder) => set({ manuscriptFolder }),
+  setStatsOpen: (statsOpen) => set({ statsOpen }),
   toggleOutline: () => set((state) => ({ outlineOpen: !state.outlineOpen })),
   setDraftOpen: (draftOpen) => set({ draftOpen }),
   setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true, gitOpen: false }),

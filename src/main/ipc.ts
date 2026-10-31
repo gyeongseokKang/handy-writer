@@ -14,6 +14,9 @@ import type { ProjectSource } from "../shared/draft-sources";
 import { importFiles, listAttachments, saveAttachment } from "./attachments";
 import { copyNote, exportNote } from "./export";
 import { readStyleDictionary, writeStyleDictionary } from "./style-dictionary";
+import { readManuscripts, remapManuscriptFile, setManuscript } from "./manuscripts";
+import { WritingStatsStore } from "./writing-stats";
+import type { ManuscriptConfig } from "../shared/manuscript";
 import { extractFromUrl } from "./extract";
 import { suggestTags } from "../shared/tag-suggest";
 import { createGitIpc } from "./git/ipc-git";
@@ -87,11 +90,29 @@ export async function registerIpc() {
 
   ipcMain.handle(IPC.notesList, () => listNotes(requireRoot()));
   ipcMain.handle(IPC.notesRead, (_e, path: string) => readNote(requireRoot(), path));
-  ipcMain.handle(IPC.notesWrite, (_e, path: string, content: string) => writeNote(requireRoot(), path, content));
+  const stats = new WritingStatsStore(join(app.getPath("userData"), "writing-stats.json"));
+  app.on("before-quit", () => void stats.flush());
+  ipcMain.handle(IPC.notesWrite, async (_e, path: string, content: string, options?: { countWriting?: boolean }) => {
+    const root = requireRoot();
+    const before = await readNote(root, path).catch(() => null);
+    await writeNote(root, path, content);
+    // 쓴 양을 못 세도 저장은 성공이다.
+    try {
+      const today = await stats.record(root, path, before, content, options?.countWriting !== false);
+      for (const win of BrowserWindow.getAllWindows()) win.webContents.send(IPC.writingStatsChanged, today);
+    } catch {
+      // 무시
+    }
+  });
+  ipcMain.handle(IPC.writingStatsGet, () => stats.get(requireRoot()));
+  ipcMain.handle(IPC.manuscriptsGet, () => readManuscripts(requireRoot()));
+  ipcMain.handle(IPC.manuscriptsSet, (_e, folder: string, config: ManuscriptConfig | null) => setManuscript(requireRoot(), String(folder ?? ""), config));
   ipcMain.handle(IPC.notesCreate, (_e, folder: string, title?: string) => createNote(requireRoot(), folder, title));
-  ipcMain.handle(IPC.notesRename, (_e, path: string, newName: string) =>
-    indexer.renameWithLinks(requireRoot(), path, newName),
-  );
+  ipcMain.handle(IPC.notesRename, async (_e, path: string, newName: string) => {
+    const result = await indexer.renameWithLinks(requireRoot(), path, newName);
+    await remapManuscriptFile(requireRoot(), (p) => (p === path ? result.meta.path : p));
+    return result;
+  });
   ipcMain.handle(IPC.exportNote, (event, request: ExportRequest) =>
     exportNote(requireRoot(), BrowserWindow.fromWebContents(event.sender), {
       name: String(request?.name ?? ""),
@@ -151,12 +172,21 @@ export async function registerIpc() {
   ipcMain.handle(IPC.notesRemove, (_e, path: string) => shell.trashItem(resolveInside(requireRoot(), path)));
   ipcMain.handle(IPC.notesFolders, () => listFolders(requireRoot()));
   ipcMain.handle(IPC.notesCreateFolder, (_e, parent: string, name?: string) => createFolder(requireRoot(), String(parent ?? ""), name === undefined ? undefined : String(name)));
-  ipcMain.handle(IPC.notesRenameFolder, (_e, path: string, newName: string) => renameFolder(requireRoot(), String(path), String(newName)));
+  ipcMain.handle(IPC.notesRenameFolder, async (_e, path: string, newName: string) => {
+    const from = String(path);
+    const next = await renameFolder(requireRoot(), from, String(newName));
+    await remapManuscriptFile(requireRoot(), (p) => (p === from || p.startsWith(`${from}/`) ? next + p.slice(from.length) : p));
+    return next;
+  });
   ipcMain.handle(IPC.notesRemoveFolder, (_e, path: string) => {
     if (!path) throw new Error("작업 폴더 자체는 지울 수 없어요.");
     return shell.trashItem(resolveInside(requireRoot(), String(path)));
   });
-  ipcMain.handle(IPC.notesMove, (_e, path: string, folder: string) => moveNote(requireRoot(), String(path), String(folder ?? "")));
+  ipcMain.handle(IPC.notesMove, async (_e, path: string, folder: string) => {
+    const meta = await moveNote(requireRoot(), String(path), String(folder ?? ""));
+    await remapManuscriptFile(requireRoot(), (p) => (p === path ? meta.path : p));
+    return meta;
+  });
   ipcMain.handle(IPC.notesDuplicate, (_e, path: string) => duplicateNote(requireRoot(), String(path)));
   ipcMain.handle(IPC.notesReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));

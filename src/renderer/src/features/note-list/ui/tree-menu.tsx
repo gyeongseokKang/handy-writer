@@ -1,6 +1,7 @@
-import { Columns2, Copy, FilePlus2, History, PanelTop, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, Columns2, Copy, FilePlus2, History, PanelTop, FolderInput, FolderOpen, FolderPlus, Link2, Pencil, Star, StarOff, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { useFavoritesStore } from "@/entities/note/model/use-favorites-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
@@ -20,6 +21,12 @@ async function newFolder(parent: string) {
   if (path) useTreeUi.getState().startRename("folder", path);
 }
 
+function favoriteItem(kind: "note" | "folder", path: string): MenuItem {
+  const favorites = useFavoritesStore.getState();
+  const pinned = favorites.has(kind, path);
+  return { label: pinned ? "즐겨찾기에서 빼기" : "즐겨찾기에 추가", icon: pinned ? <StarOff /> : <Star />, onSelect: () => favorites.toggle(kind, path) };
+}
+
 function itemsFor(target: TreeTarget): MenuItem[] {
   const ws = useWorkspaceStore.getState();
   const ui = useTreeUi.getState();
@@ -36,6 +43,9 @@ function itemsFor(target: TreeTarget): MenuItem[] {
     return [
       { label: "새 글", icon: <FilePlus2 />, onSelect: () => void ws.createNote(target.path) },
       { label: "새 폴더", icon: <FolderPlus />, onSelect: () => void newFolder(target.path) },
+      "separator",
+      { label: "원고로 보기", icon: <BookOpen />, onSelect: () => useUiStore.getState().setManuscriptFolder(target.path) },
+      favoriteItem("folder", target.path),
       "separator",
       { label: "이름 바꾸기", icon: <Pencil />, onSelect: () => ui.startRename("folder", target.path) },
       { label: "Finder에서 보기", icon: <FolderOpen />, onSelect: () => void api.notes.reveal(target.path) },
@@ -56,6 +66,7 @@ function itemsFor(target: TreeTarget): MenuItem[] {
   return [
     { label: "새 탭에서 열기", icon: <PanelTop />, onSelect: () => void ws.openNote(note.path, { newTab: true }) },
     { label: "옆에 열기", icon: <Columns2 />, disabled: note.path === ws.activePath, onSelect: () => void ws.openSplit(note.path) },
+    favoriteItem("note", note.path),
     "separator",
     { label: "이름 바꾸기", icon: <Pencil />, onSelect: () => ui.startRename("note", note.path) },
     { label: "복제", icon: <Copy />, onSelect: () => void ws.duplicateNote(note.path) },

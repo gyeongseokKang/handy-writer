@@ -16,7 +16,7 @@ const api: HandyApi = {
   notes: {
     list: () => ipcRenderer.invoke(IPC.notesList),
     read: (path) => ipcRenderer.invoke(IPC.notesRead, path),
-    write: (path, content) => ipcRenderer.invoke(IPC.notesWrite, path, content),
+    write: (path, content, options) => ipcRenderer.invoke(IPC.notesWrite, path, content, options),
     create: (folder, title) => ipcRenderer.invoke(IPC.notesCreate, folder, title),
     rename: (path, newName) => ipcRenderer.invoke(IPC.notesRename, path, newName),
     remove: (path) => ipcRenderer.invoke(IPC.notesRemove, path),
@@ -72,6 +72,18 @@ const api: HandyApi = {
   },
   tags: {
     suggest: (path, text) => ipcRenderer.invoke(IPC.tagsSuggest, path, text),
+  },
+  writingStats: {
+    get: () => ipcRenderer.invoke(IPC.writingStatsGet),
+    onChange: (listener) => {
+      const handler = (_e: unknown, today: number) => listener(today);
+      ipcRenderer.on(IPC.writingStatsChanged, handler);
+      return () => ipcRenderer.removeListener(IPC.writingStatsChanged, handler);
+    },
+  },
+  manuscripts: {
+    get: () => ipcRenderer.invoke(IPC.manuscriptsGet),
+    set: (folder, config) => ipcRenderer.invoke(IPC.manuscriptsSet, folder, config),
   },
   styleDictionary: {
     get: () => ipcRenderer.invoke(IPC.styleDictionaryGet),

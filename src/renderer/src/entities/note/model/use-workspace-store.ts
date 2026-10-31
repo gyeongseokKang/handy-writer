@@ -6,6 +6,7 @@ import { create } from "zustand";
 import { api } from "@/shared/api/handy-api";
 import { flushPath } from "@/shared/lib/pending-saves";
 
+import { useFavoritesStore } from "./use-favorites-store";
 import { useUiStore } from "./use-ui-store";
 
 const LAST_NOTE_KEY = "handy-writer:last-note";
@@ -129,6 +130,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   /** 글 경로가 바뀌거나(이동·이름 바꾸기) 사라졌을 때 활성 글, 탭, 분할 화면을 함께 고친다. */
   function remap(map: (path: string) => string | null) {
+    useFavoritesStore.getState().remap(map);
     set((state) => {
       const tabs = [...new Set(state.tabs.map(map).filter((p): p is string => p !== null))];
       const activePath = state.activePath ? map(state.activePath) : null;
@@ -148,6 +150,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
   async function loadWorkspace(root: string | null) {
     set({ root, notes: [], folders: [], attachments: [], activePath: null, tabs: [], splitPath: null });
+    useFavoritesStore.getState().load(root);
     if (!root) return;
     await get().refresh();
     const { notes } = get();
@@ -296,7 +299,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       try {
         await flushPath(get().activePath);
         const meta = await api.notes.create(folder, title);
-        if (content) await api.notes.write(meta.path, content);
+        // 가져온 글·AI 초안처럼 만들 때 채운 내용은 오늘 쓴 양에 넣지 않는다.
+        if (content) await api.notes.write(meta.path, content, { countWriting: false });
         await get().refresh();
         useUiStore.getState().setView("editor");
         activate(meta.path, { replaceTab: false });

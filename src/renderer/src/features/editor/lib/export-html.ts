@@ -9,6 +9,8 @@ export interface ExportContext {
   footnotes?: Map<string, number>;
   /** 블록 ID → 그림·표 번호 */
   labels?: Map<string, Pick<LabelInfo, "id" | "kind" | "number">>;
+  /** 다른 글 끼워 넣기(`![[글]]`) 대상 → 그 글을 그린 HTML */
+  noteEmbeds?: Map<string, string>;
 }
 
 const KIND_LABEL = { video: "영상", audio: "오디오", pdf: "PDF", image: "이미지", other: "첨부" } as const;
@@ -64,7 +66,20 @@ function renderEmbed(doc: Document, el: HTMLElement, ctx: ExportContext): Node {
 export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   const doc = new DOMParser().parseFromString(`<body>${editorHtml}</body>`, "text/html");
 
-  for (const el of doc.body.querySelectorAll<HTMLElement>("[data-embed]")) el.replaceWith(renderEmbed(doc, el, ctx));
+  for (const el of doc.body.querySelectorAll<HTMLElement>("[data-embed]")) {
+    const note = ctx.noteEmbeds?.get(el.getAttribute("data-embed") ?? "");
+    if (note === undefined) {
+      el.replaceWith(renderEmbed(doc, el, ctx));
+      continue;
+    }
+    // 끼워 넣은 글은 그 내용을 그대로 펼친다. 문단에 그것만 있으면 문단째 바꾼다.
+    const block = doc.createElement("div");
+    block.className = "note-embed";
+    block.innerHTML = note;
+    const parent = el.parentElement;
+    if (parent?.tagName === "P" && parent.childNodes.length === 1) parent.replaceWith(block);
+    else el.replaceWith(block);
+  }
   for (const el of doc.body.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) el.disabled = true;
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
   numberFootnotes(doc, ctx.footnotes);

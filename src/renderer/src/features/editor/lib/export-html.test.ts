@@ -23,6 +23,12 @@ describe("toExportHtml", () => {
     expect(toExportHtml('<span data-embed="없음.png"></span>', ctx)).toContain("[이미지: 없음.png]");
   });
 
+  it("읽어 둔 글 끼워 넣기는 그 내용으로 펼치고, 문단에 그것만 있으면 문단째 바꾼다", () => {
+    const noteEmbeds = new Map([["다른 글#절", "<h2>절</h2><p>내용</p>"]]);
+    expect(toExportHtml('<p><span data-embed="다른 글#절">다른 글#절</span></p>', { ...ctx, noteEmbeds })).toBe('<div class="note-embed"><h2>절</h2><p>내용</p></div>');
+    expect(toExportHtml('<p>앞 <span data-embed="다른 글#절"></span></p>', { ...ctx, noteEmbeds })).toContain('<p>앞 <div class="note-embed">');
+  });
+
   it("편집용 속성을 걷어내고 체크박스를 잠근다", () => {
     const html = toExportHtml('<div class="callout-title" contenteditable="false">팁</div><label><input type="checkbox" checked></label>', ctx);
     expect(html).not.toContain("contenteditable");

@@ -226,6 +226,33 @@
 .note-prose .embed-chip { background: var(--accent); color: var(--accent-foreground); cursor: pointer; }
 .note-prose .embed-missing { border: 1px dashed var(--muted-foreground); color: var(--muted-foreground); }
 
+/* 다른 글 끼워 넣기 (![[글]], ![[글#소제목]]) */
+.note-prose .note-embed {
+  display: block;
+  margin: 0.25rem 0;
+  border-left: 3px solid var(--border);
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: color-mix(in oklch, var(--muted) 45%, transparent);
+  padding: 0.5rem 0.9rem 0.6rem;
+}
+.note-prose .embed-selected .note-embed { outline: 2px solid var(--ring); outline-offset: 2px; }
+.note-prose .note-embed-header {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.75rem;
+  color: var(--muted-foreground);
+}
+.note-prose .note-embed-open { margin-left: auto; border-radius: 0.25rem; padding: 0.125rem; cursor: pointer; }
+.note-prose .note-embed-open:hover { background: var(--accent); color: var(--accent-foreground); }
+.note-prose .note-embed-body { display: block; max-height: 32rem; overflow-y: auto; cursor: default; user-select: text; }
+.note-prose .note-embed-body > * + * { margin-top: 0.6em; }
+.note-prose .note-embed-body > :first-child { margin-top: 0.35rem; }
+.note-prose .note-embed-body h1 { font-size: 1.375rem; }
+.note-prose .note-embed-body h2 { font-size: 1.2rem; }
+.note-prose .note-embed-body img { max-width: 100%; height: auto; border-radius: var(--radius-md); }
+.note-prose .note-embed-empty { display: block; margin-top: 0.25rem; font-size: 0.875rem; color: var(--muted-foreground); text-align: left; cursor: pointer; }
+
 /* 맞춤법 표시 */
 .note-prose .spell-error {
   text-decoration: underline wavy oklch(0.65 0.2 25);

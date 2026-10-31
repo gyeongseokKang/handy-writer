@@ -1,5 +1,5 @@
 import { Hash } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -12,10 +12,12 @@ interface NoteTagsProps {
   frontmatter: string;
   getText: () => string;
   onAdd: (tags: string[]) => void;
+  /** 줄 끝에 붙일 것 (속성 버튼) */
+  children?: ReactNode;
 }
 
 /** 제목 바로 아래의 태그 줄. 누르면 태그 목록으로, `+ 태그`는 기존 태그에서 추천한다. */
-export function NoteTags({ path, frontmatter, getText, onAdd }: NoteTagsProps) {
+export function NoteTags({ path, frontmatter, getText, onAdd, children }: NoteTagsProps) {
   const indexed = useNoteIndexStore((s) => s.entries.find((e) => e.path === path)?.tags);
   const tags = useMemo(() => {
     const all = [...parseNote(frontmatter).tags, ...(indexed ?? [])];
@@ -37,6 +39,7 @@ export function NoteTags({ path, frontmatter, getText, onAdd }: NoteTagsProps) {
         </button>
       ))}
       <TagAdder path={path} currentTags={tags} getText={getText} onAdd={onAdd} variant="subtle" />
+      {children}
     </div>
   );
 }

@@ -183,7 +183,7 @@ export function HistoryView({ path: targetPath, name: targetName }: { path: stri
     if (!window.confirm(`“${name}” 글을 ${dateFormat.format(slide.time)} 버전으로 되돌릴까요?\n지금 내용은 git에 커밋되어 있지 않으면 사라져요.`)) return;
     try {
       await flushPath(path);
-      await api.notes.write(path, content);
+      await api.notes.write(path, content, { countWriting: false });
       toast.success(`${dateFormat.format(slide.time)} 버전으로 되돌렸어요.`);
       close();
     } catch (err) {

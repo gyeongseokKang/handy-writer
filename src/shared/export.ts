@@ -1,18 +1,19 @@
 import { ASSET_SCHEME } from "./attachments";
 
-export type ExportFormat = "md" | "html" | "pdf";
+export type ExportFormat = "md" | "html" | "pdf" | "docx";
 
 export const EXPORT_FORMATS: Record<ExportFormat, { label: string; extension: string }> = {
   md: { label: "마크다운 (.md)", extension: "md" },
   html: { label: "웹 문서 (.html)", extension: "html" },
   pdf: { label: "PDF (.pdf)", extension: "pdf" },
+  docx: { label: "Word (.docx)", extension: "docx" },
 };
 
 export interface ExportRequest {
   /** 글 제목 (저장 창의 기본 파일 이름과 문서 제목) */
   name: string;
   format: ExportFormat;
-  /** md면 파일에 쓸 마크다운 전체, html과 pdf면 본문 HTML */
+  /** md면 파일에 쓸 마크다운 전체, html과 pdf면 본문 HTML, docx면 글 모양(DocModel)의 JSON */
   content: string;
 }
 
@@ -60,6 +61,7 @@ sup.footnote-ref::before { content: "["; } sup.footnote-ref::after { content: "]
 .footnote-def:not(.footnote-def + .footnote-def) { margin-top: 2rem; padding-top: 0.75rem; border-top: 1px solid #d0d7de; }
 .footnote-label { min-width: 1.5rem; color: #0969da; }
 .footnote-label::after { content: "."; }
+.note-embed > :first-child { margin-top: 0; }
 p.caption { text-align: center; font-size: 0.9rem; color: #57606a; }
 .caption-label { color: #1f2328; }
 a.xref { text-decoration: none; }
@@ -88,6 +90,11 @@ ${bodyHtml}
 `;
 }
 
+/** `handy-asset://vault/…` 주소에서 작업 폴더 기준 경로를 꺼낸다. */
+export function assetPathOf(url: string) {
+  return new URL(url).pathname.split("/").filter(Boolean).map(decodeURIComponent).join("/");
+}
+
 const ASSET_SRC = new RegExp(`(\\bsrc=")(${ASSET_SCHEME}://vault/[^"]*)(")`, "g");
 
 /**
@@ -99,8 +106,7 @@ export async function inlineAssets(html: string, load: (path: string) => Promise
   const toDataUrl = (url: string) => {
     let hit = cache.get(url);
     if (!hit) {
-      const path = new URL(url).pathname.split("/").filter(Boolean).map(decodeURIComponent).join("/");
-      hit = load(path)
+      hit = load(assetPathOf(url))
         .catch(() => null)
         .then((file) => (file ? `data:${file.mime};base64,${file.base64}` : ""));
       cache.set(url, hit);

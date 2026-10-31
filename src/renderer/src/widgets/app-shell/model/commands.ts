@@ -1,4 +1,5 @@
 import type { Command } from "@/entities/command/model/use-command-store";
+import { useFavoritesStore } from "@/entities/note/model/use-favorites-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { toggleSplit } from "@/features/note-tabs/ui/tab-bar";
@@ -7,6 +8,7 @@ const ui = () => useUiStore.getState();
 const ws = () => useWorkspaceStore.getState();
 const hasNote = () => ws().activePath !== null;
 const toEditor = () => ui().setView("editor");
+const activeFolder = () => ws().notes.find((note) => note.path === ws().activePath)?.folder ?? "";
 
 /** 명령 팔레트(`>`)와 단축키 안내에 나오는 명령. 단축키는 실제로 받는 곳(app-shell, 에디터)과 맞춰 둔다. */
 export function buildCommands(): Command[] {
@@ -33,6 +35,20 @@ export function buildCommands(): Command[] {
     { id: "note.export-md", group: "글", title: "마크다운으로 내보내기", keywords: ["export", "md"], enabled: hasNote, run: () => ui().requestEditor("export-md") },
     { id: "note.export-html", group: "글", title: "HTML로 내보내기", keywords: ["export", "웹 문서"], enabled: hasNote, run: () => ui().requestEditor("export-html") },
     { id: "note.export-pdf", group: "글", title: "PDF로 내보내기", keywords: ["export", "인쇄"], enabled: hasNote, run: () => ui().requestEditor("export-pdf") },
+    { id: "note.export-docx", group: "글", title: "Word로 내보내기", keywords: ["export", "docx", "워드"], enabled: hasNote, run: () => ui().requestEditor("export-docx") },
+    {
+      id: "note.favorite",
+      group: "글",
+      title: "지금 글 즐겨찾기에 추가·빼기",
+      keywords: ["즐겨찾기", "고정", "pin", "bookmark", "star"],
+      enabled: hasNote,
+      run: () => {
+        const path = ws().activePath;
+        if (path) useFavoritesStore.getState().toggle("note", path);
+      },
+    },
+    { id: "note.manuscript", group: "글", title: "원고 보기 (지금 글의 폴더)", keywords: ["책", "장", "manuscript", "book", "묶기"], enabled: hasNote, run: () => ui().setManuscriptFolder(activeFolder()) },
+    { id: "note.writing-stats", group: "글", title: "오늘 쓴 양 보기", keywords: ["통계", "연속", "잔디", "목표", "stats"], enabled: hasNote, run: () => (toEditor(), ui().setStatsOpen(true)) },
 
     // 탭
     { id: "tab.close", group: "탭", title: "지금 탭 닫기", shortcut: "Mod+W", enabled: hasNote, run: () => void ws().closeTab(ws().activePath!) },
