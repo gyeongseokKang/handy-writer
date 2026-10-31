@@ -24,7 +24,8 @@ export interface ExportResult {
 
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-const DOCUMENT_CSS = `
+/** 내보낸 HTML·PDF 문서의 CSS (쪽 수를 셀 때도 같은 모양으로 그린다) */
+export const DOCUMENT_CSS = `
 :root { color-scheme: light; }
 * { box-sizing: border-box; }
 body { margin: 0; background: #fff; color: #1f2328; font: 16px/1.75 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }

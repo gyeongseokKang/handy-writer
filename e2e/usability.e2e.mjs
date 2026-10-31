@@ -48,10 +48,14 @@ await page.keyboard.press("Enter");
 await page.getByRole("search", { name: "글 안에서 찾기" }).waitFor({ timeout: 3000 });
 assert(true, "명령을 고르면 실행된다 (찾기 열림)");
 await page.keyboard.press("Escape");
+await page.getByRole("search", { name: "글 안에서 찾기" }).waitFor({ state: "detached" });
 await page.keyboard.press(`${mod}+Shift+P`);
 assert((await page.getByLabel("검색어").inputValue()) === ">", "Ctrl+Shift+P는 명령 모드로 연다");
 await page.screenshot({ path: path.join(OUT, "command-palette.png") });
+// 입력 칸에 포커스가 온 뒤에 Esc를 보내야 창이 받는다.
+await page.waitForFunction(() => document.activeElement?.getAttribute("aria-label") === "검색어");
 await page.keyboard.press("Escape");
+await palette.waitFor({ state: "detached" });
 
 // ── 단축키 안내와 설정 ──
 await page.keyboard.press(`${mod}+/`);
