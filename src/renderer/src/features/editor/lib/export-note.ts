@@ -24,11 +24,12 @@ function noteEmbedTargets(editor: Editor, noteFolder: string) {
 }
 
 /** 내보낸 글에도 화면과 같은 각주·그림·표 번호와 끼워 넣은 글이 나오게 지금 문서에서 모은다. */
-export async function exportContext(editor: Editor, noteFolder: string): Promise<ExportContext> {
+export async function exportContext(editor: Editor, noteFolder: string, title?: string): Promise<ExportContext> {
   const { attachments, notes } = useWorkspaceStore.getState();
   return {
     attachments,
     noteFolder,
+    title,
     footnotes: new Map([...collectFootnotes(editor.state.doc).values()].map((info) => [info.label, info.number])),
     labels: collectLabels(editor.state.doc),
     noteEmbeds: await resolveNoteEmbeds(noteEmbedTargets(editor, noteFolder), notes, attachments),
@@ -38,7 +39,7 @@ export async function exportContext(editor: Editor, noteFolder: string): Promise
 /** 메인 프로세스에 넘길 내보내기 내용. md는 마크다운(getMarkdown), html·pdf는 본문 HTML, docx는 글 모양 JSON */
 export async function exportContent(format: ExportFormat, editor: Editor, options: { name: string; noteFolder: string; getMarkdown: () => string }) {
   if (format === "md") return options.getMarkdown();
-  const html = toExportHtml(editor.getHTML(), await exportContext(editor, options.noteFolder));
+  const html = toExportHtml(editor.getHTML(), await exportContext(editor, options.noteFolder, options.name));
   if (format === "docx") return JSON.stringify(await htmlToDocModel(options.name, html));
   return html;
 }

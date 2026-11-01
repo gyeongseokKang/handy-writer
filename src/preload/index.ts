@@ -151,6 +151,7 @@ const api: HandyApi = {
       return () => ipcRenderer.removeListener(IPC.appBeforeClose, handler);
     },
     closeReady: (unsavedPaths) => ipcRenderer.send(IPC.appCloseReady, unsavedPaths),
+    pasteAsPlainText: () => ipcRenderer.invoke(IPC.appPasteAsPlainText),
   },
 };
 

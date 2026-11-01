@@ -20,6 +20,8 @@ export interface AiRequest {
   text: string;
   /** continue: 커서 앞까지의 글 */
   before: string;
+  /** continue: 커서가 있는 문단에서 커서 뒤에 이미 있는 글 (없으면 비어 있다) */
+  after?: string;
   /** custom: 사용자의 지시, template: 추가 요청 */
   instruction: string;
   /** template: 입력값이 채워진 사전 프롬프트 */

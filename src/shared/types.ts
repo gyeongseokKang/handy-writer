@@ -202,6 +202,8 @@ export interface HandyApi {
     onBeforeClose: (listener: () => void) => () => void;
     /** 저장하지 못한 글의 경로를 알린다. 비어 있으면 바로 닫고, 있으면 닫을지 묻는다. */
     closeReady: (unsavedPaths: string[]) => void;
+    /** 클립보드의 글을 서식 없이(글자만) 지금 포커스에 붙여넣는다 (Ctrl/Cmd+Shift+V). */
+    pasteAsPlainText: () => Promise<void>;
   };
 }
 
@@ -278,4 +280,5 @@ export const IPC = {
   tabsCloseCurrent: "tabs:close-current",
   appBeforeClose: "app:before-close",
   appCloseReady: "app:close-ready",
+  appPasteAsPlainText: "app:paste-as-plain-text",
 } as const;

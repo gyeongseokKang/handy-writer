@@ -188,6 +188,8 @@ export async function registerIpc() {
     return meta;
   });
   ipcMain.handle(IPC.notesDuplicate, (_e, path: string) => duplicateNote(requireRoot(), String(path)));
+  // Electron의 기본 메뉴에는 Ctrl/Cmd+Shift+V가 없어서(브라우저와 달리) 키가 사라지므로, 렌더러가 대신 요청한다.
+  ipcMain.handle(IPC.appPasteAsPlainText, (event) => event.sender.pasteAndMatchStyle());
   ipcMain.handle(IPC.notesReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
   });

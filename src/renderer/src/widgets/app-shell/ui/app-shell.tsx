@@ -30,8 +30,14 @@ import { buildCommands } from "../model/commands";
 import { OnboardingDialog, wasOnboarded } from "./onboarding-dialog";
 import { ManuscriptDialog } from "@/features/manuscript/ui/manuscript-dialog";
 import { RightPanel } from "./right-panel";
+import { HelpDialog } from "./help-dialog";
 import { SettingsDialog } from "./settings-dialog";
 import { ShortcutsDialog } from "./shortcuts-dialog";
+
+/** 글을 붙여넣을 수 있는 자리인지 (입력 칸이나 에디터) */
+function isEditable(el: Element | null) {
+  return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el instanceof HTMLElement && el.isContentEditable);
+}
 
 /** 이보다 좁은 창에서는 오른쪽 패널을 저절로 접는다 */
 const NARROW_WINDOW = 1000;
@@ -96,6 +102,7 @@ export function AppShell() {
   const styleSettingsOpen = useUiStore((state) => state.styleSettingsOpen);
   const onboardingOpen = useUiStore((state) => state.onboardingOpen);
   const manuscriptFolder = useUiStore((state) => state.manuscriptFolder);
+  const helpOpen = useUiStore((state) => state.helpOpen);
   const focusMode = useUiStore((state) => state.focusMode && state.view === "editor");
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
@@ -168,6 +175,7 @@ export function AppShell() {
       else if (!event.shiftKey && key === ",") ui.setSettingsOpen(true);
       else if (event.shiftKey && key === "p") ui.setPaletteOpen(true, ">");
       else if (event.shiftKey && key === "t") void useWorkspaceStore.getState().reopenClosedTab();
+      else if (event.shiftKey && key === "v" && isEditable(document.activeElement)) void api.app.pasteAsPlainText();
       else if (event.shiftKey && key === "d" && useWorkspaceStore.getState().activePath) ui.toggleFocusMode();
       else handled = false;
       if (handled) event.preventDefault();
@@ -190,6 +198,18 @@ export function AppShell() {
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [focusMode]);
+
+  // F1: 도움말 (다른 창이 열려 있어도 열 수 있게 캡처 단계에서 받는다)
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "F1" || event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || !useWorkspaceStore.getState().root) return;
+      event.preventDefault();
+      const ui = useUiStore.getState();
+      ui.setHelpOpen(!ui.helpOpen);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
 
   // 창이 좁으면 오른쪽 패널을 저절로 접고, 다시 넓어지면 펼친다.
   useEffect(() => {
@@ -263,6 +283,7 @@ export function AppShell() {
       {shortcutsOpen && <ShortcutsDialog />}
       {styleSettingsOpen && <StyleSettings onClose={() => useUiStore.getState().setStyleSettingsOpen(false)} />}
       {onboardingOpen && <OnboardingDialog />}
+      {helpOpen && <HelpDialog />}
       {manuscriptFolder !== null && <ManuscriptDialog key={manuscriptFolder} folder={manuscriptFolder} />}
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>

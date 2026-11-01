@@ -1,4 +1,4 @@
-import { ListTree, Sparkles } from "lucide-react";
+import { ListTree, Pin, PinOff, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
@@ -16,6 +16,8 @@ export function OutlinePanel() {
   const headings = useOutlineStore((s) => s.headings);
   const activePos = useOutlineStore((s) => s.activePos);
   const setDraftOpen = useUiStore((s) => s.setDraftOpen);
+  const pinned = useUiStore((s) => s.outlinePinned);
+  const setPinned = useUiStore((s) => s.setOutlinePinned);
 
   // 가장 높은 제목 수준을 왼쪽 끝에 맞춘다 (## 부터 쓰는 글도 들여쓰기 없이 시작).
   const top = Math.min(...headings.map((h) => h.level), 6);
@@ -33,14 +35,17 @@ export function OutlinePanel() {
       tabIndex={0}
       ref={navRef}
       data-compact={compact || undefined}
-      title={compact ? "목차" : undefined}
+      data-pinned={pinned || undefined}
+      title={compact && !pinned ? "목차" : undefined}
       className={cn(
         "outline-panel group outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 absolute z-10 w-max max-w-56 rounded-lg border bg-card/90 text-sm shadow-sm backdrop-blur hover:w-64 hover:max-w-64 focus-within:w-64 focus-within:max-w-64",
+        // 고정하면 마우스를 올리지 않아도 전체 목차가 펼쳐져 있다.
+        pinned && "w-64 max-w-64 bg-card shadow-md",
         compact ? "top-2 left-2" : "top-4 left-4",
       )}
     >
       {/* 접힌 모습: 지금 보고 있는 제목과 그 위 제목들 */}
-      <div aria-hidden data-outline-current className={cn("flex gap-2 text-muted-foreground group-focus-within:hidden group-hover:hidden", compact ? "p-2" : "px-3 py-2")}>
+      <div aria-hidden data-outline-current className={cn("flex gap-2 text-muted-foreground group-focus-within:hidden group-hover:hidden", pinned && "!hidden", compact ? "p-2" : "px-3 py-2")}>
         <ListTree className="mt-0.5 size-4 shrink-0" />
         <div className={cn("min-w-0 space-y-0.5", compact && "hidden")}>
           {trail.length === 0 ? (
@@ -61,10 +66,20 @@ export function OutlinePanel() {
       </div>
 
       {/* 펼친 모습: 전체 목차 */}
-      <div className="hidden p-2 group-focus-within:block group-hover:block">
-        <p className="flex items-center gap-2 px-2 pt-1 pb-2 text-xs font-medium text-muted-foreground">
+      <div className={cn("hidden p-2 group-focus-within:block group-hover:block", pinned && "!block")}>
+        <div className="flex items-center gap-2 px-2 pt-1 pb-2 text-xs font-medium text-muted-foreground">
           <ListTree className="size-3.5" /> 목차
-        </p>
+          <button
+            type="button"
+            aria-label={pinned ? "목차 고정 해제" : "목차를 펼친 채로 고정"}
+            aria-pressed={pinned}
+            title={pinned ? "고정 해제 (마우스를 올릴 때만 펼쳐요)" : "전체 목차를 펼친 채로 고정"}
+            onClick={() => setPinned(!pinned)}
+            className={cn("ml-auto rounded p-1 hover:bg-accent hover:text-foreground", pinned && "bg-accent text-foreground")}
+          >
+            {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
+          </button>
+        </div>
         {headings.length === 0 ? (
           <div className="space-y-3 px-2 pb-2 text-muted-foreground">
             <p>글에 제목(#, ##)을 넣으면 여기에 목차가 생겨요.</p>

@@ -29,7 +29,8 @@ assert(!(await outline.getByRole("button", { name: "둘째 장" }).isVisible()),
 
 await outline.hover();
 assert(await outline.getByRole("button", { name: "둘째 장" }).isVisible(), "마우스를 올리면 전체 목차가 펼쳐진다");
-const items = await outline.getByRole("button").allInnerTexts();
+// 맨 위의 핀 버튼(고정)은 제목이 아니므로 목록 안의 버튼만 본다.
+const items = await outline.locator("ol").getByRole("button").allInnerTexts();
 assert(JSON.stringify(items) === JSON.stringify(["첫째 장", "작은 절", "둘째 장"]), `목차에 글의 제목이 순서대로 보인다 (${items.join(", ")})`);
 await page.screenshot({ path: path.join(OUT, "draft-1-outline-hover.png") });
 
@@ -68,10 +69,15 @@ await page.keyboard.type(" 고침");
 await sleep(300);
 assert((await outline.getByRole("button", { name: "둘째 장 고침" }).count()) === 1, "제목을 고치면 목차도 바로 바뀐다");
 
-await page.getByRole("button", { name: "목차 패널" }).click();
-assert((await outline.count()) === 0, "사이드바 버튼으로 목차 패널을 닫을 수 있다");
-await page.getByRole("button", { name: "목차 패널" }).click();
+// 사이드바 위의 목차 버튼은 도움말 아이콘으로 바뀌었고, 목차는 설정에서 켜고 끈다.
+await page.keyboard.press("Control+,");
+const settings = page.getByRole("dialog", { name: "설정" });
+await settings.waitFor();
+await settings.getByLabel("목차 띄우기").uncheck();
+assert((await outline.count()) === 0, "설정에서 목차 패널을 닫을 수 있다");
+await settings.getByLabel("목차 띄우기").check();
 assert((await outline.count()) === 1, "다시 열 수 있다");
+await page.keyboard.press("Escape");
 ok("목차 패널 확인");
 
 // 초안 만들기: AI 탭에서 연다

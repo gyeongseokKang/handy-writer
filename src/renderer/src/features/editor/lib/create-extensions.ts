@@ -7,6 +7,8 @@ import { TaskList } from "@tiptap/extension-task-list";
 import StarterKit from "@tiptap/starter-kit";
 
 import { AttachmentDrop } from "./attachment-drop";
+import { BlockMoves } from "./block-moves";
+import { BlockShortcuts } from "./block-shortcuts";
 import { Callout } from "./callout";
 import { CodeBlock } from "./code-block";
 import { CrossRef } from "./cross-ref";
@@ -51,7 +53,8 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, focus
     TableCell,
     Placeholder.configure({
       placeholder: ({ node }) =>
-        node.type.name === "heading" ? "제목" : "내용을 입력하세요. /로 블록을, [[로 다른 글을 연결해요",
+        // 몇 단계 제목인지 알 수 있게 레벨을 같이 보여 준다 (빈 제목 블록을 만들었을 때).
+        node.type.name === "heading" ? `제목 ${node.attrs["level"] ?? ""}`.trim() : "내용을 입력하세요. /로 블록을, [[로 다른 글을 연결해요",
     }),
     // 각주(`[^1]`)는 링크 문법과 겹치므로 기본 링크보다 먼저 읽는다.
     FootnoteDef,
@@ -64,6 +67,8 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, focus
     TagHighlight.configure({ onTagClick }),
     TemplateBlock.configure({ renderView: renderEmbeds }),
     Callout,
+    BlockShortcuts,
+    BlockMoves,
     SlashCommand,
     AttachmentDrop,
     FindReplace,

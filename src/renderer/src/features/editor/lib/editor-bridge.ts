@@ -1,3 +1,4 @@
+import { isTitleHeading } from "@shared/title-heading";
 import type { Editor, JSONContent } from "@tiptap/core";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 
@@ -73,6 +74,14 @@ export interface FrontmatterActions {
   addTags: (tags: string[]) => void;
 }
 
+/** pos가 든 문단에서 pos 뒤에 남은 글(마크다운). 문단 밖이면 빈 문자열 */
+function restOfParagraph(editor: Editor, pos: number) {
+  const $pos = editor.state.doc.resolve(Math.min(pos, editor.state.doc.content.size));
+  if (!$pos.parent.isTextblock) return "";
+  const end = $pos.end();
+  return end > pos ? serialize(editor, pos, end) : "";
+}
+
 export function createEditorBridge(editor: Editor, getNoteName: () => string, frontmatter?: FrontmatterActions): EditorBridge {
   const docEnd = () => editor.state.doc.content.size;
 
@@ -87,6 +96,8 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string, fr
         hasSelection: !empty,
         text: serialize(editor, range.from, range.to),
         before: serialize(editor, 0, from),
+        after: restOfParagraph(editor, from),
+        cursor: from,
         from: range.from,
         to: range.to,
       };
@@ -203,8 +214,10 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string, fr
 
     listHeadings() {
       const headings: HeadingItem[] = [];
-      editor.state.doc.forEach((node, pos) => {
+      editor.state.doc.forEach((node, pos, index) => {
         if (node.type.name !== "heading") return;
+        // 글 제목과 같은 맨 앞 제목은 화면에 없으니 목차에도 넣지 않는다.
+        if (index === 0 && isTitleHeading(node.textContent, getNoteName())) return;
         const text = node.textContent.trim();
         if (text) headings.push({ level: Number(node.attrs["level"]), text, pos });
       });
@@ -278,6 +291,28 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string, fr
 
     skipSpell(range) {
       editor.view.dispatch(editor.state.tr.setMeta(SPELL_SKIP, range).setMeta(SPELL_ACTIVE, null));
+    },
+
+    appendAtCursor(context, markdown): ApplyResult {
+      // 요청한 뒤에 커서 앞의 글이 바뀌었으면 엉뚱한 곳에 붙이지 않는다.
+      const at = context.cursor;
+      if (at > docEnd() || serialize(editor, 0, at) !== context.before) return "changed";
+      const inline = singleParagraphContent(editor, markdown);
+      if (inline === null) {
+        editor.chain().focus().insertContentAt(at, markdown, { contentType: "markdown" }).run();
+        return "ok";
+      }
+      // 말이 붙어 버리지 않게, 앞뒤에 글자가 바로 붙어 있으면 한 칸씩 띄운다 (마침표·닫는 괄호 앞은 제외).
+      const { doc } = editor.state;
+      const prev = doc.textBetween(Math.max(0, at - 1), at, "\n", " ");
+      const next = doc.textBetween(at, Math.min(doc.content.size, at + 1), "\n", " ");
+      const text = markdown.trim();
+      const closing = /^[,.!?)\]”’」…]/;
+      const nodes = [...inline];
+      if (prev !== "" && !/\s/.test(prev) && !closing.test(text)) nodes.unshift({ type: "text", text: " " });
+      if (next !== "" && !/\s/.test(next) && !closing.test(next)) nodes.push({ type: "text", text: " " });
+      editor.chain().focus().insertContentAt(at, nodes).run();
+      return "ok";
     },
 
     insertBelowCursor(markdown) {

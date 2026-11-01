@@ -54,7 +54,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click("nav >> text=시작하기");
   await page.waitForSelector(".note-prose .callout");
   const proseText = await page.innerText(".note-prose");
-  assert(proseText.includes("시작하기") && !proseText.includes("tags:"), "frontmatter는 에디터에 보이지 않는다");
+  // 본문 맨 앞의 `# 시작하기`는 글 제목과 같아서 위쪽 제목이 대신하므로 본문에서는 보이지 않는다.
+  assert(proseText.includes("콜아웃 본문") && !proseText.includes("tags:") && !proseText.includes("시작하기"), "frontmatter와 글 제목과 같은 맨 앞 제목은 본문에 보이지 않는다");
   assert((await page.$$(".note-prose .callout[data-callout='tip']")).length === 1, "콜아웃이 렌더링된다");
   assert((await page.$$(".note-prose .wikilink")).length === 1, "위키링크가 렌더링된다");
   await page.screenshot({ path: path.join(OUT, "1-open.png") });
@@ -270,6 +271,22 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(
     fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8").endsWith("둘째 문단입니다.\n\n이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요.\n"),
     "이어쓰기 결과가 아래에 삽입되고 [[링크]]가 링크로 저장된다",
+  );
+
+  // 이어쓰기 → 이어 붙이기: 지금 문단을 마무리하는 글만 요청하고, 그 문단 끝에 이어서 쓴다 (커서 뒤의 글은 함께 보낸다)
+  await page.click(".note-prose > p >> nth=0");
+  await page.keyboard.press("Home");
+  for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
+  await page.getByRole("button", { name: "이어쓰기" }).click();
+  await page.waitForSelector("[aria-label='결과 글']:has-text('글쓰기 규칙')", { timeout: 10000 });
+  const continueCall = fs.readFileSync(aiLog, "utf8").trim().split("\n").map((line) => JSON.parse(line)).at(-1);
+  assert(continueCall.input.includes("문단을 자연스럽게 마무리하는 글만") && continueCall.input.includes("<after>\n어제 학교에 갔는데") && continueCall.input.includes("<before>\n나는\n</before>"), "이어쓰기는 문단을 마무리하라고 요청하고 커서 뒤에 남은 문단 글도 보낸다");
+  assert(!continueCall.input.includes("둘째 문단입니다."), "다음 문단은 보내지 않는다");
+  await page.getByRole("button", { name: "이어 붙이기" }).click();
+  await sleep(1500);
+  assert(
+    fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8").startsWith("나는 이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요. 어제 학교에 갔는데"),
+    "이어 붙이기는 새 문단이 아니라 커서가 있던 자리에 이어서 쓴다",
   );
 
   // 오류와 취소

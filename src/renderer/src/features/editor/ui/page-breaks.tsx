@@ -26,7 +26,7 @@ export function usePageEstimate(editor: Editor | null, path: string, name: strin
       const id = ++run;
       const { path: notePath, name: title } = titleRef.current;
       const folder = useWorkspaceStore.getState().notes.find((note) => note.path === notePath)?.folder ?? "";
-      const body = toExportHtml(editor.getHTML(), await exportContext(editor, folder));
+      const body = toExportHtml(editor.getHTML(), await exportContext(editor, folder, title));
       const next = await measurePages(dom, title, body);
       // 재는 사이에 글이 또 바뀌었으면 늦게 끝난 결과는 버린다.
       if (id === run && !editor.isDestroyed) setEstimate(next);
@@ -83,31 +83,31 @@ export function PageBreakMarkers({ estimate }: { estimate: PageEstimate }) {
         <div
           key={page}
           role="separator"
-          aria-label={`A4 ${page}쪽 시작`}
+          aria-label={`A4 ${page}p 시작`}
           data-page-break={page}
           className="pointer-events-none absolute -left-11 flex w-9 flex-col items-end"
           style={{ top: y }}
         >
           <span className="w-full border-t border-dashed border-muted-foreground/70" />
-          <span className="mt-1 text-[11px] leading-none font-medium text-muted-foreground tabular-nums">{page}쪽</span>
+          <span className="mt-1 text-[11px] leading-none font-medium text-muted-foreground tabular-nums">{page}p</span>
         </div>
       ))}
     </>
   );
 }
 
-/** 아래 막대의 `A4 약 3쪽`. 누르면 쪽 나누기 표시를 켜고 끈다. */
+/** 아래 막대의 `A4 약 3p`. 누르면 페이지 구분선 표시를 켜고 끈다. */
 export function PageCount({ estimate, shown, onToggle }: { estimate: PageEstimate; shown: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
-      aria-label="A4 쪽 수"
+      aria-label="A4 페이지 수"
       aria-pressed={shown}
-      title={`A4로 뽑으면 약 ${estimate.pages}쪽이에요 (PDF 내보내기 기준). 누르면 쪽 나누기 표시를 ${shown ? "꺼요" : "켜요"}.`}
+      title={`A4로 뽑으면 약 ${estimate.pages}p 분량이에요 (PDF 내보내기 기준: 10pt, 줄 간격 160%, 여백 20mm). 누르면 페이지 구분선을 ${shown ? "꺼요" : "켜요"}.`}
       onClick={onToggle}
       className={cn("rounded px-1.5 py-0.5 tabular-nums hover:bg-accent @max-[33rem]:hidden", shown && "text-foreground")}
     >
-      A4 약 {estimate.pages}쪽
+      A4 약 {estimate.pages}p
     </button>
   );
 }

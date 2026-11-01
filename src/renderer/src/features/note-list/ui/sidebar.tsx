@@ -1,4 +1,4 @@
-import { Download, FolderOpen, GitBranch, ListTree, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
+import { CircleHelp, Download, FolderOpen, GitBranch, Network, PanelRight, PenLine, Plus, RefreshCw, Search } from "lucide-react";
 
 import { UpdateRow } from "./update-row";
 import { useGitStore } from "@/entities/git/model/use-git-store";
@@ -23,12 +23,19 @@ export function Sidebar() {
   const setSidebarView = useUiStore((state) => state.setSidebarView);
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
-  const outlineOpen = useUiStore((state) => state.outlineOpen);
-  const toggleOutline = useUiStore((state) => state.toggleOutline);
 
   const gitStatus = useGitStore((state) => state.status);
   const toggleGit = useUiStore((state) => state.toggleGit);
   const gitOpen = useUiStore((state) => state.gitOpen && state.rightPanelOpen);
+  const gitBusy = useGitStore((state) => state.busy);
+  const syncGit = useGitStore((state) => state.sync);
+  // 원격이 있고 올리거나 받을 것이 있을 때만 동기화 버튼을 보여 준다 (병합 중이면 Git 화면에서 풀어야 한다).
+  const syncing = gitBusy === "sync";
+  const needsSync =
+    !!gitStatus && gitStatus.isRepo && gitStatus.hasRemote && !gitStatus.merging && (gitStatus.changes.length > 0 || gitStatus.ahead > 0 || gitStatus.behind > 0);
+  const syncTitle = gitStatus
+    ? `동기화: 커밋 → 가져오기 → 푸시 (${[gitStatus.changes.length > 0 && `변경 ${gitStatus.changes.length}개`, gitStatus.ahead > 0 && `올릴 것 ${gitStatus.ahead}`, gitStatus.behind > 0 && `받을 것 ${gitStatus.behind}`].filter(Boolean).join(", ")})`
+    : "동기화";
 
   const folderName = root?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
@@ -52,13 +59,12 @@ export function Sidebar() {
           <Button
             size="icon"
             variant="ghost"
-            className={cn("size-7", outlineOpen && "bg-accent")}
-            title="목차 패널"
-            aria-label="목차 패널"
-            aria-pressed={outlineOpen}
-            onClick={toggleOutline}
+            className="size-7"
+            title="도움말 — 기능 안내 (F1)"
+            aria-label="도움말"
+            onClick={() => useUiStore.getState().setHelpOpen(true)}
           >
-            <ListTree />
+            <CircleHelp />
           </Button>
           <Button
             size="icon"
@@ -119,22 +125,36 @@ export function Sidebar() {
       </div>
 
       {gitStatus && (
-        <button
-          type="button"
-          onClick={toggleGit}
-          title={gitOpen ? "Git 닫기" : "Git 열기"}
-          aria-label="Git 상태"
-          aria-expanded={gitOpen}
-          className={cn("flex items-center gap-2 border-t px-4 py-2 text-left text-xs text-muted-foreground hover:bg-accent/70", gitOpen && "bg-accent text-foreground")}
-        >
-          <GitBranch className="size-3.5 shrink-0" />
-          <span className="truncate">{gitStatus.isRepo ? (gitStatus.branch ?? "HEAD") : gitStatus.installed ? "Git 시작하기" : "Git 설치 필요"}</span>
-          <span className="ml-auto flex shrink-0 items-center gap-2">
-            {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
-            {gitStatus.ahead > 0 && <span>↑{gitStatus.ahead}</span>}
-            {gitStatus.behind > 0 && <span>↓{gitStatus.behind}</span>}
-          </span>
-        </button>
+        <div className={cn("flex items-center border-t text-xs text-muted-foreground", gitOpen && "bg-accent text-foreground")}>
+          <button
+            type="button"
+            onClick={toggleGit}
+            title={gitOpen ? "Git 닫기" : "Git 열기"}
+            aria-label="Git 상태"
+            aria-expanded={gitOpen}
+            className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-left hover:bg-accent/70"
+          >
+            <GitBranch className="size-3.5 shrink-0" />
+            <span className="truncate">{gitStatus.isRepo ? (gitStatus.branch ?? "HEAD") : gitStatus.installed ? "Git 시작하기" : "Git 설치 필요"}</span>
+            <span className="ml-auto flex shrink-0 items-center gap-2">
+              {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
+              {gitStatus.ahead > 0 && <span>↑{gitStatus.ahead}</span>}
+              {gitStatus.behind > 0 && <span>↓{gitStatus.behind}</span>}
+            </span>
+          </button>
+          {(needsSync || syncing) && (
+            <button
+              type="button"
+              aria-label="동기화"
+              title={syncing ? "동기화하는 중…" : syncTitle}
+              disabled={gitBusy !== null}
+              onClick={() => void syncGit()}
+              className="mr-2 flex size-6 shrink-0 items-center justify-center rounded text-foreground hover:bg-accent disabled:opacity-60"
+            >
+              <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
+            </button>
+          )}
+        </div>
       )}
 
       <UpdateRow />

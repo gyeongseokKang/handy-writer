@@ -8,6 +8,10 @@ export interface EditorContext {
   text: string;
   /** 선택 시작(또는 커서) 앞까지의 글(마크다운) */
   before: string;
+  /** 커서가 있는 문단에서 커서 뒤에 남은 글(마크다운, 없으면 빈 문자열) */
+  after: string;
+  /** 요청할 때의 커서 자리 (선택이 있으면 그 시작). from은 선택이 없으면 본문 전체의 시작이라 따로 둔다. */
+  cursor: number;
   from: number;
   to: number;
 }
@@ -54,6 +58,8 @@ export interface EditorBridge {
   getContext: () => EditorContext;
   /** 요청할 때의 범위를 새 마크다운으로 바꾼다. 그사이 그 부분이 바뀌었으면 건드리지 않고 "changed"를 돌려준다. */
   replace: (context: EditorContext, markdown: string) => ApplyResult;
+  /** 요청할 때의 커서 자리에 이어 붙인다 (문단 안이면 그 문단에 계속 쓴다). 그사이 앞 글이 바뀌었으면 "changed" */
+  appendAtCursor: (context: EditorContext, markdown: string) => ApplyResult;
   /** 지금 커서가 있는 블록 바로 아래에 새 블록으로 넣는다. */
   insertBelowCursor: (markdown: string) => void;
   listEmbeds: () => EmbedItem[];

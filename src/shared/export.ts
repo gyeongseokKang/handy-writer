@@ -24,6 +24,14 @@ export interface ExportResult {
 
 const escapeHtml = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+/**
+ * 인쇄(PDF)할 때의 쪽 기준. 한글·Word의 기본값(10pt, 줄 간격 160%)에 여백 20mm라서
+ * A4 한 쪽에 2,000자쯤(200자 원고지 10매) 들어간다. 화면으로 보는 HTML은 읽기 편한 16px 그대로다.
+ */
+export const PRINT_FONT_PT = 10;
+export const PRINT_LINE_HEIGHT = 1.6;
+export const PAGE_MARGIN_MM = 20;
+
 /** 내보낸 HTML·PDF 문서의 CSS (쪽 수를 셀 때도 같은 모양으로 그린다) */
 export const DOCUMENT_CSS = `
 :root { color-scheme: light; }
@@ -66,8 +74,8 @@ sup.footnote-ref::before { content: "["; } sup.footnote-ref::after { content: "]
 p.caption { text-align: center; font-size: 0.9rem; color: #57606a; }
 .caption-label { color: #1f2328; }
 a.xref { text-decoration: none; }
-@media print { main { max-width: none; padding: 0; } pre, table, img, blockquote, .callout, .template-block { break-inside: avoid; } h1, h2, h3, h4 { break-after: avoid; } }
-@page { margin: 18mm 16mm; }
+@media print { html { font-size: ${PRINT_FONT_PT}pt; } body { font-size: 1rem; line-height: ${PRINT_LINE_HEIGHT}; } main { max-width: none; padding: 0; } pre, table, img, blockquote, .callout, .template-block { break-inside: avoid; } h1, h2, h3, h4 { break-after: avoid; } }
+@page { margin: ${PAGE_MARGIN_MM}mm; }
 `;
 
 /** 본문 HTML에 제목과 스타일을 입혀 어디서나 열리는 한 장짜리 문서로 만든다. */

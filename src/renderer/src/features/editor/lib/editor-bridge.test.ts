@@ -62,6 +62,47 @@ describe("에디터 브리지", () => {
     expect(bridge.getContext()).toMatchObject({ hasSelection: true, text: "둘째", before: "첫째 문단 [[링크]]" });
   });
 
+  it("이어쓰기 컨텍스트에는 커서 앞의 글, 같은 문단에서 커서 뒤에 남은 글, 커서 자리가 들어 있다", () => {
+    const bridge = mount("첫째 문단입니다.\n\n둘째 문단은 여기서 끝납니다.\n\n셋째");
+    // "여기서" 앞에 커서를 둔다.
+    let at = -1;
+    editor.state.doc.descendants((node, pos) => {
+      if (at === -1 && node.isText && node.text?.includes("여기서")) at = pos + (node.text.indexOf("여기서") ?? 0);
+    });
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, at)));
+    const context = bridge.getContext();
+    expect(context).toMatchObject({ hasSelection: false, before: "첫째 문단입니다.\n\n둘째 문단은", after: "여기서 끝납니다.", cursor: at });
+    // 문단 끝이면 남은 글이 없다.
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, at + "여기서 끝납니다.".length)));
+    expect(bridge.getContext().after).toBe("");
+  });
+
+  it("이어 붙이기는 커서 자리에 글을 이어 쓰고, 앞뒤 말이 붙지 않게 띄운다", () => {
+    const bridge = mount("앞 글 뒤 글");
+    select("앞 글");
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, editor.state.selection.to)));
+    const context = bridge.getContext();
+    expect(bridge.appendAtCursor(context, "덧붙인 [[링크]]")).toBe("ok");
+    expect(editor.getMarkdown()).toBe("앞 글 덧붙인 [[링크]] 뒤 글");
+    expect(JSON.stringify(editor.getJSON())).toContain('"type":"wikiLink"');
+  });
+
+  it("문단 끝이거나 마침표가 오면 불필요한 공백을 넣지 않는다", () => {
+    const bridge = mount("끝난 문장입니다.");
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, editor.state.doc.content.size - 1)));
+    expect(bridge.appendAtCursor(bridge.getContext(), "이어지는 문장입니다.")).toBe("ok");
+    expect(editor.getMarkdown()).toBe("끝난 문장입니다. 이어지는 문장입니다.");
+  });
+
+  it("요청한 뒤에 커서 앞의 글이 바뀌었으면 이어 붙이지 않는다", () => {
+    const bridge = mount("앞 글");
+    editor.view.dispatch(editor.state.tr.setSelection(TextSelection.create(editor.state.doc, editor.state.doc.content.size - 1)));
+    const context = bridge.getContext();
+    editor.commands.insertContentAt(1, "새로 쓴 ");
+    expect(bridge.appendAtCursor(context, "이어 쓴 글")).toBe("changed");
+    expect(editor.getMarkdown()).toBe("새로 쓴 앞 글");
+  });
+
   it("선택한 부분만 바꾸고 나머지 문장과 위키링크는 그대로 둔다", () => {
     const bridge = mount("앞 [[링크]] 문단 뒤");
     select("문단");
