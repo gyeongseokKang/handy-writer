@@ -17,6 +17,7 @@ const env = await launchApp({
     "책/2장.md": "둘째 장 본문\n\n## 세부\n\n세부 내용\n\n## 다음\n\n다음 내용\n",
     "책/10장.md": "열째 장\n",
     "메모.md": "---\ntitle: 메모\ncount: 3\ndraft: true\ntags: [a]\n---\n\n메모 본문\n\n![[2장#세부]]\n\n![[없는 글]]\n",
+    "긴글.md": Array.from({ length: 30 }, (_v, i) => `${i + 1}번째 문단. ${"쪽 수를 세려고 길게 이어 쓰는 한국어 문장입니다. ".repeat(6)}`).join("\n\n"),
     "그림글.md": "그림 앞\n\n![[사진.png|사진|100]]\n\n각주가 있는 문장[^a]\n\n[^a]: 각주 내용\n",
     "attachments/사진.png": png,
   },
@@ -170,6 +171,30 @@ await page.getByRole("menuitem", { name: "웹 문서" }).click();
 assert(await waitFor(() => fs.existsSync(htmlOut)), "HTML로 내보낸다");
 const memoHtml = fs.readFileSync(htmlOut, "utf8");
 assert(memoHtml.includes('class="note-embed"') && memoHtml.includes("고친 세부") && !memoHtml.includes("다음 내용"), "끼워 넣은 글은 내보낼 때 그 내용으로 펼친다");
+
+// ── A4 쪽 수와 쪽 나누기 ──────────────────────────────────────
+await tree.getByRole("button", { name: "긴글", exact: true }).click();
+const pageCount = page.getByRole("button", { name: "A4 쪽 수" });
+assert(await waitFor(async () => /A4 약 [2-9]쪽/.test((await pageCount.textContent()) ?? "")), `긴 글은 A4로 몇 쪽인지 보여 준다 (${await pageCount.textContent()})`);
+const pagesShown = Number(/(\d+)쪽/.exec((await pageCount.textContent()) ?? "")?.[1]);
+const markers = page.getByRole("separator", { name: /^A4 \d+쪽 시작$/ });
+assert((await markers.count()) === pagesShown - 1, "쪽이 넘어가는 자리마다 왼쪽 여백에 구분선과 쪽 번호를 보여 준다");
+const marker = markers.first();
+const markerBox = await marker.boundingBox();
+const textBox = await page.locator(".ProseMirror").boundingBox();
+assert(markerBox && textBox && markerBox.x + markerBox.width <= textBox.x, "구분선은 글 왼쪽 끝 밖(여백)에 있다");
+assert((await marker.textContent()) === "2쪽", "구분선에 다음 쪽 번호가 붙는다");
+const longPdf = path.join(outDir, "long.pdf");
+await stubSave(longPdf);
+await page.getByRole("button", { name: "내보내기" }).click();
+await page.getByRole("menuitem", { name: "PDF" }).click();
+assert(await waitFor(() => fs.existsSync(longPdf) && fs.statSync(longPdf).size > 0), "긴 글을 PDF로 내보낸다");
+await sleep(300);
+const pdfPages = (fs.readFileSync(longPdf, "latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+assert(pdfPages === pagesShown, `센 쪽 수가 실제 PDF와 같다 (화면 ${pagesShown}쪽, PDF ${pdfPages}쪽)`);
+await pageCount.click();
+assert((await markers.count()) === 0 && (await pageCount.getAttribute("aria-pressed")) === "false", "누르면 쪽 나누기 표시를 끈다");
+await pageCount.click();
 
 // ── 명령 팔레트 ───────────────────────────────────────────────
 await page.keyboard.press("Control+Shift+P");

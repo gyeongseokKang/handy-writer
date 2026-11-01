@@ -35,6 +35,7 @@ import { TextCount } from "./text-count";
 import { ExportMenu } from "./export-menu";
 import { NoteTags } from "./note-tags";
 import { NoteProperties, PropertiesToggle, usePropertiesOpen } from "./note-properties";
+import { PageBreakMarkers, PageCount, usePageBreaksShown, usePageEstimate } from "./page-breaks";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
 import { SpellPopover } from "./spell-popover";
@@ -333,6 +334,9 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
 
   // 속성 표에서 frontmatter를 고치면 바로 저장한다.
   const [propertiesOpen, toggleProperties] = usePropertiesOpen();
+  // A4로 뽑았을 때의 쪽 수와 쪽이 넘어가는 자리
+  const pages = usePageEstimate(editor, path, name);
+  const [pageBreaksShown, togglePageBreaks] = usePageBreaksShown();
   const changeFrontmatter = (next: string) => {
     frontmatterRef.current = next;
     setFrontmatter(next);
@@ -478,6 +482,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
             <NotePathContext.Provider value={path}>
               <EditorContent editor={editor} />
             </NotePathContext.Provider>
+            {pageBreaksShown && <PageBreakMarkers estimate={pages} />}
           </div>
         </div>
       </div>
@@ -501,6 +506,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       <footer className="flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
         <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
+        <PageCount estimate={pages} shown={pageBreaksShown} onToggle={togglePageBreaks} />
         {isMain && <WritingToday />}
         {isMain ? <SpellMenu /> : <span className="ml-auto" />}
         <button
