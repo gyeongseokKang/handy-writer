@@ -38,6 +38,7 @@ export function SettingsDialog() {
     run();
   };
   const root = useWorkspaceStore((s) => s.root);
+  const activePath = useWorkspaceStore((s) => s.activePath);
   const spell = useSpellStore();
 
   return (
@@ -93,6 +94,17 @@ export function SettingsDialog() {
           </label>
           <Check label="목차 띄우기" checked={ui.outlineOpen} onChange={() => ui.toggleOutline()} />
           <Check label="오른쪽 패널 보이기" checked={ui.rightPanelOpen} onChange={() => ui.toggleRightPanel()} hint="창이 좁아지면 저절로 접었다가, 넓어지면 다시 펼쳐요." />
+        </Section>
+
+        <Section title="집중 모드">
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7" onClick={go(() => ui.setFocusMode(true))} disabled={!activePath}>
+              집중 모드 켜기 ({shortcutLabel("Mod+Shift+D")})
+            </Button>
+            <span className="text-xs text-muted-foreground">Esc로 나가요.</span>
+          </div>
+          <Check label="지금 쓰는 문단만 진하게" checked={ui.focusDim} onChange={ui.setFocusDim} hint="나머지 문단은 옅게 보여요. 글 내용은 그대로예요." />
+          <Check label="타자기 스크롤" checked={ui.typewriter} onChange={ui.setTypewriter} hint="쓰는 줄이 늘 화면 가운데쯤에 있게 글이 따라 올라가요." />
         </Section>
 
         <Section title="맞춤법·문장 다듬기">

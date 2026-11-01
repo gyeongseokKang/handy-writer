@@ -4,6 +4,7 @@ import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { mapTyposToIssues, maskForOnline, mergeIssues, type OnlineSpellResult } from "@shared/online-spell";
 import { checkSpelling, issueKey, SPELL_CONTEXT, type SpellIssue, type SpellItem } from "@shared/spellcheck";
+import { checkConsistency } from "@shared/consistency";
 import { checkStyle, type StyleOptions } from "@shared/style-lint";
 
 export interface SpellTarget {
@@ -148,10 +149,15 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
         const useOnline = spelling && onlineOn();
         const styleOptions = style ? (options.getStyleOptions?.() ?? {}) : {};
         const { empty, from: cursor } = state.selection;
+        // 표기 통일은 글 전체를 봐야 해서, 문단을 먼저 모두 모은 뒤 한 번에 검사한다.
+        const blocks: Array<{ node: ProseMirrorNode; pos: number; text: string }> = [];
         state.doc.descendants((node, pos) => {
           if (!node.isTextblock) return true;
-          if (node.type.spec.code) return false;
-          const text = blockText(node, codeMark);
+          if (!node.type.spec.code) blocks.push({ node, pos, text: blockText(node, codeMark) });
+          return false;
+        });
+        const consistency = style && !styleOptions.off?.includes("consistency") ? checkConsistency(blocks.map((b) => b.text)) : null;
+        blocks.forEach(({ pos, text }, index) => {
           let issues = spelling ? checkSpelling(text) : [];
           if (useOnline && text.length >= MIN_ONLINE_LENGTH) {
             const masked = maskForOnline(text);
@@ -161,7 +167,7 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
           }
           if (style) {
             // 맞춤법 항목과 겹치는 다듬기 항목은 빼되, 문장 전체를 가리키는 긴 문장 표시는 남긴다.
-            const extra = checkStyle(text, styleOptions).filter((s) => s.ruleId === "style:long" || !issues.some((i) => s.start < i.end && s.end > i.start));
+            const extra = [...checkStyle(text, styleOptions), ...(consistency?.get(index) ?? [])].filter((s) => s.ruleId === "style:long" || !issues.some((i) => s.start < i.end && s.end > i.start));
             issues = [...issues, ...extra].sort((a, b) => a.start - b.start || b.end - a.end);
           }
           for (const issue of issues) {
@@ -177,7 +183,6 @@ export const SpellCheck = Extension.create<SpellCheckOptions>({
             const after = text.slice(issue.end, issue.end + SPELL_CONTEXT).replaceAll(LEAF, " ");
             items.push({ from, to, issue, before, after });
           }
-          return false;
         });
       }
       const decorations = DecorationSet.create(

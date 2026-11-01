@@ -15,6 +15,8 @@ const source = [
   "",
   longSentence,
   "",
+  "웹사이트를 만들었다. 웹사이트도 열었다. 웹 사이트를 닫았다.",
+  "",
   "[[#^fig-b]]와 [[#^tbl-score]]를 보세요.",
   "",
   "![[점.png]]",
@@ -57,6 +59,17 @@ assert((await popover.innerText()).includes("예약"), "올리면 다듬기 제�
 await popover.getByRole("button", { name: "바꾸기" }).click();
 await sleep(1200);
 assert(fs.readFileSync(file, "utf8").includes("우리는 예약했고"), "바꾸기로 겹말을 고친다");
+
+// ── 표기 통일 ──
+const mixed = page.locator(".note-prose [data-spell^='style:consistency']");
+assert((await mixed.count()) === 1 && (await mixed.textContent()) === "웹 사이트", "섞어 쓴 표기 가운데 덜 쓴 쪽만 표시한다");
+await mixed.hover();
+await popover.waitFor({ timeout: 3000 });
+assert((await popover.innerText()).includes("웹사이트"), "제안 창이 더 많이 쓴 표기를 알려 준다");
+await popover.getByRole("button", { name: "바꾸기" }).click();
+await sleep(1200);
+assert(fs.readFileSync(file, "utf8").includes("웹사이트를 닫았다"), "바꾸기로 표기를 통일한다");
+assert((await page.locator(".note-prose [data-spell^='style:consistency']").count()) === 0, "통일하면 표시가 사라진다");
 
 await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: /맞춤법/ }).click();
 const panel = page.getByRole("region", { name: "맞춤법 목록" });

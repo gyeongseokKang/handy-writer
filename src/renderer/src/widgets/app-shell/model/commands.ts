@@ -58,6 +58,7 @@ export function buildCommands(): Command[] {
     { id: "tab.split", group: "탭", title: "분할 화면 열기·닫기", shortcut: "Mod+\\", keywords: ["split", "옆에", "나란히"], run: toggleSplit },
 
     // 보기
+    { id: "view.focus", group: "보기", title: "집중 모드 켜기·끄기", shortcut: "Mod+Shift+D", keywords: ["focus", "zen", "타자기", "방해 금지", "전체 화면"], enabled: hasNote, run: () => (toEditor(), ui().toggleFocusMode()) },
     { id: "view.outline", group: "보기", title: "목차 보이기·숨기기", keywords: ["outline"], run: () => ui().toggleOutline() },
     { id: "view.right", group: "보기", title: "오른쪽 패널 보이기·숨기기", keywords: ["panel"], run: () => ui().toggleRightPanel() },
     { id: "view.graph", group: "보기", title: "그래프 보기", keywords: ["graph", "연결"], run: () => ui().setView(ui().view === "graph" ? "editor" : "graph") },

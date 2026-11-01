@@ -17,6 +17,7 @@ export const STYLE_GROUPS = [
   { id: "overuse", label: "한 문단의 ‘~것이다’·‘~수 있다’ 되풀이" },
   { id: "repeat", label: "한 문장 안 낱말 되풀이" },
   { id: "long", label: "긴 문장" },
+  { id: "consistency", label: "표기 통일 (웹사이트/웹 사이트, e-mail/email)" },
   { id: "custom", label: "내 표기 사전" },
 ] as const;
 

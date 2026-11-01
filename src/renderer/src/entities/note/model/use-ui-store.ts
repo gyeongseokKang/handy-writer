@@ -17,6 +17,26 @@ function readEditorWidth() {
   }
 }
 
+const FOCUS_DIM_KEY = "handy-writer:focus-dim";
+const TYPEWRITER_KEY = "handy-writer:typewriter";
+
+/** 집중 모드 설정은 기본 켜짐이고 이 컴퓨터에 기억한다. */
+function readFlag(key: string) {
+  try {
+    return localStorage.getItem(key) !== "0";
+  } catch {
+    return true;
+  }
+}
+
+function saveFlag(key: string, value: boolean) {
+  try {
+    localStorage.setItem(key, value ? "1" : "0");
+  } catch {
+    // 저장소를 못 써도 이번 실행에서는 적용된다.
+  }
+}
+
 /** 명령 팔레트가 지금 에디터에 시키는 일 */
 export type EditorRequestKind = "find" | "copy-rich" | "export-md" | "export-html" | "export-pdf" | "export-docx";
 
@@ -42,6 +62,12 @@ interface UiState {
   manuscriptFolder: string | null;
   /** 오늘 쓴 양 창 */
   statsOpen: boolean;
+  /** 집중 모드: 사이드바·탭·패널을 숨기고 글만 보여 준다 */
+  focusMode: boolean;
+  /** 집중 모드에서 지금 쓰는 문단만 진하게 */
+  focusDim: boolean;
+  /** 집중 모드에서 커서 줄을 화면 가운데에 둔다 (타자기 스크롤) */
+  typewriter: boolean;
   /** 사이드바 옆의 목차 패널 */
   outlineOpen: boolean;
   /** AI 초안 만들기 창 */
@@ -78,6 +104,10 @@ interface UiState {
   setOnboardingOpen: (open: boolean) => void;
   setManuscriptFolder: (folder: string | null) => void;
   setStatsOpen: (open: boolean) => void;
+  setFocusMode: (on: boolean) => void;
+  toggleFocusMode: () => void;
+  setFocusDim: (on: boolean) => void;
+  setTypewriter: (on: boolean) => void;
   toggleOutline: () => void;
   setDraftOpen: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
@@ -105,6 +135,9 @@ export const useUiStore = create<UiState>((set) => ({
   onboardingOpen: false,
   manuscriptFolder: null,
   statsOpen: false,
+  focusMode: false,
+  focusDim: readFlag(FOCUS_DIM_KEY),
+  typewriter: readFlag(TYPEWRITER_KEY),
   outlineOpen: true,
   draftOpen: false,
   rightTab: "links",
@@ -135,6 +168,16 @@ export const useUiStore = create<UiState>((set) => ({
   setOnboardingOpen: (onboardingOpen) => set({ onboardingOpen }),
   setManuscriptFolder: (manuscriptFolder) => set({ manuscriptFolder }),
   setStatsOpen: (statsOpen) => set({ statsOpen }),
+  setFocusMode: (focusMode) => set({ focusMode }),
+  toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
+  setFocusDim: (focusDim) => {
+    saveFlag(FOCUS_DIM_KEY, focusDim);
+    set({ focusDim });
+  },
+  setTypewriter: (typewriter) => {
+    saveFlag(TYPEWRITER_KEY, typewriter);
+    set({ typewriter });
+  },
   toggleOutline: () => set((state) => ({ outlineOpen: !state.outlineOpen })),
   setDraftOpen: (draftOpen) => set({ draftOpen }),
   setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true, gitOpen: false }),

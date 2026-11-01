@@ -1,5 +1,6 @@
-import { Download, FilePlus2, FolderOpen, PenLine, Sparkles } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Minimize2, PenLine, Sparkles } from "lucide-react";
 import { useEffect } from "react";
+import { toast } from "sonner";
 
 import { useCommandStore } from "@/entities/command/model/use-command-store";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
@@ -8,6 +9,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { useLogStore } from "@/entities/log/model/use-log-store";
 import { api } from "@/shared/api/handy-api";
 import { flushAll, unsavedPaths } from "@/shared/lib/pending-saves";
+import { shortcutLabel } from "@/shared/lib/shortcut";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
 import { NoteEditor } from "@/features/editor/ui/note-editor";
@@ -94,6 +96,7 @@ export function AppShell() {
   const styleSettingsOpen = useUiStore((state) => state.styleSettingsOpen);
   const onboardingOpen = useUiStore((state) => state.onboardingOpen);
   const manuscriptFolder = useUiStore((state) => state.manuscriptFolder);
+  const focusMode = useUiStore((state) => state.focusMode && state.view === "editor");
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
@@ -165,12 +168,28 @@ export function AppShell() {
       else if (!event.shiftKey && key === ",") ui.setSettingsOpen(true);
       else if (event.shiftKey && key === "p") ui.setPaletteOpen(true, ">");
       else if (event.shiftKey && key === "t") void useWorkspaceStore.getState().reopenClosedTab();
+      else if (event.shiftKey && key === "d" && useWorkspaceStore.getState().activePath) ui.toggleFocusMode();
       else handled = false;
       if (handled) event.preventDefault();
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
+
+  // 집중 모드: 켜면 안내를 한 번 띄우고, 열린 창이 없을 때 Esc로 나간다.
+  useEffect(() => {
+    if (!focusMode) return;
+    toast(`집중 모드예요. Esc 또는 ${shortcutLabel("Mod+Shift+D")}로 나가요.`, { id: "focus-mode", duration: 2500 });
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.isComposing) return;
+      // 찾기 창·메뉴·대화상자가 열려 있으면 그쪽의 Esc가 먼저다. 그 창이 이 키로 닫히기 전에(캡처 단계) 봐야
+      // 닫힌 뒤에 보고 집중 모드까지 꺼 버리지 않는다.
+      if (document.querySelector("[role=dialog], [role=menu], [role=search], [role=listbox]")) return;
+      useUiStore.getState().setFocusMode(false);
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [focusMode]);
 
   // 창이 좁으면 오른쪽 패널을 저절로 접고, 다시 넓어지면 펼친다.
   useEffect(() => {
@@ -205,17 +224,28 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      {!focusMode && <Sidebar />}
       <main className="relative flex min-w-0 flex-1 flex-col">
+        {focusMode && (
+          <button
+            type="button"
+            aria-label="집중 모드 끄기"
+            title={`집중 모드 끄기 (Esc 또는 ${shortcutLabel("Mod+Shift+D")})`}
+            onClick={() => useUiStore.getState().setFocusMode(false)}
+            className="absolute top-3 right-4 z-30 flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground opacity-25 transition-opacity hover:bg-accent hover:opacity-100 focus-visible:opacity-100"
+          >
+            <Minimize2 className="size-3.5" /> 집중 모드 끄기
+          </button>
+        )}
         {view === "graph" ? (
           <GraphView />
         ) : (
           <>
-            <TabBar />
+            {!focusMode && <TabBar />}
             <EditorArea
               main={
                 <>
-                  {outlineOpen && activePath && <OutlinePanel />}
+                  {outlineOpen && !focusMode && activePath && <OutlinePanel />}
                   {activePath && activeName !== undefined ? <NoteEditor key={activePath} path={activePath} name={activeName} /> : <EmptyEditor />}
                 </>
               }
@@ -224,7 +254,7 @@ export function AppShell() {
         )}
         {logOpen && <LogPanel />}
       </main>
-      {view === "editor" && rightPanelOpen && <RightPanel />}
+      {view === "editor" && rightPanelOpen && !focusMode && <RightPanel />}
       <CommandPalette />
       <TemplateDialogs />
       {draftOpen && <DraftDialog />}
