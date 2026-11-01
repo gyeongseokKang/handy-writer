@@ -40,7 +40,7 @@ export function compositionSteps(syllable) {
 }
 
 /** 작업 폴더와 사용자 데이터 폴더를 만들고 앱을 띄운다. `files`는 { 상대경로: 내용 } */
-export async function launchApp({ files = {}, open, env: extraEnv = {}, onboarding = false } = {}) {
+export async function launchApp({ files = {}, open, env: extraEnv = {}, onboarding = false, setup } = {}) {
   const ws = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ws-"));
   const ud = fs.mkdtempSync(path.join(os.tmpdir(), "hw-ud-"));
   fs.writeFileSync(path.join(ud, "config.json"), JSON.stringify({ workspaceRoot: ws }));
@@ -48,6 +48,9 @@ export async function launchApp({ files = {}, open, env: extraEnv = {}, onboardi
     fs.mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
     fs.writeFileSync(path.join(ws, rel), content);
   }
+
+  // 앱을 띄우기 전에 작업 폴더를 더 손봐야 할 때 (git 기록 만들기 등)
+  setup?.(ws);
 
   const aiLog = path.join(ud, "fake-claude.log");
   const app = await electron.launch({

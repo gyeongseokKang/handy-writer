@@ -12,6 +12,7 @@ import { CodeBlock } from "./code-block";
 import { CrossRef } from "./cross-ref";
 import { Embed } from "./embed";
 import { FindReplace } from "./find-replace";
+import { FocusMode, type FocusModeOptions } from "./focus-mode";
 import { FootnoteDef, FootnoteRef } from "./footnote";
 import { SlashCommand } from "./slash-command";
 import { SpellCheck, type SpellCheckOptions } from "./spell-check";
@@ -23,13 +24,15 @@ import { WikiLink, type WikiLinkOptions } from "./wiki-link";
 export interface EditorCallbacks extends WikiLinkOptions, TagHighlightOptions {
   /** 지금 글 제목. 주면 본문 첫 제목이 같을 때 흐리게 보여 준다. */
   getTitle?: () => string;
+  /** 집중 모드의 문단 강조. 없으면 쓰지 않는다 (분할 화면의 둘째 글, 테스트용) */
+  focus?: FocusModeOptions;
   /** 맞춤법 표시 설정. 없으면 맞춤법 표시를 끈다 (테스트용) */
   spell?: SpellCheckOptions;
   /** false면 임베드를 화면용 컴포넌트 없이 문서로만 다룬다 (테스트용) */
   renderEmbeds?: boolean;
 }
 
-export function createExtensions({ onTagClick, renderEmbeds = true, spell, getTitle, ...wikiLink }: EditorCallbacks): Extensions {
+export function createExtensions({ onTagClick, renderEmbeds = true, spell, focus, getTitle, ...wikiLink }: EditorCallbacks): Extensions {
   return [
     StarterKit.configure({
       // 밑줄은 마크다운에 없는 서식이라 쓰지 않는다.
@@ -66,5 +69,6 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, getTi
     FindReplace,
     ...(spell ? [SpellCheck.configure(spell)] : []),
     ...(getTitle ? [TitleEcho.configure({ getTitle })] : []),
+    ...(focus ? [FocusMode.configure(focus)] : []),
   ];
 }

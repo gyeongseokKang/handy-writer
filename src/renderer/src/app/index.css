@@ -226,6 +226,10 @@
 .note-prose .embed-chip { background: var(--accent); color: var(--accent-foreground); cursor: pointer; }
 .note-prose .embed-missing { border: 1px dashed var(--muted-foreground); color: var(--muted-foreground); }
 
+/* 집중 모드: 지금 쓰는 문단 말고는 옅게 */
+.note-prose .focus-dim { opacity: 0.3; transition: opacity 0.25s ease; }
+.note-prose > :not(.focus-dim) { transition: opacity 0.25s ease; }
+
 /* 다른 글 끼워 넣기 (![[글]], ![[글#소제목]]) */
 .note-prose .note-embed {
   display: block;

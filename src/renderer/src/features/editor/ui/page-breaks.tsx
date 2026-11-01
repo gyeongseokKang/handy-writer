@@ -105,7 +105,7 @@ export function PageCount({ estimate, shown, onToggle }: { estimate: PageEstimat
       aria-pressed={shown}
       title={`A4로 뽑으면 약 ${estimate.pages}쪽이에요 (PDF 내보내기 기준). 누르면 쪽 나누기 표시를 ${shown ? "꺼요" : "켜요"}.`}
       onClick={onToggle}
-      className={cn("rounded px-1.5 py-0.5 tabular-nums hover:bg-accent", shown && "text-foreground")}
+      className={cn("rounded px-1.5 py-0.5 tabular-nums hover:bg-accent @max-[33rem]:hidden", shown && "text-foreground")}
     >
       A4 약 {estimate.pages}쪽
     </button>

@@ -25,6 +25,7 @@ import { WritingToday } from "@/features/writing-stats/ui/writing-today";
 import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
 import { createSourceKeeper } from "../lib/source-keeper";
+import { FOCUS_REFRESH } from "../lib/focus-mode";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { EditorWidthHandles } from "./editor-width-handles";
@@ -42,6 +43,8 @@ import { SpellPopover } from "./spell-popover";
 
 const SPELL_HOVER_CLOSE_MS = 250;
 
+/** 타자기 스크롤에서 커서 줄을 놓는 높이 (스크롤 영역 위에서부터의 비율) */
+const TYPEWRITER_LINE = 0.45;
 const SAVE_DELAY_MS = 600;
 
 type SaveStatus = "loading" | "saved" | "saving" | "error" | "conflict";
@@ -129,6 +132,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         isResolved: (target) => target.startsWith("#") || useNoteIndexStore.getState().resolve(target) !== null,
         onTagClick: (tag) => useUiStore.getState().showTag(tag),
         getTitle: () => nameRef.current,
+        focus: !isMain ? undefined : { isEnabled: () => useUiStore.getState().focusMode && useUiStore.getState().focusDim },
       }),
     [],
   );
@@ -363,6 +367,41 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     setSpellTarget(null);
   };
 
+  // 집중 모드: 지금 쓰는 문단만 진하게 하고, 커서 줄을 화면 가운데에 둔다 (타자기 스크롤).
+  const focusMode = useUiStore((state) => state.focusMode && isMain);
+  const focusDim = useUiStore((state) => state.focusDim);
+  const typewriter = useUiStore((state) => state.typewriter);
+  useEffect(() => {
+    if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(FOCUS_REFRESH, true));
+  }, [editor, focusMode, focusDim]);
+  useEffect(() => {
+    if (!editor || !focusMode || !typewriter) return;
+    let frame = 0;
+    const center = () => {
+      frame = 0;
+      if (editor.isDestroyed || !editor.isFocused) return;
+      const scroller = columnRef.current?.closest<HTMLElement>("[data-note-scroller]");
+      if (!scroller) return;
+      const caret = editor.view.coordsAtPos(editor.state.selection.head);
+      const box = scroller.getBoundingClientRect();
+      const delta = (caret.top + caret.bottom) / 2 - (box.top + box.height * TYPEWRITER_LINE);
+      if (Math.abs(delta) > 2) scroller.scrollTop += delta;
+    };
+    const schedule = () => {
+      if (!frame) frame = window.requestAnimationFrame(center);
+    };
+    // 마우스로 옮긴 커서는 화면이 따라 움직이면 어지러우므로 건드리지 않는다.
+    const onTransaction = ({ transaction }: { transaction: { docChanged: boolean; selectionSet: boolean; getMeta: (key: string) => unknown } }) => {
+      if ((transaction.docChanged || transaction.selectionSet) && !transaction.getMeta("pointer")) schedule();
+    };
+    editor.on("transaction", onTransaction);
+    schedule();
+    return () => {
+      editor.off("transaction", onTransaction);
+      window.cancelAnimationFrame(frame);
+    };
+  }, [editor, focusMode, typewriter]);
+
   // 글 이름을 바꾸면 본문 첫 제목이 글 제목과 같은지 다시 본다.
   useEffect(() => {
     if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta("refreshTitleEcho", true));
@@ -461,18 +500,22 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
 
   if (!editor) return null;
 
+  // @container: 글 칸이 좁아지면(분할 화면, 좁은 창) 아래 막대에서 덜 중요한 항목부터 숨긴다.
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="@container relative flex h-full min-h-0 flex-col">
       {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
       {/* 글 칸이 화면보다 넓게 정해져 있으면 양옆 너비 손잡이가 칸 밖으로 조금 나가 가로 스크롤이 생기므로 가로는 숨긴다. */}
       <div data-note-scroller className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" onScroll={onScroll}>
-        <div ref={columnRef} data-note-column className="relative mx-auto w-full px-12 pt-14 pb-40" style={{ maxWidth: editorWidth }}>
+        <div ref={columnRef} data-note-column className={cn("relative mx-auto w-full px-12 pt-14", focusMode ? "pb-[50vh]" : "pb-40")} style={{ maxWidth: editorWidth }}>
           <EditorWidthHandles columnRef={columnRef} />
           <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
+          {/* 집중 모드에서는 태그·속성을 옅게 하고, 마우스를 올리면 보인다. */}
+          <div className={cn(focusMode && "opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100")}>
           <NoteTags path={path} frontmatter={frontmatter} getText={() => editor.getText({ blockSeparator: "\n\n" })} onAdd={(tags) => addTagsRef.current(tags)}>
             <PropertiesToggle frontmatter={frontmatter} open={propertiesOpen} onToggle={toggleProperties} />
           </NoteTags>
           {propertiesOpen && <NoteProperties frontmatter={frontmatter} onChange={changeFrontmatter} />}
+          </div>
           <div className="relative mt-6">
             <DragHandle editor={editor}>
               <div className="block-handle" title="드래그해서 옮기기">
@@ -503,8 +546,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       )}
       {/* 떠 있는 목차와 겹치지 않게 아래 막대 바로 위에 띄운다. */}
       {conflict && <ConflictBar mine={serializeNote(frontmatterRef.current, toMarkdown())} theirs={conflict.theirs} onResolve={resolveConflict} />}
-      <footer className="flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground [&>*]:shrink-0">
-        <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
+      <footer className={cn("flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground transition-opacity @max-[28rem]:gap-1.5 @max-[28rem]:px-3 [&>*]:shrink-0", focusMode && "opacity-25 focus-within:opacity-100 hover:opacity-100")}>
+        <span className="min-w-0 !shrink truncate @max-[28rem]:hidden">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
         <PageCount estimate={pages} shown={pageBreaksShown} onToggle={togglePageBreaks} />
         {isMain && <WritingToday />}
