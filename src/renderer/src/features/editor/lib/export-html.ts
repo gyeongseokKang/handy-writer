@@ -86,7 +86,7 @@ export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   for (const el of doc.body.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) el.disabled = true;
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
   const first = doc.body.firstElementChild;
-  if (ctx.title && first?.tagName === "H1" && isTitleHeading(first.textContent ?? "", ctx.title)) first.remove();
+  if (ctx.title && first && /^H[1-6]$/.test(first.tagName) && isTitleHeading(first.textContent ?? "", ctx.title)) first.remove();
   numberFootnotes(doc, ctx.footnotes);
   numberLabels(doc, ctx.labels);
   return doc.body.innerHTML;

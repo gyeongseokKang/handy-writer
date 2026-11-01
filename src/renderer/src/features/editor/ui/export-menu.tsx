@@ -6,11 +6,12 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
-import { EXPORT_FORMATS, type ExportFormat } from "@shared/export";
+import { EXPORT_FORMATS, type ExportFormat, type PageOptions } from "@shared/export";
 import { serializeNote } from "@shared/frontmatter";
 
 import { toExportHtml, withPasteStyles } from "../lib/export-html";
 import { exportContent, exportContext } from "../lib/export-note";
+import { ExportDialog } from "./export-dialog";
 
 interface ExportMenuProps {
   editor: Editor;
@@ -30,6 +31,8 @@ const folderOf = (path: string) => useWorkspaceStore.getState().notes.find((note
 export function ExportMenu({ editor, path, name, getFrontmatter, getMarkdown = () => editor.getMarkdown(), isShortcutTarget = () => true }: ExportMenuProps) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // PDF·Word는 쪽 설정을 고르고 미리 보는 창을 거친다.
+  const [dialog, setDialog] = useState<{ format: "pdf" | "docx"; html: string } | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -46,13 +49,23 @@ export function ExportMenu({ editor, path, name, getFrontmatter, getMarkdown = (
     };
   }, [open]);
 
-  const run = async (format: ExportFormat) => {
+  const run = async (format: ExportFormat, layout?: PageOptions) => {
     setOpen(false);
     if (busy) return;
+    if ((format === "pdf" || format === "docx") && !layout) {
+      try {
+        const html = toExportHtml(editor.getHTML(), await exportContext(editor, folderOf(path), name));
+        setDialog({ format, html });
+      } catch (error) {
+        toast.error(`내보내지 못했어요: ${error instanceof Error ? error.message : String(error)}`);
+      }
+      return;
+    }
+    setDialog(null);
     setBusy(true);
     try {
       const content = await exportContent(format, editor, { name, noteFolder: folderOf(path), getMarkdown: () => serializeNote(getFrontmatter(), getMarkdown()) });
-      const { path: saved } = await api.export.note({ name, format, content });
+      const { path: saved } = await api.export.note({ name, format, content, layout });
       if (saved) {
         toast.success("내보냈어요.", { description: saved, action: { label: "위치 보기", onClick: () => void api.export.reveal(saved) } });
       }
@@ -104,6 +117,7 @@ export function ExportMenu({ editor, path, name, getFrontmatter, getMarkdown = (
 
   return (
     <div ref={ref} className="relative">
+      {dialog && <ExportDialog format={dialog.format} title={name} html={dialog.html} onClose={() => setDialog(null)} onExport={(layout) => void run(dialog.format, layout)} />}
       <button
         type="button"
         aria-haspopup="menu"

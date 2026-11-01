@@ -347,7 +347,7 @@ export const HELP_FEATURES: HelpFeature[] = [
     group: "share",
     title: "내보내기",
     summary: "아래 막대의 ‘내보내기’로 지금 글을 마크다운(frontmatter 포함), HTML(이미지가 파일 안에 들어가요), PDF, Word(.docx)로 저장해요. 블로그·메일에 붙여 넣을 서식 있는 복사도 있어요.",
-    steps: ["Word에는 제목·목록·표·코드·인용·그림이 들어가고, 각주는 Word 각주가 돼요.", "영상·오디오·PDF 첨부는 이름만 남아요."],
+    steps: ["PDF와 Word는 누르면 설정 창이 떠요. 종이(A4·A5·B5·Letter), 글자 크기, 줄 간격, 좌우·위아래 여백, 쪽 번호, 맨 위 제목 유무를 고르면 쪽마다 어떻게 나오는지 바로 보여 주고, 약 몇 쪽인지도 알려 줘요. 고른 값은 기억해요.", "Word에는 제목·목록·표·코드·인용·그림이 들어가고, 각주는 Word 각주가 돼요.", "영상·오디오·PDF 첨부는 이름만 남아요."],
     shortcuts: ["Mod+Shift+C"],
     image: "export",
     keywords: ["pdf", "word", "docx", "html", "복사", "저장"],

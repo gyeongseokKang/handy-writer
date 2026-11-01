@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { ASSET_SCHEME } from "../shared/attachments";
 import { isDocModel } from "../shared/docx-model";
-import { assetPathOf, buildHtmlDocument, EXPORT_FORMATS, exportFileName, inlineAssets, type ExportRequest, type ExportResult } from "../shared/export";
+import { assetPathOf, buildHtmlDocument, EXPORT_FORMATS, exportFileName, inlineAssets, normalizePageOptions, type ExportRequest, type ExportResult, type PageOptions } from "../shared/export";
 import { mimeOf, resolveAssetFile } from "./attachments";
 import { buildDocx, imageTypeOf, type ImageLoader } from "./docx";
 
@@ -31,11 +31,23 @@ function docxImageLoader(root: string): ImageLoader {
 }
 
 /** 본문 HTML을 보이지 않는 창에 그려서 PDF로 뽑는다. 스크립트는 켜지 않는다. */
-async function renderPdf(html: string) {
+async function renderPdf(html: string, layout: PageOptions) {
   const win = new BrowserWindow({ show: false, webPreferences: { javascript: false, sandbox: true, contextIsolation: true } });
   try {
     await win.loadURL(`data:text/html;charset=utf-8;base64,${Buffer.from(html).toString("base64")}`);
-    return await win.webContents.printToPDF({ printBackground: true, pageSize: "A4" });
+    const numbered = layout.pageNumbers !== "none";
+    return await win.webContents.printToPDF({
+      printBackground: true,
+      // 종이 크기와 여백은 문서 CSS(@page)가 정한다.
+      preferCSSPageSize: true,
+      ...(numbered
+        ? {
+            displayHeaderFooter: true,
+            headerTemplate: "<span></span>",
+            footerTemplate: `<div style="width:100%;text-align:center;font-size:9px;color:#6b7280;font-family:sans-serif"><span class="pageNumber"></span>${layout.pageNumbers === "of-total" ? ' / <span class="totalPages"></span>' : ""}</div>`,
+          }
+        : {}),
+    });
   } finally {
     win.destroy();
   }
@@ -72,16 +84,17 @@ export async function exportNote(root: string, parent: BrowserWindow | null, req
     return { path: picked.filePath };
   }
 
+  const layout = normalizePageOptions(request.layout);
+
   if (format === "docx") {
     const model: unknown = JSON.parse(request.content);
     if (!isDocModel(model)) throw new Error("Word로 바꿀 내용을 읽지 못했어요.");
-    await writeFile(picked.filePath, await buildDocx(model, docxImageLoader(root)));
+    await writeFile(picked.filePath, await buildDocx(model, docxImageLoader(root), layout));
     return { path: picked.filePath };
   }
 
   const body = await inlineAssets(request.content, loadAsset(root));
-  const html = buildHtmlDocument(request.name, body);
-  if (format === "html") await writeFile(picked.filePath, html, "utf8");
-  else await writeFile(picked.filePath, await renderPdf(html));
+  if (format === "html") await writeFile(picked.filePath, buildHtmlDocument(request.name, body), "utf8");
+  else await writeFile(picked.filePath, await renderPdf(buildHtmlDocument(request.name, body, layout), layout));
   return { path: picked.filePath };
 }

@@ -44,3 +44,22 @@ describe("buildDocx", () => {
     expect(Object.keys(files).some((name) => name.startsWith("word/media/"))).toBe(true);
   });
 });
+
+describe("buildDocx 쪽 설정", () => {
+  it("종이 크기, 여백, 글자 크기, 쪽 번호, 제목 유무를 따른다", async () => {
+    const { normalizePageOptions } = await import("../shared/export");
+    const layout = normalizePageOptions({ paper: "A5", fontPt: 12, marginX: 15, marginY: 25, pageNumbers: "of-total", showTitle: false });
+    const model = { title: "제목입니다", blocks: [{ type: "paragraph", children: [{ type: "text", text: "본문" }] }], footnotes: {} };
+    const zip = unzipSync(Uint8Array.from(await buildDocx(model as never, async () => null, layout)));
+    const doc = strFromU8(zip["word/document.xml"]);
+    expect(doc).toContain('w:w="8391"');
+    expect(doc).toContain('w:h="11906"');
+    expect(doc).toContain('w:left="850"');
+    expect(doc).toContain('w:top="1417"');
+    expect(doc).not.toContain("제목입니다");
+    expect(strFromU8(zip["word/styles.xml"])).toContain('w:val="24"');
+    const footer = Object.keys(zip).find((name) => /word\/footer\d*\.xml/.test(name));
+    expect(footer && strFromU8(zip[footer])).toContain("PAGE");
+  });
+});
+

@@ -1,5 +1,6 @@
 import { parse as parseYaml } from "yaml";
 
+import { isAttachmentPath } from "./attachments";
 import { splitFrontmatter } from "./frontmatter";
 
 export interface ParsedNote {
@@ -68,7 +69,8 @@ export function parseNote(raw: string): ParsedNote {
   const links = new Set<string>();
   for (const match of text.matchAll(WIKILINK)) {
     const name = linkTargetName(match[1] ?? "");
-    if (name) links.add(name);
+    // 그림·동영상·PDF 같은 첨부 파일은 글이 아니므로 연결 그래프의 이웃으로 치지 않는다.
+    if (name && !isAttachmentPath(name)) links.add(name);
   }
 
   const tags = new Map<string, string>();
