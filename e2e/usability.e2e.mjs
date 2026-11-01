@@ -49,6 +49,8 @@ await page.getByRole("search", { name: "글 안에서 찾기" }).waitFor({ timeo
 assert(true, "명령을 고르면 실행된다 (찾기 열림)");
 await page.keyboard.press("Escape");
 await page.getByRole("search", { name: "글 안에서 찾기" }).waitFor({ state: "detached" });
+// 찾기 창을 닫으면서 에디터로 포커스를 돌려주는 동안에는 다음 키를 보내지 않는다 (사람이 누르는 속도에선 겹치지 않는다).
+await sleep(300);
 await page.keyboard.press(`${mod}+Shift+P`);
 assert((await page.getByLabel("검색어").inputValue()) === ">", "Ctrl+Shift+P는 명령 모드로 연다");
 await page.screenshot({ path: path.join(OUT, "command-palette.png") });
