@@ -41,6 +41,7 @@ import { NoteProperties, PropertiesToggle, usePropertiesOpen } from "./note-prop
 import { PageBreakMarkers, PageCount, usePageBreaksShown, usePageEstimate } from "./page-breaks";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
+import { sentenceAround, type SentenceRange } from "../lib/ai-polish";
 import { SpellPopover } from "./spell-popover";
 
 const SPELL_HOVER_CLOSE_MS = 250;
@@ -369,6 +370,17 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     setSpellTarget(null);
   };
 
+  // 문장 다듬기 제안: AI로 그 문장을 다듬어 바꾼다.
+  const applyPolished = (sentence: SentenceRange, polished: string) => {
+    if (!editor || !polished.trim()) return false;
+    const { doc } = editor.state;
+    // 요청한 뒤에 글이 바뀌었으면 엉뚱한 곳을 고치지 않는다.
+    if (sentence.to > doc.content.size || doc.textBetween(sentence.from, sentence.to, undefined, "\uFFFC") !== sentence.text) return false;
+    editor.view.dispatch(editor.state.tr.insertText(polished, sentence.from, sentence.to));
+    editor.view.focus();
+    return true;
+  };
+
   // 블록 왼쪽 손잡이(⋮⋮): 끌면 옮기고, 누르면 블록 종류를 바꾸는 메뉴가 뜬다.
   const handleTarget = useRef<BlockTarget | null>(null);
   const [blockMenu, setBlockMenu] = useState<{ target: BlockTarget; x: number; y: number } | null>(null);
@@ -562,6 +574,9 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         <SpellPopover
           target={spellTarget}
           onApply={applySpell}
+          getSentence={() => (editor ? sentenceAround(editor.state.doc, spellTarget.from, spellTarget.to) : null)}
+          onApplyPolished={applyPolished}
+          noteName={name}
           onIgnore={() => {
             useSpellStore.getState().ignore(issueKey(spellTarget.issue));
             setSpellTarget(null);
