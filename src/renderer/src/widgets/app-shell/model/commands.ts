@@ -1,4 +1,7 @@
+import { toast } from "sonner";
+
 import type { Command } from "@/entities/command/model/use-command-store";
+import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useFavoritesStore } from "@/entities/note/model/use-favorites-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
@@ -29,6 +32,28 @@ export function buildCommands(): Command[] {
       run: () => {
         const note = ws().notes.find((n) => n.path === ws().activePath);
         if (note) ui().setHistoryTarget({ path: note.path, name: note.name });
+      },
+    },
+    {
+      id: "note.images-row",
+      group: "글",
+      title: "이미지 나란히 놓기",
+      keywords: ["image", "나란히", "묶음", "갤러리", "사진", "라벨", "캡션"],
+      enabled: hasNote,
+      run: () => {
+        toEditor();
+        if (!useEditorBridge.getState().bridge?.arrangeImages()) toast.info("나란히 놓을 이미지가 없어요. 이미지 줄에 커서를 두거나, 이미지가 든 블록을 여러 개 선택해 주세요.");
+      },
+    },
+    {
+      id: "note.images-split",
+      group: "글",
+      title: "나란히 놓은 이미지 풀기",
+      keywords: ["image", "나란히", "묶음", "사진"],
+      enabled: hasNote,
+      run: () => {
+        toEditor();
+        if (!useEditorBridge.getState().bridge?.splitImageRow()) toast.info("나란히 놓은 이미지 줄에 커서를 두고 실행해 주세요.");
       },
     },
     { id: "note.copy-rich", group: "글", title: "서식 있는 글로 복사", shortcut: "Mod+Shift+C", keywords: ["copy", "블로그", "html"], enabled: hasNote, run: () => ui().requestEditor("copy-rich") },

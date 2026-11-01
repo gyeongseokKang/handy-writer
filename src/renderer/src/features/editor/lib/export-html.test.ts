@@ -12,6 +12,17 @@ describe("toExportHtml", () => {
     expect(html).toContain('<img src="handy-asset://vault/attachments/%EC%82%AC%EC%A7%84.png" alt="내 사진" width="300">');
   });
 
+  it("그림만 둘 이상 든 문단은 나란히 놓은 묶음으로 표시한다 (칸 수 포함)", () => {
+    const two = '<p><span data-embed="사진.png"></span> <span data-embed="사진.png"></span></p>';
+    expect(toExportHtml(two, ctx)).toMatch(/<p class="image-row" style="--cols:2;"><img [^>]*> <img [^>]*><\/p>/);
+    const four = `<p>${'<span data-embed="사진.png"></span>'.repeat(4)}</p>`;
+    expect(toExportHtml(four, ctx)).toContain("--cols:2;");
+    expect(toExportHtml(`<p>${'<span data-embed="사진.png"></span>'.repeat(5)}</p>`, ctx)).toContain("--cols:3;");
+    // 그림이 하나이거나 글이 섞이면 묶음이 아니다.
+    expect(toExportHtml('<p><span data-embed="사진.png"></span></p>', ctx)).not.toContain("image-row");
+    expect(toExportHtml('<p>글 <span data-embed="사진.png"></span> <span data-embed="사진.png"></span></p>', ctx)).not.toContain("image-row");
+  });
+
   it("원격 이미지·영상은 주소 그대로, 작업 폴더 영상은 이름만 남긴다", () => {
     expect(toExportHtml('<span data-embed="https://a.com/x.png"></span>', ctx)).toContain('src="https://a.com/x.png"');
     expect(toExportHtml('<span data-embed="https://a.com/x.mp4"></span>', ctx)).toContain("<video");

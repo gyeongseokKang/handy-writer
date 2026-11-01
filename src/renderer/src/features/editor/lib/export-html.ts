@@ -1,4 +1,5 @@
 import { labelName, refId, type LabelInfo } from "./cross-ref";
+import { rowColumns } from "@shared/image-row";
 import { isTitleHeading } from "@shared/title-heading";
 import { assetUrl, isRemoteUrl, kindOfPath, resolveAttachment, type AttachmentMeta } from "@shared/attachments";
 
@@ -87,9 +88,26 @@ export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
   const first = doc.body.firstElementChild;
   if (ctx.title && first && /^H[1-6]$/.test(first.tagName) && isTitleHeading(first.textContent ?? "", ctx.title)) first.remove();
+  markImageRows(doc);
   numberFootnotes(doc, ctx.footnotes);
   numberLabels(doc, ctx.labels);
   return doc.body.innerHTML;
+}
+
+/** 그림만 둘 이상 든 문단은 나란히 놓은 묶음이다. 칸 수는 화면과 같게 정한다. */
+function markImageRows(doc: Document) {
+  for (const p of doc.body.querySelectorAll("p")) {
+    let images = 0;
+    let only = true;
+    for (const node of p.childNodes) {
+      if (node.nodeType === Node.ELEMENT_NODE && (node as Element).tagName === "IMG") images++;
+      else if (!(node.nodeType === Node.TEXT_NODE && !node.textContent?.trim())) only = false;
+    }
+    if (only && images >= 2) {
+      p.classList.add("image-row");
+      p.setAttribute("style", `--cols:${rowColumns(images)};`);
+    }
+  }
 }
 
 /** 각주 표시와 내용 줄의 이름을 화면과 같은 번호로 바꾼다. */
@@ -142,6 +160,8 @@ const PASTE_STYLES: Record<string, string> = {
   ".callout, .template-block": "border-left:4px solid #3b82f6;background:#eff6ff;padding:8px 12px;margin:8px 0;",
   ".callout-title, .template-block-header": "font-weight:bold;",
   img: "max-width:100%;",
+  ".image-row": "display:grid;grid-template-columns:repeat(var(--cols,2),minmax(0,1fr));gap:8px;",
+  ".image-row img": "width:100%;height:auto;",
 };
 
 export function withPasteStyles(html: string) {

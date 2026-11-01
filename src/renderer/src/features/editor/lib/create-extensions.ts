@@ -13,6 +13,7 @@ import { Callout } from "./callout";
 import { CodeBlock } from "./code-block";
 import { CrossRef } from "./cross-ref";
 import { Embed } from "./embed";
+import { ImageRow } from "./image-row";
 import { FindReplace } from "./find-replace";
 import { FocusMode, type FocusModeOptions } from "./focus-mode";
 import { FootnoteDef, FootnoteRef } from "./footnote";
@@ -63,6 +64,7 @@ export function createExtensions({ onTagClick, renderEmbeds = true, spell, focus
     Embed.configure({ renderView: renderEmbeds }),
     // 이 글 안을 가리키는 링크(`[[#^fig-1]]`)의 클릭을 위키링크보다 먼저 받는다.
     CrossRef,
+    ImageRow,
     WikiLink.configure(wikiLink),
     TagHighlight.configure({ onTagClick }),
     TemplateBlock.configure({ renderView: renderEmbeds }),

@@ -124,6 +124,9 @@ pre code { background: none; padding: 0; font-size: 0.85rem; line-height: 1.6; }
 hr { border: 0; border-top: 1px solid #d0d7de; margin: 1.6em 0; }
 a { color: #0969da; }
 img, video { max-width: 100%; height: auto; }
+.image-row { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 0.5rem; align-items: start; break-inside: avoid; }
+.image-row img { width: 100%; height: auto; }
+.image-row + p.caption { margin-top: 0.4em; }
 figure.attachment, p.attachment { color: #57606a; font-size: 0.9rem; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border: 1px solid #d0d7de; padding: 0.4rem 0.6rem; vertical-align: top; text-align: left; }
