@@ -43,7 +43,8 @@ describe("buildUserPrompt", () => {
     const prompt = buildUserPrompt({ ...base, task: "continue", before: "첫 문단.\n\n둘째 문단이 아직" });
     expect(prompt).toContain("마지막 문단이 커서가 있는 문단");
     expect(prompt).toContain("문단을 자연스럽게 마무리하는 글만");
-    expect(prompt).toContain("서너 문장을 넘기지 마세요");
+    expect(prompt).toContain("다섯 문장 안팎");
+    expect(prompt).toContain("여섯 문장을 넘기지 마세요");
     expect(prompt).toContain("새 문단, 소제목, 목록을 시작하지 말고");
     expect(prompt).not.toContain("이어질 내용을 쓰세요");
     expect(prompt).not.toContain("<after>");
