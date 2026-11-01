@@ -500,8 +500,9 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
 
   if (!editor) return null;
 
+  // @container: 글 칸이 좁아지면(분할 화면, 좁은 창) 아래 막대에서 덜 중요한 항목부터 숨긴다.
   return (
-    <div className="relative flex h-full min-h-0 flex-col">
+    <div className="@container relative flex h-full min-h-0 flex-col">
       {findOpen && <FindBar editor={editor} onClose={() => setFindOpen(false)} />}
       {/* 글 칸이 화면보다 넓게 정해져 있으면 양옆 너비 손잡이가 칸 밖으로 조금 나가 가로 스크롤이 생기므로 가로는 숨긴다. */}
       <div data-note-scroller className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" onScroll={onScroll}>
@@ -545,8 +546,8 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       )}
       {/* 떠 있는 목차와 겹치지 않게 아래 막대 바로 위에 띄운다. */}
       {conflict && <ConflictBar mine={serializeNote(frontmatterRef.current, toMarkdown())} theirs={conflict.theirs} onResolve={resolveConflict} />}
-      <footer className={cn("flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground transition-opacity [&>*]:shrink-0", focusMode && "opacity-25 focus-within:opacity-100 hover:opacity-100")}>
-        <span className="min-w-0 !shrink truncate">{linkTargetToName(name)}</span>
+      <footer className={cn("flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground transition-opacity @max-[28rem]:gap-1.5 @max-[28rem]:px-3 [&>*]:shrink-0", focusMode && "opacity-25 focus-within:opacity-100 hover:opacity-100")}>
+        <span className="min-w-0 !shrink truncate @max-[28rem]:hidden">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
         <PageCount estimate={pages} shown={pageBreaksShown} onToggle={togglePageBreaks} />
         {isMain && <WritingToday />}

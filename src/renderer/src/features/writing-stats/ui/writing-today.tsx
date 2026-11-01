@@ -120,7 +120,7 @@ export function WritingToday() {
   const average = activeDays.length ? Math.round(activeDays.reduce((a, b) => a + b, 0) / activeDays.length) : 0;
 
   return (
-    <div ref={ref} className="relative">
+    <div ref={ref} className="relative @max-[38rem]:hidden">
       <button
         type="button"
         aria-label="오늘 쓴 양"
