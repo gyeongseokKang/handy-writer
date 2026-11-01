@@ -113,6 +113,9 @@ function sectionCount(chars: number) {
   return chars <= 1500 ? "3~4개" : chars >= 4500 ? "5~8개" : "4~6개";
 }
 
+const NO_INTERNAL_IDS =
+  "- 커밋 해시(예: 8dfebef8), 이슈·PR 번호, 브랜치 이름, 내부 파일 경로, 에러 코드, 사내 도구·시스템 이름 같은 개발 내부 식별자는 독자에게 의미가 없으므로 글에 쓰지 않습니다. 그런 기록에서 얻은 사례는 무슨 일이 있었는지를 말로 풀어 씁니다. 다만 꼭 넣을 내용이나 요청에 직접 적혀 있으면 그대로 씁니다.";
+
 export function outlineInstruction(brief: DraftBrief) {
   return [
     briefSection(brief),
@@ -122,6 +125,7 @@ export function outlineInstruction(brief: DraftBrief) {
     "- 각 제목 바로 아래에 그 부분에서 다룰 내용을 `- `로 시작하는 한 줄로 적습니다.",
     "- 글 전체 제목(`# `), 머리말, 설명은 쓰지 말고 목차만 출력합니다.",
     "- 꼭 넣을 내용이 있으면 어느 장에서 다룰지 목차에 반영합니다.",
+    NO_INTERNAL_IDS,
   ].join("\n");
 }
 
@@ -135,6 +139,7 @@ export function draftInstruction(brief: DraftBrief, outline: string) {
     `- 본문은 약 ${draftTargetChars(brief).toLocaleString("ko-KR")}자(공백 포함)로, 지정한 문체로 씁니다.`,
     "- 글 전체 제목(`# `), 머리말, 설명은 쓰지 말고 본문만 마크다운으로 출력합니다.",
     "- 확실하지 않은 수치, 날짜, 인용은 지어내지 말고 그 자리에 `(확인 필요)`라고 표시합니다.",
+    NO_INTERNAL_IDS,
   ].join("\n");
 }
 

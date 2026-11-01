@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findYoutubeUrls, formatDuration, parseSources, pickCaptionTrack, youtubeSection, youtubeVideoId } from "./draft-sources";
+import { findYoutubeUrls, formatDuration, parseSources, pickCaptionTrack, sourcesInstruction, youtubeSection, youtubeVideoId } from "./draft-sources";
 
 describe("youtubeVideoId", () => {
   it("여러 모양의 유튜브 주소에서 영상 ID를 읽는다", () => {
@@ -71,5 +71,14 @@ describe("youtubeSection", () => {
   it("영상 길이를 시:분:초로 쓴다", () => {
     expect(formatDuration(2282)).toBe("38:02");
     expect(formatDuration(3725)).toBe("1:02:05");
+  });
+});
+
+describe("sourcesInstruction", () => {
+  it("프로젝트 폴더 자료에는 커밋 해시 같은 내부 식별자를 글에 옮기지 말라고 한다", () => {
+    const text = sourcesInstruction(false, true);
+    expect(text).toContain("커밋 해시");
+    expect(text).toContain("말로 풀어 씁니다");
+    expect(sourcesInstruction(true, false)).not.toContain("커밋 해시");
   });
 });

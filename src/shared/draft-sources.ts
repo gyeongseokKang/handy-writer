@@ -152,7 +152,7 @@ export function sourcesInstruction(hasYoutube: boolean, hasProject: boolean) {
   }
   if (hasProject) {
     lines.push(
-      "<project>는 컴퓨터에 있는 프로젝트 폴더의 요약이에요. 더 알아야 할 것이 있으면 Read, Glob, Grep 도구로 그 폴더의 파일을 직접 읽어 확인하세요. 파일은 읽기만 하고 고치지 않습니다. 비밀번호, 키, 토큰 같은 값은 글에 옮기지 않습니다.",
+      "<project>는 컴퓨터에 있는 프로젝트 폴더의 요약이에요. 더 알아야 할 것이 있으면 Read, Glob, Grep 도구로 그 폴더의 파일을 직접 읽어 확인하세요. 파일은 읽기만 하고 고치지 않습니다. 비밀번호, 키, 토큰 같은 값은 글에 옮기지 않습니다. 폴더의 git 기록이나 문서에서 본 커밋 해시, 이슈·PR 번호, 내부 파일 경로, 에러 코드도 독자에게 필요하지 않으면 글에 옮기지 말고 일어난 일을 말로 풀어 씁니다.",
     );
   }
   return lines.join("\n");

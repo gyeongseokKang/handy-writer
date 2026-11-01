@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
 import { buildUserPrompt } from "./ai-prompt";
-import { draftGoal, draftTargetChars, EMPTY_BRIEF, outlineHeadings, parseBrief, parseOutline, tidyDraftOutput } from "./draft";
+import { draftGoal, draftInstruction, draftTargetChars, EMPTY_BRIEF, outlineHeadings, outlineInstruction, parseBrief, parseOutline, tidyDraftOutput } from "./draft";
 
 const request: AiRequest = {
   runId: "r1",
@@ -37,6 +37,15 @@ describe("초안 만들기", () => {
     expect(prompt).toContain("<outline>\n## 시작\n- 왜 달리나\n</outline>");
     expect(prompt).toContain("약 1,000자");
     expect(prompt).toContain("(확인 필요)");
+  });
+
+  it("목차와 초안 모두 커밋 해시 같은 내부 식별자를 글에 쓰지 말라고 한다 (직접 적은 내용은 예외)", () => {
+    for (const text of [outlineInstruction(EMPTY_BRIEF), draftInstruction(EMPTY_BRIEF, "## 가")]) {
+      expect(text).toContain("커밋 해시");
+      expect(text).toContain("이슈·PR 번호");
+      expect(text).toContain("말로 풀어 씁니다");
+      expect(text).toContain("꼭 넣을 내용이나 요청에 직접 적혀 있으면");
+    }
   });
 
   it("렌더러에서 온 기본정보를 믿지 않고 모양을 맞춘다", () => {
