@@ -1,5 +1,6 @@
 import { isAttachmentPath, type AttachmentMeta } from "@shared/attachments";
 import type { NoteMeta, NotesChangedEvent } from "@shared/types";
+import { syncTitleHeading } from "@shared/title-heading";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -313,7 +314,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     renameNote: async (path, newName) => {
       try {
         await flushPath(path);
+        const oldName = get().notes.find((note) => note.path === path)?.name ?? "";
         const { meta, updatedNotes } = await api.notes.rename(path, newName);
+        // 본문 맨 앞의 `# 옛 제목`은 위쪽 제목이 대신 보여 주는 줄이라, 이름을 바꾸면 같이 바꿔서 어긋나지 않게 한다.
+        try {
+          const next = syncTitleHeading(await api.notes.read(meta.path), oldName, meta.name);
+          if (next !== null) await api.notes.write(meta.path, next, { countWriting: false });
+        } catch {
+          // 제목 줄을 못 고쳐도 이름 바꾸기 자체는 성공이다.
+        }
         if (updatedNotes > 0) toast.success(`${updatedNotes}개 글의 링크를 새 이름으로 고쳤어요.`);
         remap((p) => (p === path ? meta.path : p));
         if (get().activePath === null) activate(meta.path);

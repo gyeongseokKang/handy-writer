@@ -93,6 +93,7 @@ export function SettingsDialog() {
             </button>
           </label>
           <Check label="목차 띄우기" checked={ui.outlineOpen} onChange={() => ui.toggleOutline()} />
+          <Check label="목차를 펼친 채로 고정" checked={ui.outlinePinned} onChange={ui.setOutlinePinned} hint="마우스를 올리지 않아도 전체 목차가 보여요. 목차 위의 핀 버튼으로도 바꿔요." />
           <Check label="오른쪽 패널 보이기" checked={ui.rightPanelOpen} onChange={() => ui.toggleRightPanel()} hint="창이 좁아지면 저절로 접었다가, 넓어지면 다시 펼쳐요." />
         </Section>
 
@@ -129,6 +130,9 @@ export function SettingsDialog() {
 
         <Section title="도움말·업데이트">
           <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" className="h-7" onClick={go(() => ui.setHelpOpen(true))}>
+              도움말 (F1)
+            </Button>
             <Button size="sm" variant="outline" className="h-7" onClick={go(() => ui.setShortcutsOpen(true))}>
               단축키 ({shortcutLabel("Mod+/")})
             </Button>

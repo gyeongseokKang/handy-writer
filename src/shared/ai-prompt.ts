@@ -13,6 +13,8 @@ export const SYSTEM_PROMPT = [
 const MAX_REFERENCE_CHARS = 8000;
 const MAX_REFERENCES_TOTAL_CHARS = 24000;
 const MAX_BEFORE_CHARS = 12000;
+/** 커서 뒤에 이미 있는 같은 문단의 글에서 보내는 최대 글자 수 */
+const MAX_AFTER_CHARS = 1500;
 const MAX_TEXT_CHARS = 30000;
 
 function clip(text: string, max: number, keep: "start" | "end") {
@@ -39,7 +41,7 @@ const TASK_INSTRUCTIONS = {
   proofread:
     "<text>의 글에서 맞춤법, 띄어쓰기, 문장부호, 오탈자만 고치세요. 문체, 어휘, 문장 구조는 바꾸지 않습니다. 고친 전체 글만 출력하고, 고칠 곳이 없으면 원문을 그대로 출력하세요.",
   continue:
-    "<before>의 글에 이어질 내용을 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 이어질 부분만 출력하세요.",
+    "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 마지막 글자 바로 뒤에 이어 붙일 글만 출력하세요.",
   custom: "다음 지시에 따라 <text>의 글을 처리하세요. 결과 글만 출력하세요.",
 } as const;
 
@@ -106,6 +108,10 @@ export function buildUserPrompt(request: AiRequest, projectSections: string[] = 
 
   if (request.task === "continue") {
     sections.push(`<before>\n${clip(request.before, MAX_BEFORE_CHARS, "end")}\n</before>`);
+    // 문단 가운데에서 이어 쓰면, 커서 뒤에 이미 있는 글과 자연스럽게 이어져야 한다.
+    if (request.after?.trim()) {
+      sections.push(`<after>\n${clip(request.after, MAX_AFTER_CHARS, "start")}\n</after>\n<after>는 같은 문단에서 커서 뒤에 이미 있는 글입니다. 쓰는 글이 이 글과 자연스럽게 이어지게 하되, 이 글을 다시 쓰지는 마세요.`);
+    }
   } else {
     sections.push(`<text>\n${clip(request.text, MAX_TEXT_CHARS, "start")}\n</text>`);
   }

@@ -49,7 +49,7 @@ interface AiState {
   setInstruction: (instruction: string) => void;
   start: (task: AiTask) => Promise<void>;
   cancel: () => Promise<void>;
-  apply: (mode: "replace" | "below") => void;
+  apply: (mode: "replace" | "below" | "cursor") => void;
   dismiss: () => void;
 }
 
@@ -125,6 +125,7 @@ export const useAiStore = create<AiState>((set, get) => ({
         noteName: context.noteName,
         text: context.text,
         before: context.before,
+        after: context.after,
         instruction,
         templatePrompt: "",
         web: false,
@@ -148,7 +149,11 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (run.notePath !== useWorkspaceStore.getState().activePath) {
       return void toast.error("다른 글로 옮겨가서 적용할 수 없어요. 결과를 복사해서 붙여넣어 주세요.");
     }
-    if (mode === "below") {
+    if (mode === "cursor") {
+      if (bridge.appendAtCursor(run.context, run.output) === "changed") {
+        return void toast.error("요청한 뒤에 커서 앞의 글이 바뀌어서 붙이지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");
+      }
+    } else if (mode === "below") {
       bridge.insertBelowCursor(run.output);
     } else if (bridge.replace(run.context, run.output) === "changed") {
       return void toast.error("요청한 뒤에 그 부분이 바뀌어서 적용하지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");

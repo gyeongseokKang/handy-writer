@@ -376,7 +376,14 @@ export function createMockApi(): HandyApi {
       },
     },
     onCloseTab: () => () => {},
-    app: { onBeforeClose: () => () => {}, closeReady: () => {} },
+    app: {
+      onBeforeClose: () => () => {},
+      closeReady: () => {},
+      pasteAsPlainText: async () => {
+        const text = await navigator.clipboard.readText().catch(() => "");
+        if (text) document.execCommand("insertText", false, text);
+      },
+    },
     onNotesChanged: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

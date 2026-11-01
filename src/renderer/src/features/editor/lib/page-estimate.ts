@@ -1,14 +1,16 @@
-import { DOCUMENT_CSS } from "@shared/export";
+import { DOCUMENT_CSS, PAGE_MARGIN_MM, PRINT_FONT_PT, PRINT_LINE_HEIGHT } from "@shared/export";
 
 /**
- * A4로 뽑았을 때 몇 쪽인지 센다. PDF 내보내기와 같은 문서를 같은 쪽 크기(A4, 위아래 18mm·좌우 16mm 여백)로
+ * A4로 뽑았을 때 몇 쪽(p)인지 센다. PDF 내보내기와 같은 문서를 같은 쪽 크기(A4, 사방 여백, 10pt 글자)로
  * 보이지 않게 그려 보고, 쪽이 넘어가는 자리를 에디터 화면의 높이로 옮긴다.
  */
 
 const MM = 96 / 25.4;
 /** A4 본문 칸 크기 (px, 96dpi) */
-export const A4_CONTENT_WIDTH = (210 - 16 * 2) * MM;
-export const A4_CONTENT_HEIGHT = (297 - 18 * 2) * MM;
+export const A4_CONTENT_WIDTH = (210 - PAGE_MARGIN_MM * 2) * MM;
+export const A4_CONTENT_HEIGHT = (297 - PAGE_MARGIN_MM * 2) * MM;
+/** 인쇄할 때 `html { font-size: 10pt }`라서 rem 하나가 이만큼이다 (px) */
+const REM_PX = (PRINT_FONT_PT * 96) / 72;
 
 export interface PageBreak {
   /** 이 구분선 아래에서 시작하는 쪽 번호 (2부터) */
@@ -102,8 +104,11 @@ async function renderHidden(title: string, bodyHtml: string) {
   host.inert = true;
   host.style.cssText = `position:fixed;left:-100000px;top:0;width:${A4_CONTENT_WIDTH}px;visibility:hidden;pointer-events:none;contain:layout style`;
   const shadow = host.attachShadow({ mode: "open" });
-  const css = DOCUMENT_CSS.replace(/(^|\n)body \{/, "$1.page {").replace(/:root \{[^}]*\}/, "");
-  shadow.innerHTML = `<style>${css}.page main{max-width:none;margin:0;padding:0}</style><div class="page"><main></main></div>`;
+  // 인쇄 CSS가 하는 일(rem을 10pt 기준으로, 본문 10pt·줄 간격 160%, 여백 없음)을 칸 안에서 똑같이 한다.
+  const css = DOCUMENT_CSS.replace(/(^|\n)body \{/, "$1.page {")
+    .replace(/:root \{[^}]*\}/, "")
+    .replace(/(\d*\.?\d+)rem/g, (_all, n: string) => `${Number(n) * REM_PX}px`);
+  shadow.innerHTML = `<style>${css}.page{font-size:${REM_PX}px;line-height:${PRINT_LINE_HEIGHT}}.page main{max-width:none;margin:0;padding:0}</style><div class="page"><main></main></div>`;
   const main = shadow.querySelector("main")!;
   const heading = document.createElement("h1");
   heading.className = "title";
@@ -125,7 +130,7 @@ export async function measurePages(dom: HTMLElement, title: string, bodyHtml: st
   const { host, main } = await renderHidden(title, bodyHtml);
   try {
     const copies = [...main.children].slice(1);
-    const originals = ([...dom.children] as HTMLElement[]).filter((el) => !el.classList.contains("ProseMirror-gapcursor") && !el.classList.contains("ProseMirror-trailingBreak"));
+    const originals = ([...dom.children] as HTMLElement[]).filter((el) => !el.classList.contains("ProseMirror-gapcursor") && !el.classList.contains("ProseMirror-trailingBreak") && !el.classList.contains("title-echo"));
     const a4Base = main.getBoundingClientRect().top;
     const screenBase = dom.getBoundingClientRect().top;
     const blocks: BlockBox[] = [];

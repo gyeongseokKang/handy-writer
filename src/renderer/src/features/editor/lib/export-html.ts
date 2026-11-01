@@ -1,4 +1,5 @@
 import { labelName, refId, type LabelInfo } from "./cross-ref";
+import { isTitleHeading } from "@shared/title-heading";
 import { assetUrl, isRemoteUrl, kindOfPath, resolveAttachment, type AttachmentMeta } from "@shared/attachments";
 
 export interface ExportContext {
@@ -9,6 +10,8 @@ export interface ExportContext {
   footnotes?: Map<string, number>;
   /** 블록 ID → 그림·표 번호 */
   labels?: Map<string, Pick<LabelInfo, "id" | "kind" | "number">>;
+  /** 문서 제목. 주면 본문 맨 앞의 같은 제목(`# 제목`)은 빼서 제목이 두 번 나오지 않게 한다. */
+  title?: string;
   /** 다른 글 끼워 넣기(`![[글]]`) 대상 → 그 글을 그린 HTML */
   noteEmbeds?: Map<string, string>;
 }
@@ -82,6 +85,8 @@ export function toExportHtml(editorHtml: string, ctx: ExportContext) {
   }
   for (const el of doc.body.querySelectorAll<HTMLInputElement>("input[type=checkbox]")) el.disabled = true;
   for (const el of doc.body.querySelectorAll("[contenteditable]")) el.removeAttribute("contenteditable");
+  const first = doc.body.firstElementChild;
+  if (ctx.title && first?.tagName === "H1" && isTitleHeading(first.textContent ?? "", ctx.title)) first.remove();
   numberFootnotes(doc, ctx.footnotes);
   numberLabels(doc, ctx.labels);
   return doc.body.innerHTML;

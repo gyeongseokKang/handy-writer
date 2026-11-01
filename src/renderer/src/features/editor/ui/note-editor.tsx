@@ -26,7 +26,9 @@ import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
 import { createSourceKeeper } from "../lib/source-keeper";
 import { FOCUS_REFRESH } from "../lib/focus-mode";
+import { titleEchoSize } from "../lib/title-echo";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
+import { BlockMenu, selectBlock, type BlockTarget } from "./block-menu";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { EditorWidthHandles } from "./editor-width-handles";
 import { ConflictBar } from "./conflict-bar";
@@ -367,6 +369,25 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     setSpellTarget(null);
   };
 
+  // 블록 왼쪽 손잡이(⋮⋮): 끌면 옮기고, 누르면 블록 종류를 바꾸는 메뉴가 뜬다.
+  const handleTarget = useRef<BlockTarget | null>(null);
+  const [blockMenu, setBlockMenu] = useState<{ target: BlockTarget; x: number; y: number } | null>(null);
+  const openBlockMenu = (event: React.MouseEvent<HTMLElement>) => {
+    const target = handleTarget.current;
+    if (!editor || !target || !target.node) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    selectBlock(editor, target);
+    setBlockMenu({ target, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  // 제목에서 Enter: 본문의 첫 자리로. 숨겨진 제목 줄(글 제목과 같은 맨 앞 제목)은 건너뛴다.
+  function focusBodyStart() {
+    if (!editor) return;
+    const offset = titleEchoSize(editor.state.doc, nameRef.current);
+    if (offset === 0) editor.commands.focus("start");
+    else editor.chain().focus().setTextSelection(offset + 1).run();
+  }
+
   // 집중 모드: 지금 쓰는 문단만 진하게 하고, 커서 줄을 화면 가운데에 둔다 (타자기 스크롤).
   const focusMode = useUiStore((state) => state.focusMode && isMain);
   const focusDim = useUiStore((state) => state.focusDim);
@@ -508,7 +529,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       <div data-note-scroller className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto" onScroll={onScroll}>
         <div ref={columnRef} data-note-column className={cn("relative mx-auto w-full px-12 pt-14", focusMode ? "pb-[50vh]" : "pb-40")} style={{ maxWidth: editorWidth }}>
           <EditorWidthHandles columnRef={columnRef} />
-          <NoteTitle path={path} name={name} onEnter={() => editor.commands.focus("start")} />
+          <NoteTitle path={path} name={name} onEnter={focusBodyStart} />
           {/* 집중 모드에서는 태그·속성을 옅게 하고, 마우스를 올리면 보인다. */}
           <div className={cn(focusMode && "opacity-0 transition-opacity focus-within:opacity-100 hover:opacity-100")}>
           <NoteTags path={path} frontmatter={frontmatter} getText={() => editor.getText({ blockSeparator: "\n\n" })} onAdd={(tags) => addTagsRef.current(tags)}>
@@ -517,8 +538,13 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           {propertiesOpen && <NoteProperties frontmatter={frontmatter} onChange={changeFrontmatter} />}
           </div>
           <div className="relative mt-6">
-            <DragHandle editor={editor}>
-              <div className="block-handle" title="드래그해서 옮기기">
+            <DragHandle
+              editor={editor}
+              onNodeChange={({ node, pos }) => {
+                handleTarget.current = node ? { node, pos } : null;
+              }}
+            >
+              <div role="button" tabIndex={-1} aria-label="블록 메뉴" className="block-handle" title="끌어서 옮기기 · 눌러서 블록 종류 바꾸기" onClick={openBlockMenu}>
                 <GripVertical className="size-4" />
               </div>
             </DragHandle>
@@ -530,6 +556,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         </div>
       </div>
       <BubbleToolbar editor={editor} />
+      {blockMenu && <BlockMenu editor={editor} target={blockMenu.target} x={blockMenu.x} y={blockMenu.y} onClose={() => setBlockMenu(null)} />}
       <TableMenu editor={editor} />
       {spellTarget && (
         <SpellPopover

@@ -261,7 +261,12 @@ function Result() {
                 <Check /> {run.context?.hasSelection ? "선택 부분에 적용" : "본문 전체에 적용"}
               </Button>
             )}
-            <Button size="sm" variant={canReplace ? "outline" : "default"} onClick={() => apply("below")}>
+            {run.task === "continue" && (
+              <Button size="sm" onClick={() => apply("cursor")} title="커서가 있던 문단에 바로 이어서 써 넣어요">
+                <TextCursorInput /> 이어 붙이기
+              </Button>
+            )}
+            <Button size="sm" variant={canReplace || run.task === "continue" ? "outline" : "default"} onClick={() => apply("below")}>
               <CopyPlus /> 아래에 삽입
             </Button>
             <Button size="sm" variant="outline" onClick={copy}>

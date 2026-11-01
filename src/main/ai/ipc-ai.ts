@@ -25,6 +25,7 @@ function parseRequest(value: unknown): AiRequest {
     noteName: str(v.noteName),
     text: str(v.text),
     before: str(v.before),
+    ...(v.task === "continue" ? { after: str(v.after) } : {}),
     instruction: str(v.instruction),
     templatePrompt: str(v.templatePrompt),
     // 웹 검색은 템플릿 작업에서만, 참고 글 기반 모드가 아닐 때만 켠다.

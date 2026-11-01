@@ -17,15 +17,17 @@ function readEditorWidth() {
   }
 }
 
+const OUTLINE_PINNED_KEY = "handy-writer:outline-pinned";
 const FOCUS_DIM_KEY = "handy-writer:focus-dim";
 const TYPEWRITER_KEY = "handy-writer:typewriter";
 
 /** 집중 모드 설정은 기본 켜짐이고 이 컴퓨터에 기억한다. */
-function readFlag(key: string) {
+function readFlag(key: string, fallback = true) {
   try {
-    return localStorage.getItem(key) !== "0";
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value !== "0";
   } catch {
-    return true;
+    return fallback;
   }
 }
 
@@ -62,6 +64,9 @@ interface UiState {
   manuscriptFolder: string | null;
   /** 오늘 쓴 양 창 */
   statsOpen: boolean;
+  /** 도움말(기능 안내) 창. helpFeature가 있으면 그 기능으로 바로 간다. */
+  helpOpen: boolean;
+  helpFeature: string | null;
   /** 집중 모드: 사이드바·탭·패널을 숨기고 글만 보여 준다 */
   focusMode: boolean;
   /** 집중 모드에서 지금 쓰는 문단만 진하게 */
@@ -70,6 +75,8 @@ interface UiState {
   typewriter: boolean;
   /** 사이드바 옆의 목차 패널 */
   outlineOpen: boolean;
+  /** 떠 있는 목차를 마우스를 올리지 않아도 전체가 펼쳐진 채로 둔다 (이 컴퓨터에 기억) */
+  outlinePinned: boolean;
   /** AI 초안 만들기 창 */
   draftOpen: boolean;
   rightTab: RightTab;
@@ -104,11 +111,13 @@ interface UiState {
   setOnboardingOpen: (open: boolean) => void;
   setManuscriptFolder: (folder: string | null) => void;
   setStatsOpen: (open: boolean) => void;
+  setHelpOpen: (open: boolean, feature?: string) => void;
   setFocusMode: (on: boolean) => void;
   toggleFocusMode: () => void;
   setFocusDim: (on: boolean) => void;
   setTypewriter: (on: boolean) => void;
   toggleOutline: () => void;
+  setOutlinePinned: (pinned: boolean) => void;
   setDraftOpen: (open: boolean) => void;
   setRightTab: (tab: RightTab) => void;
   /** Git 화면을 열고 닫는다. 열 때는 오른쪽 패널도 연다. */
@@ -135,10 +144,13 @@ export const useUiStore = create<UiState>((set) => ({
   onboardingOpen: false,
   manuscriptFolder: null,
   statsOpen: false,
+  helpOpen: false,
+  helpFeature: null,
   focusMode: false,
   focusDim: readFlag(FOCUS_DIM_KEY),
   typewriter: readFlag(TYPEWRITER_KEY),
   outlineOpen: true,
+  outlinePinned: readFlag(OUTLINE_PINNED_KEY, false),
   draftOpen: false,
   rightTab: "links",
   gitOpen: false,
@@ -168,6 +180,7 @@ export const useUiStore = create<UiState>((set) => ({
   setOnboardingOpen: (onboardingOpen) => set({ onboardingOpen }),
   setManuscriptFolder: (manuscriptFolder) => set({ manuscriptFolder }),
   setStatsOpen: (statsOpen) => set({ statsOpen }),
+  setHelpOpen: (helpOpen, feature) => set({ helpOpen, helpFeature: helpOpen ? (feature ?? null) : null }),
   setFocusMode: (focusMode) => set({ focusMode }),
   toggleFocusMode: () => set((state) => ({ focusMode: !state.focusMode })),
   setFocusDim: (focusDim) => {
@@ -179,6 +192,10 @@ export const useUiStore = create<UiState>((set) => ({
     set({ typewriter });
   },
   toggleOutline: () => set((state) => ({ outlineOpen: !state.outlineOpen })),
+  setOutlinePinned: (outlinePinned) => {
+    saveFlag(OUTLINE_PINNED_KEY, outlinePinned);
+    set({ outlinePinned });
+  },
   setDraftOpen: (draftOpen) => set({ draftOpen }),
   setRightTab: (rightTab) => set({ rightTab, rightPanelOpen: true, gitOpen: false }),
   toggleGit: () => set((state) => (state.gitOpen && state.rightPanelOpen ? { gitOpen: false } : { gitOpen: true, rightPanelOpen: true })),

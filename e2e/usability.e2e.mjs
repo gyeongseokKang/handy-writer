@@ -32,9 +32,9 @@ assert((await tour.count()) === 0, "한 번 본 뒤에는 다시 뜨지 않는�
 await page.click("nav[aria-label='글 목록'] >> text=달리기");
 await page.waitForSelector(".note-prose");
 
-// ── 제목 중복 흐리기 ──
+// ── 제목 중복 숨기기 ──
 const h1 = page.locator(".note-prose > h1").first();
-assert((await h1.getAttribute("class"))?.includes("title-echo"), "본문 첫 제목이 글 제목과 같으면 흐리게 줄인다");
+assert((await h1.getAttribute("class"))?.includes("title-echo") && (await h1.evaluate((el) => getComputedStyle(el).display)) === "none", "본문 첫 제목이 글 제목과 같으면 위쪽 제목이 대신하고 본문에서는 숨긴다");
 assert(read("달리기.md").startsWith("# 달리기\n"), "파일은 그대로다");
 
 // ── 명령 팔레트 ──
@@ -118,6 +118,27 @@ await page.setViewportSize({ width: 2000, height: 900 });
 await sleep(500);
 assert((await outline.getAttribute("data-compact")) === null, "자리가 넉넉하면 지금 제목까지 보여 준다");
 await page.setViewportSize({ width: 1280, height: 820 });
+await sleep(400);
+
+// ── 목차를 펼친 채로 고정 ──
+const outlineButtons = outline.getByRole("button");
+assert((await outline.getAttribute("data-pinned")) === null && (await outlineButtons.count()) === 0 || !(await outlineButtons.first().isVisible()), "처음에는 마우스를 올릴 때만 전체 목차가 펼쳐진다");
+await outline.focus();
+const pin = outline.getByRole("button", { name: "목차를 펼친 채로 고정" });
+await pin.click();
+await page.mouse.move(640, 700);
+await page.evaluate(() => document.activeElement?.blur());
+await sleep(500);
+assert((await outline.getAttribute("data-pinned")) === "true" && (await outline.getByRole("button", { name: /^소제목 같은 제목|.+/ }).nth(1).isVisible()), "고정하면 마우스를 치워도 전체 목차가 펼쳐져 있다");
+assert((await page.evaluate(() => localStorage.getItem("handy-writer:outline-pinned"))) === "1", "고정은 이 컴퓨터에 기억한다");
+await page.reload();
+await page.waitForSelector(".note-prose");
+await sleep(800);
+assert((await page.getByRole("navigation", { name: "목차" }).getAttribute("data-pinned")) === "true", "다시 켜도 고정돼 있다");
+await page.getByRole("navigation", { name: "목차" }).getByRole("button", { name: "목차 고정 해제" }).click();
+await page.mouse.move(640, 700);
+await sleep(500);
+assert((await page.getByRole("navigation", { name: "목차" }).getAttribute("data-pinned")) === null, "다시 누르면 고정이 풀린다");
 
 assert(logs.length === 0, `콘솔 오류 없음 ${logs.join(" | ")}`);
 await env.close();

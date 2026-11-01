@@ -39,6 +39,25 @@ describe("buildUserPrompt", () => {
     expect(prompt).not.toContain("<text>");
   });
 
+  it("이어쓰기는 지금 문단을 마무리하는 글만 쓰게 하고, 새 문단·글 전체 마무리는 막는다", () => {
+    const prompt = buildUserPrompt({ ...base, task: "continue", before: "첫 문단.\n\n둘째 문단이 아직" });
+    expect(prompt).toContain("마지막 문단이 커서가 있는 문단");
+    expect(prompt).toContain("문단을 자연스럽게 마무리하는 글만");
+    expect(prompt).toContain("다섯 문장 안팎");
+    expect(prompt).toContain("여섯 문장을 넘기지 마세요");
+    expect(prompt).toContain("새 문단, 소제목, 목록을 시작하지 말고");
+    expect(prompt).not.toContain("이어질 내용을 쓰세요");
+    expect(prompt).not.toContain("<after>");
+  });
+
+  it("문단 가운데에서 이어 쓰면 커서 뒤에 이미 있는 글을 <after>로 보낸다 (다시 쓰지 말라고)", () => {
+    const prompt = buildUserPrompt({ ...base, task: "continue", before: "앞 글", after: "뒤에 남은 글" });
+    expect(prompt).toContain("<after>\n뒤에 남은 글\n</after>");
+    expect(prompt).toContain("이 글을 다시 쓰지는 마세요");
+    // 공백뿐이면 보내지 않는다.
+    expect(buildUserPrompt({ ...base, task: "continue", before: "앞 글", after: "  \n" })).not.toContain("<after>");
+  });
+
   it("참고 글을 이름과 함께 넣고 [[링크]]로 출처를 밝히라고 요청한다", () => {
     const prompt = buildUserPrompt({ ...base, task: "custom", instruction: "요약해", references: [{ name: "글쓰기 규칙", content: "짧게 쓴다" }] });
     expect(prompt).toContain('<note name="글쓰기 규칙">\n짧게 쓴다\n</note>');
