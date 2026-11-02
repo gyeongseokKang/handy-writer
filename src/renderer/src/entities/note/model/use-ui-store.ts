@@ -18,6 +18,7 @@ function readEditorWidth() {
 }
 
 const OUTLINE_PINNED_KEY = "handy-writer:outline-pinned";
+const TAB_PER_CLICK_KEY = "handy-writer:tab-per-click";
 const FOCUS_DIM_KEY = "handy-writer:focus-dim";
 const TYPEWRITER_KEY = "handy-writer:typewriter";
 
@@ -78,6 +79,9 @@ interface UiState {
   outlineOpen: boolean;
   /** 떠 있는 목차를 마우스를 올리지 않아도 전체가 펼쳐진 채로 둔다 (이 컴퓨터에 기억) */
   outlinePinned: boolean;
+  /** 목록에서 글을 누르면 새 탭으로 연다 (끄면 지금 탭을 바꾼다. Cmd/Ctrl+클릭은 반대로) */
+  tabPerClick: boolean;
+  setTabPerClick: (value: boolean) => void;
   /** AI 초안 만들기 창 */
   draftOpen: boolean;
   rightTab: RightTab;
@@ -154,6 +158,11 @@ export const useUiStore = create<UiState>((set) => ({
   typewriter: readFlag(TYPEWRITER_KEY),
   outlineOpen: true,
   outlinePinned: readFlag(OUTLINE_PINNED_KEY, false),
+  tabPerClick: readFlag(TAB_PER_CLICK_KEY),
+  setTabPerClick: (tabPerClick) => {
+    saveFlag(TAB_PER_CLICK_KEY, tabPerClick);
+    set({ tabPerClick });
+  },
   draftOpen: false,
   rightTab: "links",
   gitOpen: false,

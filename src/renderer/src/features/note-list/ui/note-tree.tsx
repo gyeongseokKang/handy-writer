@@ -3,6 +3,7 @@ import { ChevronRight, FileText, FolderPlus, Trash2 } from "lucide-react";
 import { useMemo, useRef } from "react";
 
 import { useGitStore } from "@/entities/git/model/use-git-store";
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { cn } from "@/shared/lib/utils";
 
@@ -158,10 +159,10 @@ function NoteRow({ note, depth }: { note: NoteMeta; depth: number }) {
         // Cmd/Ctrl+클릭(또는 가운데 버튼)은 새 탭, Alt+클릭은 오른쪽에 나란히 연다.
         onClick={(event) => {
           if (event.altKey) void useWorkspaceStore.getState().openSplit(note.path);
-          else void openNote(note.path, { newTab: event.metaKey || event.ctrlKey });
+          else void openNote(note.path, { newTab: useUiStore.getState().tabPerClick !== (event.metaKey || event.ctrlKey) });
         }}
         onAuxClick={(event) => event.button === 1 && void openNote(note.path, { newTab: true })}
-        title={`${note.path}\nCmd/Ctrl+클릭: 새 탭 · Alt+클릭: 옆에 열기`}
+        title={`${note.path}\nCmd/Ctrl+클릭: ${useUiStore.getState().tabPerClick ? "지금 탭에 열기" : "새 탭"} · Alt+클릭: 옆에 열기`}
         style={{ paddingLeft: 8 + depth * 14 }}
         className="flex min-w-0 flex-1 items-center gap-2 py-1.5 text-left"
       >

@@ -94,6 +94,7 @@ export function SettingsDialog() {
           </label>
           <Check label="목차 띄우기" checked={ui.outlineOpen} onChange={() => ui.toggleOutline()} />
           <Check label="목차를 펼친 채로 고정" checked={ui.outlinePinned} onChange={ui.setOutlinePinned} hint="마우스를 올리지 않아도 전체 목차가 보여요. 목차 위의 핀 버튼으로도 바꿔요." />
+          <Check label="글을 누르면 새 탭으로 열기" checked={ui.tabPerClick} onChange={ui.setTabPerClick} hint="끄면 지금 탭을 바꿔서 열어요. 어느 쪽이든 Cmd/Ctrl+클릭은 반대로 열어요." />
           <Check label="오른쪽 패널 보이기" checked={ui.rightPanelOpen} onChange={() => ui.toggleRightPanel()} hint="창이 좁아지면 저절로 접었다가, 넓어지면 다시 펼쳐요." />
         </Section>
 
