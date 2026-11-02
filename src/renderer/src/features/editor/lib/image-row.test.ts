@@ -82,4 +82,53 @@ describe("이미지 나란히 놓기", () => {
     expect(md()).toBe("![[a.png]]\n\n![[b.png]]\n\n설명 ^fig-1");
     expect(bridge.splitImageRow()).toBe(false);
   });
+
+  it("이미 이미지가 있는 줄에 이미지를 더 올리면 그 옆에 나란히 놓는다", () => {
+    const bridge = mount("앞 글\n\n![[a.png]]\n\n뒷 글");
+    cursorInBlock(1);
+    bridge.insertEmbeds(["b.png"]);
+    // 처음 묶음이 되면 라벨 줄이 생기고 커서가 거기에 있다.
+    expect(md()).toBe("앞 글\n\n![[a.png]] ![[b.png]]\n\n ^fig-1\n\n뒷 글");
+    expect(editor.view.dom.querySelectorAll("p.image-row")).toHaveLength(1);
+
+    // 이미 묶음이면 이어서 붙이고, 라벨 줄은 더 만들지 않는다.
+    cursorInBlock(1);
+    bridge.insertEmbeds(["c.png", "d.png"]);
+    expect(md()).toBe("앞 글\n\n![[a.png]] ![[b.png]] ![[c.png]] ![[d.png]]\n\n ^fig-1\n\n뒷 글");
+  });
+
+  it("끌어다 놓은 자리(pos)가 이미지 줄 안이면 그 줄에 더한다", () => {
+    const bridge = mount("![[a.png]]\n\n글");
+    bridge.insertEmbeds(["b.png"], 1);
+    expect(md()).toContain("![[a.png]] ![[b.png]]");
+  });
+
+  it("이미 있는 라벨 줄은 그대로 두고, 글 문단에 올리면 예전처럼 따로 놓는다", () => {
+    const bridge = mount("![[a.png]]\n\n설명 ^fig-x\n\n글");
+    cursorInBlock(0);
+    bridge.insertEmbeds(["b.png"]);
+    expect(md()).toBe("![[a.png]] ![[b.png]]\n\n설명 ^fig-x\n\n글");
+
+    cursorInBlock(2);
+    bridge.insertEmbeds(["c.png"]);
+    expect(md()).toContain("![[c.png]]");
+    expect(md()).not.toContain("![[a.png]] ![[b.png]] ![[c.png]]");
+  });
+
+  it("영상이 섞이면 이미지만 묶음에 더하고 영상은 따로 놓는다", () => {
+    const bridge = mount("![[a.png]]\n\n글");
+    cursorInBlock(0);
+    bridge.insertEmbeds(["b.png", "영상.mp4"]);
+    expect(md()).toContain("![[a.png]] ![[b.png]]");
+    expect(md()).toContain("![[영상.mp4]]");
+  });
+
+  it("위치를 주면 그 자리의 묶음을 푼다", () => {
+    const bridge = mount("글\n\n![[a.png]] ![[b.png]]\n\n글 둘");
+    cursorInBlock(2);
+    const start = editor.state.doc.child(0).nodeSize;
+    expect(bridge.splitImageRow()).toBe(false);
+    expect(editor.chain().focus().splitImageRow(start + 1).run()).toBe(true);
+    expect(md()).toBe("글\n\n![[a.png]]\n\n![[b.png]]\n\n글 둘");
+  });
 });

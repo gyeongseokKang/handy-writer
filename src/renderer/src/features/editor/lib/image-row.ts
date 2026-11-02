@@ -55,8 +55,10 @@ declare module "@tiptap/core" {
     imageRow: {
       /** 커서(또는 선택한 블록)의 이미지 문단과 이어진 이미지 문단들을 한 줄로 합치고, 라벨 캡션이 없으면 아래에 넣는다. */
       arrangeImages: () => ReturnType;
-      /** 나란히 놓인 이미지를 문단 하나씩으로 푼다. */
-      splitImageRow: () => ReturnType;
+      /** 나란히 놓인 이미지를 문단 하나씩으로 푼다. pos가 있으면 그 자리의 묶음을, 없으면 커서가 있는 묶음을 푼다. */
+      splitImageRow: (pos?: number) => ReturnType;
+      /** 이미 이미지가 있는 문단(pos 또는 커서 자리)에 이미지를 더해 나란히 놓는다. 그 자리에 이미지 문단이 없으면 false */
+      addToImageRow: (targets: string[], pos?: number) => ReturnType;
       /** 이미지 임베드들을 한 줄로 넣고 아래에 라벨 캡션을 만들어 커서를 거기에 둔다. */
       insertImageRow: (targets: string[], pos?: number) => ReturnType;
     };
@@ -102,10 +104,10 @@ export const ImageRow = Extension.create({
         },
 
       splitImageRow:
-        () =>
+        (pos) =>
         ({ state, tr, dispatch }) => {
           const { doc, schema, selection } = state;
-          const $from = selection.$from;
+          const $from = pos === undefined ? selection.$from : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
           if ($from.depth === 0) return false;
           const index = $from.index(0);
           const node = doc.child(index);
@@ -116,6 +118,37 @@ export const ImageRow = Extension.create({
           node.forEach((child) => isImageEmbed(child) && paragraphs.push(schema.nodes["paragraph"]!.create(null, child)));
           tr.replaceWith(start, start + node.nodeSize, paragraphs);
           tr.setSelection(TextSelection.create(tr.doc, start + 1)).scrollIntoView();
+          return true;
+        },
+
+      addToImageRow:
+        (targets, pos) =>
+        ({ state, tr, dispatch }) => {
+          const { doc, schema, selection } = state;
+          if (targets.length === 0) return false;
+          const $at = pos === undefined ? selection.$from : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
+          if ($at.depth === 0) return false;
+          const index = $at.index(0);
+          const block = doc.child(index);
+          if (imageCount(block) === 0) return false;
+          if (!dispatch) return true;
+
+          const embeds: PMNode[] = [];
+          block.forEach((child) => isImageEmbed(child) && embeds.push(child));
+          const grouped = embeds.length >= 2;
+          targets.forEach((target) => embeds.push(schema.nodes["embed"]!.create({ target, syntax: "wiki" })));
+          const start = $at.before(1);
+          const end = start + block.nodeSize;
+          const row = rowParagraph(schema, embeds);
+          // 처음 묶음이 되는 것이면 라벨 캡션을 만들어 커서를 둔다. 이미 묶음이거나 라벨이 있으면 그대로 둔다.
+          if (grouped || isCaption(doc.maybeChild(index + 1))) {
+            tr.replaceWith(start, end, row);
+            tr.setSelection(TextSelection.create(tr.doc, start + row.nodeSize - 1)).scrollIntoView();
+          } else {
+            const { caption } = rowWithCaption(schema, doc, embeds);
+            tr.replaceWith(start, end, [row, caption]);
+            tr.setSelection(TextSelection.create(tr.doc, start + row.nodeSize + 1)).scrollIntoView();
+          }
           return true;
         },
 

@@ -161,14 +161,16 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string, fr
 
     insertEmbeds(targets, pos) {
       if (targets.length === 0) return;
-      // 이미지를 둘 이상 한꺼번에 넣으면 한 묶음으로 나란히 놓고 아래에 라벨 캡션을 만든다. 영상·PDF 등은 따로 한 줄씩.
       const images = targets.filter((target) => kindOfPath(target) === "image");
-      const group = images.length >= 2;
-      const single = group ? targets.filter((target) => kindOfPath(target) !== "image") : targets;
+      // 이미 이미지가 있는 자리에 이미지를 더 올리면 그 이미지와 나란히 놓는다.
+      const joined = images.length > 0 && editor.chain().focus().addToImageRow(images, pos).run();
+      // 이미지를 둘 이상 한꺼번에 넣으면 한 묶음으로 나란히 놓고 아래에 라벨 캡션을 만든다. 영상·PDF 등은 따로 한 줄씩.
+      const group = !joined && images.length >= 2;
+      const single = joined || group ? targets.filter((target) => kindOfPath(target) !== "image") : targets;
       if (single.length > 0) {
         const nodes = single.map((target) => ({ type: "paragraph", content: [{ type: "embed", attrs: { target, syntax: "wiki" } }] }));
         const chain = editor.chain().focus();
-        (pos === undefined ? chain.insertContent(nodes) : chain.insertContentAt(pos, nodes)).run();
+        (pos === undefined || joined ? chain.insertContent(nodes) : chain.insertContentAt(pos, nodes)).run();
       }
       if (group) editor.chain().focus().insertImageRow(images, single.length > 0 ? undefined : pos).run();
     },
