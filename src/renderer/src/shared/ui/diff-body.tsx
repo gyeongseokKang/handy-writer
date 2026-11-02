@@ -3,7 +3,6 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import { diffVersions, isGap, type DiffLine } from "@/shared/lib/text-diff";
 
 /** 변경 표시 애니메이션을 차례로 띄울 때 최대 지연 단계 */
-const MAX_STAGGER = 24;
 
 /**
  * 두 글의 차이를 줄 단위로 보여준다 (추가는 초록, 삭제는 빨강, 고친 줄은 낱말 단위).
@@ -30,7 +29,6 @@ export function DiffBody({ before, after, collapse, active }: { before: string; 
     else scroller?.scrollTo({ top: 0 });
   }, [active, diff]);
 
-  let change = 0;
   const changedLines = diff.rows.filter((row) => !isGap(row) && row.changed).length;
 
   return (
@@ -50,16 +48,7 @@ export function DiffBody({ before, after, collapse, active }: { before: string; 
               ? " "
               : row.segments.map((segment, i) => {
                   if (segment.type === "same") return <span key={i}>{segment.text}</span>;
-                  const style = { "--i": Math.min(change++, MAX_STAGGER) } as React.CSSProperties;
-                  return segment.type === "added" ? (
-                    <ins key={i} style={style}>
-                      {segment.text}
-                    </ins>
-                  ) : (
-                    <del key={i} style={style}>
-                      {segment.text}
-                    </del>
-                  );
+                  return segment.type === "added" ? <ins key={i}>{segment.text}</ins> : <del key={i}>{segment.text}</del>;
                 })}
           </div>
         );
