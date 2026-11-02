@@ -5,10 +5,12 @@ import { basename, dirname, extname, join, relative, sep } from "node:path";
 import { parse, stringify } from "yaml";
 
 import {
-  REVIEW_CATEGORIES, REVIEWS_DIR, cleanFrontmatter, decideDeployState, reviewAssetDir, reviewTemplate,
+  DEFAULT_DEPLOY_KIND, DEFAULT_REVIEW_SITE_URL, REVIEW_CATEGORIES, REVIEWS_DIR, cleanFrontmatter, decideDeployState, reviewAssetDir, reviewTemplate,
   type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewPost, type ReviewPostSummary,
 } from "../../shared/review";
 import { runGit } from "../git/runner";
+import { parseStatusV2 } from "../git/parse";
+import type { ReviewRepoStatus } from "../../shared/review";
 import { createDeployProvider } from "./deploy";
 
 export interface ReviewConfig { repo: string | null; deploy: DeployProviderInfo | null }
@@ -16,9 +18,13 @@ export interface ReviewConfig { repo: string | null; deploy: DeployProviderInfo 
 const configPath = () => join(app.getPath("userData"), "review-config.json");
 const toPosix = (p: string) => p.split(sep).join("/");
 
+/** 사이트 주소를 아직 안 넣었으면 핸디 리뷰 기본 주소로 배포 상태를 본다. */
+const DEFAULT_DEPLOY: DeployProviderInfo = { kind: DEFAULT_DEPLOY_KIND, siteUrl: DEFAULT_REVIEW_SITE_URL };
+
 export async function loadReviewConfig(): Promise<ReviewConfig> {
-  try { return { repo: null, deploy: null, ...(JSON.parse(await readFile(configPath(), "utf8")) as Partial<ReviewConfig>) }; }
-  catch { return { repo: null, deploy: null }; }
+  let saved: Partial<ReviewConfig> = {};
+  try { saved = JSON.parse(await readFile(configPath(), "utf8")) as Partial<ReviewConfig>; } catch { /* 처음 */ }
+  return { repo: saved.repo ?? null, deploy: saved.deploy?.siteUrl ? saved.deploy : DEFAULT_DEPLOY };
 }
 export async function saveReviewConfig(next: ReviewConfig) {
   await mkdir(dirname(configPath()), { recursive: true });
@@ -135,3 +141,14 @@ export async function deployStatus(repo: string, info: DeployProviderInfo | null
 }
 
 export const toRepoRelative = (repo: string, abs: string) => toPosix(relative(repo, abs));
+
+/** 사이드바에 보여 줄 리뷰 저장소의 Git 상태. 원격을 받아 오지는 않는다(배포 상태 확인이 받아 온다). */
+export async function reviewRepoStatus(repo: string): Promise<ReviewRepoStatus> {
+  const name = basename(repo);
+  try {
+    const parsed = parseStatusV2((await runGit(repo, ["status", "--porcelain=v2", "--branch", "-z"], { readOnly: true })).stdout);
+    return { repo, name, branch: parsed.branch, ahead: parsed.ahead, behind: parsed.behind, changes: parsed.changes.length };
+  } catch (error) {
+    return { repo, name, branch: null, ahead: 0, behind: 0, changes: 0, error: (error as Error).message };
+  }
+}

@@ -1,4 +1,5 @@
-import type { DeployProviderInfo, DeployStatus, ReviewCategory, ReviewPost, ReviewPostSummary } from "./review";
+import type { DeployProviderInfo, DeployStatus, ReviewPostSummary, ReviewRepoStatus } from "./review";
+import type { ReviewNotePreview, ReviewNotePublishResult } from "./review-note";
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { ProjectSource, YoutubeSource } from "./draft-sources";
@@ -63,12 +64,15 @@ export interface HandyApi {
     chooseRepo: () => Promise<ReviewConfig>;
     setDeploy: (deploy: DeployProviderInfo | null) => Promise<ReviewConfig>;
     list: () => Promise<ReviewPostSummary[]>;
-    create: (category: ReviewCategory, title: string) => Promise<ReviewPost>;
-    read: (path: string) => Promise<ReviewPost>;
-    write: (post: ReviewPost) => Promise<void>;
-    saveImage: (postPath: string, name: string, data: Uint8Array) => Promise<string>;
-    publish: (postPath: string) => Promise<{ committed: boolean; sha: string }>;
+    /** 작업 폴더 글을 리뷰 글로 바꾼 모습 (아무것도 쓰지 않는다) */
+    previewNote: (notePath: string) => Promise<ReviewNotePreview>;
+    /** 작업 폴더 글을 리뷰 글로 바꿔 저장소에 쓰고 커밋·푸시한다 */
+    publishNote: (notePath: string) => Promise<ReviewNotePublishResult>;
+    /** 저장소의 리뷰 글을 작업 폴더의 글로 가져온다 */
+    importPost: (postPath: string) => Promise<{ path: string; created: boolean }>;
     deployStatus: () => Promise<DeployStatus>;
+    /** 리뷰 저장소의 브랜치와 올릴·받을 커밋 수. 저장소를 안 골랐으면 null */
+    repoStatus: () => Promise<ReviewRepoStatus | null>;
     reveal: (path: string) => Promise<void>;
   };
   workspace: {
@@ -230,12 +234,11 @@ export const IPC = {
   reviewChooseRepo: "review:choose-repo",
   reviewSetDeploy: "review:set-deploy",
   reviewList: "review:list",
-  reviewCreate: "review:create",
-  reviewRead: "review:read",
-  reviewWrite: "review:write",
-  reviewSaveImage: "review:save-image",
-  reviewPublish: "review:publish",
+  reviewPreviewNote: "review:preview-note",
+  reviewPublishNote: "review:publish-note",
+  reviewImport: "review:import",
   reviewDeployStatus: "review:deploy-status",
+  reviewRepoStatus: "review:repo-status",
   reviewReveal: "review:reveal",
   workspaceGet: "workspace:get",
   workspaceChoose: "workspace:choose",

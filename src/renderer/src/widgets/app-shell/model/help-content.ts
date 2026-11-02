@@ -356,6 +356,20 @@ export const HELP_FEATURES: HelpFeature[] = [
     keywords: ["pdf", "word", "docx", "html", "복사", "저장"],
   },
   {
+    id: "review",
+    group: "share",
+    title: "핸디 리뷰로 게시",
+    summary: "글 속성에 `review`를 더하면 오른쪽 ‘연결’ 탭 아래에 핸디 리뷰 칸이 생겨요. 별점·한 줄 결론·추천 대상·링크를 채우고 ‘게시’를 누르면 핸디 리뷰 사이트 저장소에 글과 이미지만 커밋·푸시해요.",
+    steps: [
+      "속성 표의 `+ 속성 추가`로 `review`를 더하거나, 명령 팔레트의 ‘이 글을 핸디 리뷰로 만들기·게시’를 실행해요. 처음 한 번은 handy-review 저장소를 클론한 폴더를 골라요.",
+      "본문은 에디터에서 그대로 써요. 제목은 글 이름, 태그는 글의 태그를 쓰고, 첨부 이미지는 리뷰 글 옆으로 복사해요.",
+      "‘미리보기’로 올라갈 파일을 보고 ‘게시’해요. 다시 게시하면 같은 리뷰를 고쳐요. 사이드바 아래 핸디 리뷰 줄에서 배포 상태를 봐요.",
+    ],
+    image: "review",
+    command: { id: "app.review-note", label: "이 글을 핸디 리뷰로 만들기·게시" },
+    keywords: ["리뷰", "게시", "배포", "쿠팡", "handy-review", "사이트"],
+  },
+  {
     id: "manuscript",
     group: "share",
     title: "원고 묶기",

@@ -6,6 +6,7 @@ import { useFavoritesStore } from "@/entities/note/model/use-favorites-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { toggleSplit } from "@/features/note-tabs/ui/tab-bar";
+import { createReviewNote, makeCurrentNoteReview } from "@/features/review/model/review-actions";
 
 const ui = () => useUiStore.getState();
 const ws = () => useWorkspaceStore.getState();
@@ -98,7 +99,8 @@ export function buildCommands(): Command[] {
     { id: "app.settings", group: "앱", title: "설정", shortcut: "Mod+,", keywords: ["settings", "환경"], run: () => ui().setSettingsOpen(true) },
     { id: "app.style", group: "앱", title: "문장 다듬기 설정·내 표기 사전", keywords: ["style", "사전"], run: () => ui().setStyleSettingsOpen(true) },
     { id: "app.help", group: "앱", title: "도움말 (기능 안내)", shortcut: "F1", keywords: ["help", "도움말", "기능", "설명", "사용법"], run: () => ui().setHelpOpen(true) },
-    { id: "app.review", group: "앱", title: "리뷰 글 쓰기 (핸디 리뷰)", keywords: ["review", "리뷰", "배포", "쿠팡"], run: () => ui().setReviewOpen(true) },
+    { id: "app.review", group: "앱", title: "새 리뷰 글 쓰기 (핸디 리뷰)", keywords: ["review", "리뷰", "배포", "쿠팡"], run: () => void createReviewNote() },
+    { id: "app.review-note", group: "앱", title: "이 글을 핸디 리뷰로 만들기·게시", keywords: ["review", "리뷰", "게시", "배포", "발행"], run: () => makeCurrentNoteReview() },
     { id: "app.shortcuts", group: "앱", title: "단축키 보기", shortcut: "Mod+/", keywords: ["shortcut", "키"], run: () => ui().setShortcutsOpen(true) },
     { id: "app.commands", group: "앱", title: "명령 실행", shortcut: "Mod+Shift+P", keywords: ["command"], run: () => ui().setPaletteOpen(true, ">") },
     { id: "app.folder", group: "앱", title: "작업 폴더 바꾸기", keywords: ["folder", "볼트"], run: () => void ws().chooseFolder() },

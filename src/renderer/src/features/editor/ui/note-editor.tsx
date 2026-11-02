@@ -270,7 +270,12 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   // AI 패널이 선택한 글을 읽고 결과를 적용할 수 있게 에디터를 등록
   useEffect(() => {
     if (!editor || !isMain) return;
-    const bridge = createEditorBridge(editor, () => nameRef.current, { addTags: (tags) => addTagsRef.current(tags) });
+    const bridge = createEditorBridge(editor, () => nameRef.current, {
+      addTags: (tags) => addTagsRef.current(tags),
+      getFrontmatter: () => frontmatterRef.current,
+      setFrontmatter: (next) => changeFrontmatterRef.current(next),
+      flush: () => flushRef.current(),
+    });
     useEditorBridge.getState().setBridge(bridge);
     // 첨부 패널이 보여줄 임베드 목록과 목차를 글이 바뀔 때마다 갱신한다.
     const syncEmbeds = () => {
@@ -291,6 +296,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       editor.off("selectionUpdate", syncActiveHeading);
       if (useEditorBridge.getState().bridge === bridge) {
         useEditorBridge.getState().setBridge(null);
+        useEditorBridge.getState().setFrontmatter("");
         useEmbedStore.getState().setItems([]);
         useOutlineStore.getState().setHeadings([]);
         useOutlineStore.getState().setActivePos(null);
@@ -346,11 +352,18 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   const pages = usePageEstimate(editor, path, name);
   const [pageBreaksShown, togglePageBreaks] = usePageBreaksShown();
   const changeFrontmatter = (next: string) => {
+    if (next === frontmatterRef.current) return;
     frontmatterRef.current = next;
     setFrontmatter(next);
     dirtyRef.current = true;
     void flushRef.current();
   };
+  const changeFrontmatterRef = useRef(changeFrontmatter);
+  changeFrontmatterRef.current = changeFrontmatter;
+  // 오른쪽 리뷰 패널이 지금 글의 frontmatter를 따라 그리도록 알린다.
+  useEffect(() => {
+    if (isMain) useEditorBridge.getState().setFrontmatter(frontmatter);
+  }, [frontmatter, isMain]);
 
   const changeGoal = (goal: WritingGoal | null) => {
     const next = setFrontmatterLine(frontmatterRef.current, "goal", goal ? formatGoal(goal) : null);

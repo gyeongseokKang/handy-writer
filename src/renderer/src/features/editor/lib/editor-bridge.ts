@@ -73,6 +73,9 @@ function sectionNodes(doc: ProseMirrorNode, top: number): ProseMirrorNode[] {
 /** frontmatter는 에디터 밖(NoteEditor)에서 들고 있으므로, 태그를 더하는 일은 거기서 넘겨받는다. */
 export interface FrontmatterActions {
   addTags: (tags: string[]) => void;
+  getFrontmatter: () => string;
+  setFrontmatter: (next: string) => void;
+  flush: () => Promise<void>;
 }
 
 /** pos가 든 문단에서 pos 뒤에 남은 글(마크다운). 문단 밖이면 빈 문자열 */
@@ -88,6 +91,9 @@ export function createEditorBridge(editor: Editor, getNoteName: () => string, fr
 
   return {
     addTags: (tags) => frontmatter?.addTags(tags),
+    getFrontmatter: () => frontmatter?.getFrontmatter() ?? "",
+    setFrontmatter: (next) => frontmatter?.setFrontmatter(next),
+    flush: () => frontmatter?.flush() ?? Promise.resolve(),
     getBodyText: () => editor.getText({ blockSeparator: "\n\n" }),
     getContext(): EditorContext {
       const { from, to, empty } = editor.state.selection;

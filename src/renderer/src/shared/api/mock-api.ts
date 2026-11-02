@@ -8,7 +8,7 @@ import { parseNote } from "@shared/note-parser";
 import { searchNotes } from "@shared/search";
 import { suggestTags } from "@shared/tag-suggest";
 import { BUILTIN_TEMPLATES } from "@shared/templates";
-import { decideDeployState, reviewTemplate, type ReviewPost } from "@shared/review";
+import { decideDeployState } from "@shared/review";
 import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
@@ -86,19 +86,17 @@ export function createMockApi(): HandyApi {
   return {
     platform: "mock",
     review: (() => {
-      const posts = new Map<string, ReviewPost>();
       let config: { repo: string | null; deploy: { kind: "vercel-version-json" | "cloudflare-version-json"; siteUrl: string } | null } = { repo: "/mock/handy-review", deploy: null };
       return {
         getConfig: async () => config,
         chooseRepo: async () => config,
         setDeploy: async (deploy) => (config = { ...config, deploy }),
-        list: async () => [...posts.values()].map((p) => ({ path: p.path, title: p.frontmatter.title, category: p.frontmatter.category, date: p.frontmatter.date })),
-        create: async (category, title) => { const p = reviewTemplate(category, title); posts.set(p.path, p); return p; },
-        read: async (path) => posts.get(path)!,
-        write: async (post) => { posts.set(post.path, post); },
-        saveImage: async (_postPath, name) => `./mock/${name}`,
-        publish: async () => ({ committed: true, sha: "mock000" }),
+        list: async () => [],
+        previewNote: async (notePath) => ({ path: `src/content/reviews/etc/2026-01-01-${notePath.replace(/\.md$/, "")}.md`, slug: "mock", date: "2026-01-01", markdown: "---\ntitle: mock\n---\n", warnings: [], replaces: null }),
+        publishNote: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
+        importPost: async (postPath) => ({ path: postPath, created: false }),
         deployStatus: async () => ({ ...decideDeployState({ deployedSha: "aaaaaaa", remoteSha: "bbbbbbb", localSha: "bbbbbbb", behindBy: 1 }), checkedAt: new Date().toISOString() }),
+        repoStatus: async () => (config.repo ? { repo: config.repo, name: "handy-review", branch: "main", ahead: 0, behind: 0, changes: 0 } : null),
         reveal: async () => {},
       };
     })(),

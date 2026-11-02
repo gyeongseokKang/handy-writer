@@ -76,7 +76,6 @@ interface UiState {
   /** 설정 창, 단축키 안내, 문장 다듬기 설정, 시작 안내 */
   settingsOpen: boolean;
   shortcutsOpen: boolean;
-  reviewOpen: boolean;
   styleSettingsOpen: boolean;
   onboardingOpen: boolean;
   /** 원고 창에 띄운 폴더 (""은 작업 폴더 전체, null이면 닫힘) */
@@ -131,7 +130,6 @@ interface UiState {
   requestEditor: (kind: EditorRequestKind) => void;
   setSettingsOpen: (open: boolean) => void;
   setShortcutsOpen: (open: boolean) => void;
-  setReviewOpen: (open: boolean) => void;
   setStyleSettingsOpen: (open: boolean) => void;
   setOnboardingOpen: (open: boolean) => void;
   setManuscriptFolder: (folder: string | null) => void;
@@ -167,7 +165,6 @@ export const useUiStore = create<UiState>((set) => ({
   editorRequest: null,
   settingsOpen: false,
   shortcutsOpen: false,
-  reviewOpen: false,
   styleSettingsOpen: false,
   onboardingOpen: false,
   manuscriptFolder: null,
@@ -210,7 +207,6 @@ export const useUiStore = create<UiState>((set) => ({
   requestEditor: (kind) => set((state) => ({ editorRequest: { kind, seq: (state.editorRequest?.seq ?? 0) + 1 } })),
   setSettingsOpen: (settingsOpen) => set({ settingsOpen }),
   setShortcutsOpen: (shortcutsOpen) => set({ shortcutsOpen }),
-  setReviewOpen: (reviewOpen) => set({ reviewOpen }),
   setStyleSettingsOpen: (styleSettingsOpen) => set({ styleSettingsOpen }),
   setOnboardingOpen: (onboardingOpen) => set({ onboardingOpen }),
   setManuscriptFolder: (manuscriptFolder) => set({ manuscriptFolder }),
