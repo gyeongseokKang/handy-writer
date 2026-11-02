@@ -27,6 +27,10 @@ export interface ReviewFrontmatter {
   mapUrl?: string;
   visitedAt?: string;
   youtubeId?: string;
+  /** 시리즈 이름. 같은 이름끼리 사이트에서 한 묶음 */
+  series?: string;
+  /** 시리즈 안 순서 */
+  seriesOrder?: number;
 }
 
 export interface ReviewPost { path: string; frontmatter: ReviewFrontmatter; body: string }

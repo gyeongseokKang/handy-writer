@@ -16,6 +16,7 @@ const api: HandyApi = {
     previewNote: (notePath) => ipcRenderer.invoke(IPC.reviewPreviewNote, notePath),
     publishNote: (notePath) => ipcRenderer.invoke(IPC.reviewPublishNote, notePath),
     importPost: (postPath) => ipcRenderer.invoke(IPC.reviewImport, postPath),
+    listSeries: () => ipcRenderer.invoke(IPC.reviewListSeries),
     deployStatus: () => ipcRenderer.invoke(IPC.reviewDeployStatus),
     repoStatus: () => ipcRenderer.invoke(IPC.reviewRepoStatus),
     reveal: (path) => ipcRenderer.invoke(IPC.reviewReveal, path),

@@ -13,6 +13,8 @@ import { startIndexSync } from "@/entities/note-index/model/use-note-index-store
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { AppShell } from "@/widgets/app-shell/ui/app-shell";
 
+// Pretendard(가변 굵기, 쓰는 글자만 받아 오는 나눈 파일)를 앱에 함께 묶는다. 인터넷 없이도 같은 글꼴이다.
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
 import "./index.css";
 
 function App() {

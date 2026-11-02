@@ -1,5 +1,5 @@
 import type { DeployProviderInfo, DeployStatus, ReviewPostSummary, ReviewRepoStatus } from "./review";
-import type { ReviewNotePreview, ReviewNotePublishResult } from "./review-note";
+import type { ReviewNotePreview, ReviewNotePublishResult, ReviewSeriesEntry } from "./review-note";
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { ProjectSource, YoutubeSource } from "./draft-sources";
@@ -70,6 +70,8 @@ export interface HandyApi {
     publishNote: (notePath: string) => Promise<ReviewNotePublishResult>;
     /** 저장소의 리뷰 글을 작업 폴더의 글로 가져온다 */
     importPost: (postPath: string) => Promise<{ path: string; created: boolean }>;
+    /** 작업 폴더에서 시리즈를 적은 리뷰 글들 */
+    listSeries: () => Promise<ReviewSeriesEntry[]>;
     deployStatus: () => Promise<DeployStatus>;
     /** 리뷰 저장소의 브랜치와 올릴·받을 커밋 수. 저장소를 안 골랐으면 null */
     repoStatus: () => Promise<ReviewRepoStatus | null>;
@@ -237,6 +239,7 @@ export const IPC = {
   reviewPreviewNote: "review:preview-note",
   reviewPublishNote: "review:publish-note",
   reviewImport: "review:import",
+  reviewListSeries: "review:list-series",
   reviewDeployStatus: "review:deploy-status",
   reviewRepoStatus: "review:repo-status",
   reviewReveal: "review:reveal",
