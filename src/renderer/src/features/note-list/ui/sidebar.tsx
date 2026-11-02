@@ -9,6 +9,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 import { NoteTree } from "./note-tree";
+import { SidebarResizeHandle } from "./sidebar-resize-handle";
 
 export function Sidebar() {
   const root = useWorkspaceStore((state) => state.root);
@@ -26,6 +27,7 @@ export function Sidebar() {
 
   const gitStatus = useGitStore((state) => state.status);
   const toggleGit = useUiStore((state) => state.toggleGit);
+  const sidebarWidth = useUiStore((state) => state.sidebarWidth);
   const gitOpen = useUiStore((state) => state.gitOpen && state.rightPanelOpen);
   const gitBusy = useGitStore((state) => state.busy);
   const syncGit = useGitStore((state) => state.sync);
@@ -40,7 +42,8 @@ export function Sidebar() {
   const folderName = root?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r bg-muted/40">
+    <aside style={{ width: sidebarWidth }} className="relative flex h-full shrink-0 flex-col border-r bg-muted/40">
+      <SidebarResizeHandle />
       <div className="flex items-center gap-2 px-4 pt-4 pb-3">
         <PenLine className="size-4" />
         <span className="flex-1 truncate font-semibold whitespace-nowrap">Handy Writer</span>

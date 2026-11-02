@@ -17,6 +17,23 @@ function readEditorWidth() {
   }
 }
 
+const SIDEBAR_WIDTH_KEY = "handy-writer:sidebar-width";
+/** 왼쪽 사이드바 너비(px). 오른쪽 가장자리를 끌어 바꾸고 이 컴퓨터에 기억한다. */
+export const DEFAULT_SIDEBAR_WIDTH = 256;
+export const MIN_SIDEBAR_WIDTH = 200;
+export const MAX_SIDEBAR_WIDTH = 480;
+
+const clampSidebarWidth = (width: number) => Math.round(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width)));
+
+function readSidebarWidth() {
+  try {
+    const value = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+    return value > 0 ? clampSidebarWidth(value) : DEFAULT_SIDEBAR_WIDTH;
+  } catch {
+    return DEFAULT_SIDEBAR_WIDTH;
+  }
+}
+
 const OUTLINE_PINNED_KEY = "handy-writer:outline-pinned";
 const TAB_PER_CLICK_KEY = "handy-writer:tab-per-click";
 const FOCUS_DIM_KEY = "handy-writer:focus-dim";
@@ -94,6 +111,8 @@ interface UiState {
   pendingFind: string | null;
   /** 글 칸의 최대 너비(px). 양쪽 손잡이로 조절하고 이 컴퓨터에 기억한다. */
   editorWidth: number;
+  /** 왼쪽 사이드바 너비(px). 오른쪽 가장자리 손잡이로 조절하고 이 컴퓨터에 기억한다. */
+  sidebarWidth: number;
   /** 변경 기록 화면에서 보고 있는 글 */
   historyTarget: { path: string; name: string } | null;
   /** 링크에서 글 가져오기 창. new: 새 글로, insert: 지금 글의 커서 아래에 넣는 것을 먼저 권한다. */
@@ -132,6 +151,8 @@ interface UiState {
   setPaletteOpen: (open: boolean, initial?: string) => void;
   setPendingFind: (term: string | null) => void;
   setEditorWidth: (width: number) => void;
+  /** persist가 false면 화면에만 반영한다(끄는 동안). 끝날 때 한 번 저장한다. */
+  setSidebarWidth: (width: number, persist?: boolean) => void;
   setHistoryTarget: (target: { path: string; name: string } | null) => void;
   setFocusedPane: (pane: "main" | "side") => void;
   setExtract: (extract: { mode: "new" | "insert" } | null) => void;
@@ -170,6 +191,7 @@ export const useUiStore = create<UiState>((set) => ({
   paletteInitial: "",
   pendingFind: null,
   editorWidth: readEditorWidth(),
+  sidebarWidth: readSidebarWidth(),
   historyTarget: null,
   focusedPane: "main",
   extract: null,
@@ -220,6 +242,16 @@ export const useUiStore = create<UiState>((set) => ({
     set({ editorWidth });
     try {
       localStorage.setItem(EDITOR_WIDTH_KEY, String(editorWidth));
+    } catch {
+      // 저장소를 못 써도 이번 실행에서는 적용된다.
+    }
+  },
+  setSidebarWidth: (width, persist = true) => {
+    const sidebarWidth = clampSidebarWidth(width);
+    set({ sidebarWidth });
+    if (!persist) return;
+    try {
+      localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
     } catch {
       // 저장소를 못 써도 이번 실행에서는 적용된다.
     }
