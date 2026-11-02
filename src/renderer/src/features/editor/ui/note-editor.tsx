@@ -12,7 +12,7 @@ import { useOutlineStore } from "@/entities/note/model/use-outline-store";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
-import { linkTargetToName, useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { serializeNote, splitFrontmatter } from "@shared/frontmatter";
 import { addFrontmatterTags } from "@shared/frontmatter-tags";
@@ -608,7 +608,6 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       {/* 떠 있는 목차와 겹치지 않게 아래 막대 바로 위에 띄운다. */}
       {conflict && <ConflictBar mine={serializeNote(frontmatterRef.current, toMarkdown())} theirs={conflict.theirs} onResolve={resolveConflict} />}
       <footer className={cn("flex min-w-0 items-center gap-3 border-t px-6 py-1.5 text-xs whitespace-nowrap text-muted-foreground transition-opacity @max-[28rem]:gap-1.5 @max-[28rem]:px-3 [&>*]:shrink-0", focusMode && "opacity-25 focus-within:opacity-100 hover:opacity-100")}>
-        <span className="min-w-0 !shrink truncate @max-[28rem]:hidden">{linkTargetToName(name)}</span>
         <TextCount editor={editor} goal={parseGoal(frontmatter)} onGoalChange={changeGoal} />
         <PageCount estimate={pages} shown={pageBreaksShown} onToggle={togglePageBreaks} />
         {isMain && <WritingToday />}
