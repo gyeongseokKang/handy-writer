@@ -100,17 +100,28 @@ export interface EditorBridge {
   skipSpell: (range: SpellRange) => void;
   /** frontmatter의 tags에 태그를 더하고 저장한다. */
   addTags: (tags: string[]) => void;
+  /** 지금 글의 frontmatter (`---` 포함, 없으면 빈 문자열) */
+  getFrontmatter: () => string;
+  /** frontmatter를 통째로 바꾸고 저장한다. */
+  setFrontmatter: (next: string) => void;
+  /** 저장 안 된 내용을 지금 저장한다. */
+  flush: () => Promise<void>;
   /** 지금 에디터의 본문 글 (저장 전 내용 포함) */
   getBodyText: () => string;
 }
 
 interface EditorBridgeState {
   bridge: EditorBridge | null;
+  /** 가운데 에디터 글의 frontmatter. 리뷰 패널처럼 frontmatter를 보여 주는 곳이 따라 그린다. */
+  frontmatter: string;
   setBridge: (bridge: EditorBridge | null) => void;
+  setFrontmatter: (frontmatter: string) => void;
 }
 
 /** 에디터(features/editor)와 AI 패널(features/ai)이 서로를 몰라도 되도록 사이에 두는 연결점 */
 export const useEditorBridge = create<EditorBridgeState>((set) => ({
   bridge: null,
+  frontmatter: "",
   setBridge: (bridge) => set({ bridge }),
+  setFrontmatter: (frontmatter) => set({ frontmatter }),
 }));

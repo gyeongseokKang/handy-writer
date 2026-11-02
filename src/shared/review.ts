@@ -114,3 +114,16 @@ export function decideDeployState(input: { deployedSha: string | null; remoteSha
   if (same(deployedSha, remoteSha ?? localSha)) return { ...base, state: "up-to-date", message: "사이트가 최신 커밋으로 배포돼 있어요." };
   return { ...base, state: "deploy-needed", message: "사이트가 최신 커밋보다 뒤처져 있어요. 배포가 필요해요." };
 }
+
+/** 사이드바 저장소 목록에 보여 줄 핸디 리뷰 저장소 상태 */
+export interface ReviewRepoStatus {
+  repo: string;
+  /** 폴더 이름 */
+  name: string;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  /** 커밋 안 한 변경 수 */
+  changes: number;
+  error?: string;
+}

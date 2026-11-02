@@ -9,6 +9,7 @@ import { SpellPanel } from "@/features/editor/ui/spell-panel";
 import { GitPanel } from "@/features/git/ui/git-panel";
 import { TemplateList } from "@/features/templates/ui/template-list";
 import { LinksPanel } from "@/features/note-links/ui/links-panel";
+import { ReviewSection } from "@/features/review/ui/review-panel";
 import { cn } from "@/shared/lib/utils";
 
 const TABS: { id: RightTab; label: string }[] = [
@@ -75,7 +76,10 @@ export function RightPanel() {
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {tab === "links" ? (
-          <LinksPanel />
+          <>
+            <LinksPanel />
+            <ReviewSection />
+          </>
         ) : tab === "files" ? (
           <AttachmentsPanel />
         ) : tab === "ai" ? (

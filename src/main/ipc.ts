@@ -72,7 +72,7 @@ export async function registerIpc() {
   searcher.setRoot(root);
   gitIpc.onRootChanged(root);
   startWatching();
-  registerReviewIpc();
+  registerReviewIpc(requireRoot);
 
   ipcMain.handle(IPC.workspaceGet, (): WorkspaceInfo => ({ root }));
 

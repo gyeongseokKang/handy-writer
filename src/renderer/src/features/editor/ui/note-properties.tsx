@@ -4,6 +4,8 @@ import { toast } from "sonner";
 
 import { cn } from "@/shared/lib/utils";
 import { listProps, removeProp, renameProp, setProp, type FrontmatterProp } from "@shared/frontmatter-props";
+import { REVIEW_KEY, reviewSummary } from "@shared/review-note";
+import { showReviewSettings } from "@/features/review/model/review-actions";
 
 const OPEN_KEY = "handy-writer:properties-open";
 
@@ -162,6 +164,16 @@ export function NoteProperties({ frontmatter, onChange }: { frontmatter: string;
               />
               <span className="text-xs text-muted-foreground">{prop.value === "true" ? "예" : "아니오"}</span>
             </label>
+          ) : prop.key === REVIEW_KEY ? (
+            <button
+              type="button"
+              title="오른쪽 연결 탭의 핸디 리뷰 칸에서 별점·결론·링크를 고치고 게시해요"
+              onClick={() => showReviewSettings()}
+              className="flex min-w-0 items-center gap-1 rounded px-1.5 py-0.5 text-left text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
+            >
+              <span className="truncate">{reviewSummary(frontmatter)}</span>
+              <span className="shrink-0 underline underline-offset-2">리뷰 설정 열기 →</span>
+            </button>
           ) : prop.kind === "other" ? (
             <code title="이 값은 파일에서 직접 고쳐 주세요" className="truncate px-1.5 py-0.5 text-xs text-muted-foreground">
               {prop.value.replace(/\n\s*/g, " · ")}

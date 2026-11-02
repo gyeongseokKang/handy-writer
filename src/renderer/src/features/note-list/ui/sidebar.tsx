@@ -10,6 +10,8 @@ import { Button } from "@/shared/ui/button";
 
 import { NoteTree } from "./note-tree";
 import { SidebarResizeHandle } from "./sidebar-resize-handle";
+import { useReviewRepoStore } from "@/features/review/model/use-review-repo-store";
+import { ReviewRepoRow } from "@/features/review/ui/review-repo-row";
 
 export function Sidebar() {
   const root = useWorkspaceStore((state) => state.root);
@@ -28,6 +30,8 @@ export function Sidebar() {
   const gitStatus = useGitStore((state) => state.status);
   const toggleGit = useUiStore((state) => state.toggleGit);
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
+  // 핸디 리뷰처럼 다른 Git이 연결돼 있으면 줄마다 어느 저장소인지 이름을 붙인다.
+  const reviewConnected = useReviewRepoStore((state) => state.repo !== null);
   const gitOpen = useUiStore((state) => state.gitOpen && state.rightPanelOpen);
   const gitBusy = useGitStore((state) => state.busy);
   const syncGit = useGitStore((state) => state.sync);
@@ -138,6 +142,7 @@ export function Sidebar() {
             className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-left hover:bg-accent/70"
           >
             <GitBranch className="size-3.5 shrink-0" />
+            {reviewConnected && <span className="max-w-24 shrink-0 truncate font-medium text-foreground/80">{folderName || "작업 폴더"}</span>}
             <span className="truncate">{gitStatus.isRepo ? (gitStatus.branch ?? "HEAD") : gitStatus.installed ? "Git 시작하기" : "Git 설치 필요"}</span>
             <span className="ml-auto flex shrink-0 items-center gap-2">
               {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
@@ -159,6 +164,8 @@ export function Sidebar() {
           )}
         </div>
       )}
+
+      <ReviewRepoRow />
 
       <UpdateRow />
 
