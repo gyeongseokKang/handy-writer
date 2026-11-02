@@ -98,6 +98,7 @@ export function buildCommands(): Command[] {
     { id: "app.settings", group: "앱", title: "설정", shortcut: "Mod+,", keywords: ["settings", "환경"], run: () => ui().setSettingsOpen(true) },
     { id: "app.style", group: "앱", title: "문장 다듬기 설정·내 표기 사전", keywords: ["style", "사전"], run: () => ui().setStyleSettingsOpen(true) },
     { id: "app.help", group: "앱", title: "도움말 (기능 안내)", shortcut: "F1", keywords: ["help", "도움말", "기능", "설명", "사용법"], run: () => ui().setHelpOpen(true) },
+    { id: "app.review", group: "앱", title: "리뷰 글 쓰기 (핸디 리뷰)", keywords: ["review", "리뷰", "배포", "쿠팡"], run: () => ui().setReviewOpen(true) },
     { id: "app.shortcuts", group: "앱", title: "단축키 보기", shortcut: "Mod+/", keywords: ["shortcut", "키"], run: () => ui().setShortcutsOpen(true) },
     { id: "app.commands", group: "앱", title: "명령 실행", shortcut: "Mod+Shift+P", keywords: ["command"], run: () => ui().setPaletteOpen(true, ">") },
     { id: "app.folder", group: "앱", title: "작업 폴더 바꾸기", keywords: ["folder", "볼트"], run: () => void ws().chooseFolder() },

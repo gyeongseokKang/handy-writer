@@ -7,6 +7,7 @@ import { normalizePageOptions, type ExportRequest } from "../shared/export";
 import type { Template } from "../shared/templates";
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
+import { registerReviewIpc } from "./review/ipc-review";
 import { scanProject } from "./project-context";
 import { fetchYoutube } from "./youtube";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
@@ -71,6 +72,7 @@ export async function registerIpc() {
   searcher.setRoot(root);
   gitIpc.onRootChanged(root);
   startWatching();
+  registerReviewIpc();
 
   ipcMain.handle(IPC.workspaceGet, (): WorkspaceInfo => ({ root }));
 

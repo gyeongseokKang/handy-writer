@@ -1,0 +1,137 @@
+import { app } from "electron";
+import { existsSync } from "node:fs";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { basename, dirname, extname, join, relative, sep } from "node:path";
+import { parse, stringify } from "yaml";
+
+import {
+  REVIEW_CATEGORIES, REVIEWS_DIR, cleanFrontmatter, decideDeployState, reviewAssetDir, reviewTemplate,
+  type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewPost, type ReviewPostSummary,
+} from "../../shared/review";
+import { runGit } from "../git/runner";
+import { createDeployProvider } from "./deploy";
+
+export interface ReviewConfig { repo: string | null; deploy: DeployProviderInfo | null }
+
+const configPath = () => join(app.getPath("userData"), "review-config.json");
+const toPosix = (p: string) => p.split(sep).join("/");
+
+export async function loadReviewConfig(): Promise<ReviewConfig> {
+  try { return { repo: null, deploy: null, ...(JSON.parse(await readFile(configPath(), "utf8")) as Partial<ReviewConfig>) }; }
+  catch { return { repo: null, deploy: null }; }
+}
+export async function saveReviewConfig(next: ReviewConfig) {
+  await mkdir(dirname(configPath()), { recursive: true });
+  await writeFile(configPath(), JSON.stringify(next, null, 2));
+  return next;
+}
+
+export async function checkReviewRepo(repo: string) {
+  if (!existsSync(join(repo, "src", "content.config.ts")) && !existsSync(join(repo, REVIEWS_DIR))) {
+    throw new Error("핸디 리뷰 저장소가 아니에요. src/content/reviews 폴더가 있는 폴더를 골라 주세요.");
+  }
+}
+
+/** 저장소 밖 경로로 빠져나가지 못하게 막는다. */
+function inside(repo: string, rel: string) {
+  const abs = join(repo, rel);
+  if (relative(repo, abs).startsWith("..")) throw new Error("저장소 밖 경로예요.");
+  return abs;
+}
+
+export function serializePost(fm: ReviewFrontmatter, body: string) {
+  return `---\n${stringify(cleanFrontmatter(fm), { lineWidth: 0 }).trimEnd()}\n---\n\n${body.trim()}\n`;
+}
+
+export function parsePost(path: string, text: string): ReviewPost {
+  const m = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(text);
+  const raw = (m ? parse(m[1]) : {}) as Record<string, unknown>;
+  const date = raw["date"] instanceof Date ? (raw["date"] as Date).toISOString().slice(0, 10) : String(raw["date"] ?? "");
+  const tpl = reviewTemplate((raw["category"] as ReviewCategory) ?? "etc", String(raw["title"] ?? ""), date).frontmatter;
+  const fm = { ...tpl, ...raw, date } as ReviewFrontmatter;
+  if (fm.visitedAt && typeof fm.visitedAt !== "string") fm.visitedAt = new Date(fm.visitedAt as unknown as string).toISOString().slice(0, 10);
+  fm.links = (fm.links ?? []).map((l) => ({ label: l.label ?? "", url: l.url ?? "", affiliate: !!l.affiliate }));
+  return { path, frontmatter: fm, body: (m ? m[2] : text).replace(/^\n+/, "") };
+}
+
+export async function listPosts(repo: string): Promise<ReviewPostSummary[]> {
+  const out: ReviewPostSummary[] = [];
+  for (const category of REVIEW_CATEGORIES) {
+    const dir = join(repo, REVIEWS_DIR, category);
+    if (!existsSync(dir)) continue;
+    for (const name of await readdir(dir)) {
+      if (!name.endsWith(".md")) continue;
+      const path = `${REVIEWS_DIR}/${category}/${name}`;
+      const post = parsePost(path, await readFile(join(dir, name), "utf8"));
+      out.push({ path, title: post.frontmatter.title, category, date: post.frontmatter.date });
+    }
+  }
+  return out.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+export async function createPost(repo: string, category: ReviewCategory, title: string): Promise<ReviewPost> {
+  const post = reviewTemplate(category, title);
+  const abs = inside(repo, post.path);
+  if (existsSync(abs)) throw new Error("같은 날짜·제목의 리뷰가 이미 있어요.");
+  await mkdir(dirname(abs), { recursive: true });
+  await writeFile(abs, serializePost(post.frontmatter, post.body));
+  return post;
+}
+
+export async function readPost(repo: string, path: string) {
+  return parsePost(path, await readFile(inside(repo, path), "utf8"));
+}
+
+export async function writePost(repo: string, post: ReviewPost) {
+  await writeFile(inside(repo, post.path), serializePost(post.frontmatter, post.body));
+}
+
+/** 붙여넣은 이미지를 글 옆 폴더(<date>-<slug>/)에 복사하고 본문에 넣을 상대경로를 돌려준다. */
+export async function saveImage(repo: string, postPath: string, name: string, data: Uint8Array) {
+  const dirRel = reviewAssetDir(postPath);
+  const dir = inside(repo, dirRel);
+  await mkdir(dir, { recursive: true });
+  const ext = extname(name).toLowerCase() || ".png";
+  const stem = basename(name, extname(name)).replace(/[^\p{L}\p{N}_-]+/gu, "-").slice(0, 40) || "image";
+  let file = `${stem}${ext}`;
+  for (let i = 2; existsSync(join(dir, file)); i++) file = `${stem}-${i}${ext}`;
+  await writeFile(join(dir, file), data);
+  return `./${basename(dirRel)}/${file}`;
+}
+
+/** 글과 이미지 폴더만 커밋하고 main에 푸시한다. 다른 변경은 건드리지 않는다. */
+export async function publishPost(repo: string, postPath: string) {
+  const { frontmatter } = await readPost(repo, postPath);
+  const paths = [postPath];
+  if (existsSync(inside(repo, reviewAssetDir(postPath)))) paths.push(reviewAssetDir(postPath));
+  await runGit(repo, ["add", "--", ...paths]);
+  const staged = (await runGit(repo, ["diff", "--cached", "--name-only", "--", ...paths])).stdout.trim();
+  if (staged) await runGit(repo, ["commit", "-m", `리뷰: ${frontmatter.title}`, "--", ...paths]);
+  await runGit(repo, ["pull", "--rebase", "--autostash"], { timeoutMs: 60_000 });
+  await runGit(repo, ["push"], { timeoutMs: 60_000 });
+  const sha = (await runGit(repo, ["rev-parse", "HEAD"], { readOnly: true })).stdout.trim();
+  return { committed: !!staged, sha };
+}
+
+/** 배포된 커밋(사이트 version.json)과 로컬·원격 main 최신 커밋을 비교한다. 배포를 일으키지는 않는다. */
+export async function deployStatus(repo: string, info: DeployProviderInfo | null): Promise<DeployStatus> {
+  const git = async (args: string[]) => { try { return (await runGit(repo, args, { readOnly: true, timeoutMs: 30_000 })).stdout.trim(); } catch { return null; } };
+  await git(["fetch", "--quiet", "origin"]);
+  const localSha = await git(["rev-parse", "HEAD"]);
+  const remoteSha = await git(["rev-parse", "@{upstream}"]);
+  let deployedSha: string | null = null;
+  let error: string | undefined;
+  const provider = createDeployProvider(info);
+  if (!provider) error = "사이트 주소를 넣으면 배포 상태를 확인해요.";
+  else {
+    try { deployedSha = await provider.deployedSha(); } catch (e) { error = `배포 버전을 못 읽었어요: ${(e as Error).message}`; }
+  }
+  let behindBy: number | null = null;
+  if (deployedSha && remoteSha) {
+    const n = await git(["rev-list", "--count", `${deployedSha}..${remoteSha}`]);
+    behindBy = n === null ? null : Number(n);
+  }
+  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, error }), checkedAt: new Date().toISOString() };
+}
+
+export const toRepoRelative = (repo: string, abs: string) => toPosix(relative(repo, abs));

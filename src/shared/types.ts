@@ -1,3 +1,4 @@
+import type { DeployProviderInfo, DeployStatus, ReviewCategory, ReviewPost, ReviewPostSummary } from "./review";
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
 import type { ProjectSource, YoutubeSource } from "./draft-sources";
@@ -53,8 +54,23 @@ export interface NotesChangedEvent {
   paths: string[];
 }
 
+export interface ReviewConfig { repo: string | null; deploy: DeployProviderInfo | null }
+
 export interface HandyApi {
   platform: string;
+  review: {
+    getConfig: () => Promise<ReviewConfig>;
+    chooseRepo: () => Promise<ReviewConfig>;
+    setDeploy: (deploy: DeployProviderInfo | null) => Promise<ReviewConfig>;
+    list: () => Promise<ReviewPostSummary[]>;
+    create: (category: ReviewCategory, title: string) => Promise<ReviewPost>;
+    read: (path: string) => Promise<ReviewPost>;
+    write: (post: ReviewPost) => Promise<void>;
+    saveImage: (postPath: string, name: string, data: Uint8Array) => Promise<string>;
+    publish: (postPath: string) => Promise<{ committed: boolean; sha: string }>;
+    deployStatus: () => Promise<DeployStatus>;
+    reveal: (path: string) => Promise<void>;
+  };
   workspace: {
     get: () => Promise<WorkspaceInfo>;
     choose: () => Promise<WorkspaceInfo>;
@@ -208,6 +224,17 @@ export interface HandyApi {
 }
 
 export const IPC = {
+  reviewGetConfig: "review:get-config",
+  reviewChooseRepo: "review:choose-repo",
+  reviewSetDeploy: "review:set-deploy",
+  reviewList: "review:list",
+  reviewCreate: "review:create",
+  reviewRead: "review:read",
+  reviewWrite: "review:write",
+  reviewSaveImage: "review:save-image",
+  reviewPublish: "review:publish",
+  reviewDeployStatus: "review:deploy-status",
+  reviewReveal: "review:reveal",
   workspaceGet: "workspace:get",
   workspaceChoose: "workspace:choose",
   workspaceUseDefault: "workspace:use-default",

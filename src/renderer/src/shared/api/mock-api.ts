@@ -8,6 +8,7 @@ import { parseNote } from "@shared/note-parser";
 import { searchNotes } from "@shared/search";
 import { suggestTags } from "@shared/tag-suggest";
 import { BUILTIN_TEMPLATES } from "@shared/templates";
+import { decideDeployState, reviewTemplate, type ReviewPost } from "@shared/review";
 import { splitFrontmatter } from "@shared/frontmatter";
 import type { HandyApi, NoteMeta, NotesChangedEvent } from "@shared/types";
 
@@ -84,6 +85,23 @@ export function createMockApi(): HandyApi {
 
   return {
     platform: "mock",
+    review: (() => {
+      const posts = new Map<string, ReviewPost>();
+      let config: { repo: string | null; deploy: { kind: "vercel-version-json"; siteUrl: string } | null } = { repo: "/mock/handy-review", deploy: null };
+      return {
+        getConfig: async () => config,
+        chooseRepo: async () => config,
+        setDeploy: async (deploy) => (config = { ...config, deploy }),
+        list: async () => [...posts.values()].map((p) => ({ path: p.path, title: p.frontmatter.title, category: p.frontmatter.category, date: p.frontmatter.date })),
+        create: async (category, title) => { const p = reviewTemplate(category, title); posts.set(p.path, p); return p; },
+        read: async (path) => posts.get(path)!,
+        write: async (post) => { posts.set(post.path, post); },
+        saveImage: async (_postPath, name) => `./mock/${name}`,
+        publish: async () => ({ committed: true, sha: "mock000" }),
+        deployStatus: async () => ({ ...decideDeployState({ deployedSha: "aaaaaaa", remoteSha: "bbbbbbb", localSha: "bbbbbbb", behindBy: 1 }), checkedAt: new Date().toISOString() }),
+        reveal: async () => {},
+      };
+    })(),
     workspace: {
       get: async () => ({ root: "/mock/HandyWriter" }),
       choose: async () => ({ root: "/mock/HandyWriter" }),
