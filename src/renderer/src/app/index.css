@@ -211,6 +211,13 @@
 .note-prose .embed { display: inline-block; max-width: 100%; vertical-align: bottom; line-height: 1.4; }
 .note-prose .embed-media { display: block; max-width: 100%; height: auto; border-radius: var(--radius-md); }
 .note-prose video.embed-media { background: black; }
+/* 이미지 나란히 놓기: 이미지만 둘 이상 든 문단은 칸을 나눠 한 줄(묶음)로 보여 준다. */
+.note-prose .image-row { position: relative; white-space: normal !important; display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 0.5rem; align-items: start; }
+.note-prose .image-row > .ProseMirror-separator { position: absolute; width: 0; height: 0; }
+.note-prose .image-row > .ProseMirror-trailingBreak { display: none; }
+.note-prose .image-row .embed { display: block; width: 100%; }
+.note-prose .image-row .embed-media { width: 100% !important; height: auto !important; }
+.note-prose .image-row + p.caption { margin-top: 0.4rem; }
 .note-prose .embed-audio { display: block; width: 100%; min-width: 16rem; }
 .note-prose .embed-caption { display: block; margin-top: 0.25rem; font-size: 0.8125rem; color: var(--muted-foreground); }
 .note-prose .embed-selected .embed-media { outline: 2px solid var(--ring); outline-offset: 2px; }

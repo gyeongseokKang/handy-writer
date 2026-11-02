@@ -2,12 +2,15 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  Footer,
   ExternalHyperlink,
   FootnoteReferenceRun,
   HeadingLevel,
   ImageRun,
   LevelFormat,
+  LineRuleType,
   Packer,
+  PageNumber,
   Paragraph,
   ShadingType,
   Table,
@@ -19,12 +22,14 @@ import {
 } from "docx";
 
 import type { DocBlock, DocInline, DocModel } from "../shared/docx-model";
+import { DEFAULT_PAGE_OPTIONS, PAPERS, type PageOptions } from "../shared/export";
 
 export type DocxImageType = "png" | "jpg" | "gif" | "bmp";
 
 /** 그림 주소에서 파일 내용을 읽는다. 못 읽거나 Word가 못 넣는 형식이면 null */
 export type ImageLoader = (src: string) => Promise<{ data: Uint8Array; type: DocxImageType } | null>;
 
+const mmToTwip = (mm: number) => Math.round((mm / 25.4) * 1440);
 const FONT = "Malgun Gothic";
 const CODE_FONT = "Consolas";
 const HEADINGS = [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3, HeadingLevel.HEADING_4, HeadingLevel.HEADING_5, HeadingLevel.HEADING_6];
@@ -150,11 +155,12 @@ function collectImages(model: DocModel) {
 }
 
 /** 글 모양(DocModel)으로 .docx 파일 내용을 만든다. 그림은 load로 읽어 파일 안에 넣는다. */
-export async function buildDocx(model: DocModel, load: ImageLoader): Promise<Buffer> {
+export async function buildDocx(model: DocModel, load: ImageLoader, layout: PageOptions = DEFAULT_PAGE_OPTIONS): Promise<Buffer> {
+  const paper = PAPERS[layout.paper];
   const sources = collectImages(model);
   const images = new Map(await Promise.all(sources.map(async (src) => [src, await load(src).catch(() => null)] as const)));
 
-  const children: (Paragraph | Table)[] = [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(model.title)] })];
+  const children: (Paragraph | Table)[] = layout.showTitle ? [new Paragraph({ heading: HeadingLevel.TITLE, children: [new TextRun(model.title)] })] : [];
   for (const block of model.blocks) children.push(...(await blockToDocx(block, images)));
 
   const footnotes: Record<string, { children: Paragraph[] }> = {};
@@ -167,11 +173,12 @@ export async function buildDocx(model: DocModel, load: ImageLoader): Promise<Buf
     creator: "Handy Writer",
     styles: {
       default: {
-        document: { run: { font: FONT, size: 22 }, paragraph: { spacing: { after: 120, line: 300 } } },
-        title: { run: { font: FONT, size: 44, bold: true } },
-        heading1: { run: { font: FONT, size: 36, bold: true, color: "1F2328" }, paragraph: { spacing: { before: 360, after: 120 } } },
-        heading2: { run: { font: FONT, size: 30, bold: true, color: "1F2328" }, paragraph: { spacing: { before: 300, after: 120 } } },
-        heading3: { run: { font: FONT, size: 26, bold: true, color: "1F2328" }, paragraph: { spacing: { before: 240, after: 80 } } },
+        // 글자 크기는 half-point, 줄 간격은 240이 한 줄(100%)
+        document: { run: { font: FONT, size: Math.round(layout.fontPt * 2) }, paragraph: { spacing: { after: 120, line: Math.round(layout.lineHeight * 240), lineRule: LineRuleType.AUTO } } },
+        title: { run: { font: FONT, size: Math.round(layout.fontPt * 4), bold: true } },
+        heading1: { run: { font: FONT, size: Math.round(layout.fontPt * 3.3), bold: true, color: "1F2328" }, paragraph: { spacing: { before: 360, after: 120 } } },
+        heading2: { run: { font: FONT, size: Math.round(layout.fontPt * 2.7), bold: true, color: "1F2328" }, paragraph: { spacing: { before: 300, after: 120 } } },
+        heading3: { run: { font: FONT, size: Math.round(layout.fontPt * 2.3), bold: true, color: "1F2328" }, paragraph: { spacing: { before: 240, after: 80 } } },
       },
     },
     numbering: {
@@ -189,7 +196,34 @@ export async function buildDocx(model: DocModel, load: ImageLoader): Promise<Buf
       ],
     },
     footnotes,
-    sections: [{ children }],
+    sections: [
+      {
+        properties: {
+          page: {
+            size: { width: mmToTwip(paper.width), height: mmToTwip(paper.height) },
+            margin: { top: mmToTwip(layout.marginY), bottom: mmToTwip(layout.marginY), left: mmToTwip(layout.marginX), right: mmToTwip(layout.marginX) },
+          },
+        },
+        ...(layout.pageNumbers === "none"
+          ? {}
+          : {
+              footers: {
+                default: new Footer({
+                  children: [
+                    new Paragraph({
+                      alignment: AlignmentType.CENTER,
+                      children:
+                        layout.pageNumbers === "of-total"
+                          ? [new TextRun({ children: [PageNumber.CURRENT, " / ", PageNumber.TOTAL_PAGES], size: 18, color: "6B7280" })]
+                          : [new TextRun({ children: [PageNumber.CURRENT], size: 18, color: "6B7280" })],
+                    }),
+                  ],
+                }),
+              },
+            }),
+        children,
+      },
+    ],
   });
   return Packer.toBuffer(document);
 }

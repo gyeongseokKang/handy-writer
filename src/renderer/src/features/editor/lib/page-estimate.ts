@@ -1,4 +1,4 @@
-import { DOCUMENT_CSS, PAGE_MARGIN_MM, PRINT_FONT_PT, PRINT_LINE_HEIGHT } from "@shared/export";
+import { DEFAULT_PAGE_OPTIONS, documentCss, PAPERS, type PageOptions } from "@shared/export";
 
 /**
  * A4로 뽑았을 때 몇 쪽(p)인지 센다. PDF 내보내기와 같은 문서를 같은 쪽 크기(A4, 사방 여백, 10pt 글자)로
@@ -6,11 +6,13 @@ import { DOCUMENT_CSS, PAGE_MARGIN_MM, PRINT_FONT_PT, PRINT_LINE_HEIGHT } from "
  */
 
 const MM = 96 / 25.4;
-/** A4 본문 칸 크기 (px, 96dpi) */
-export const A4_CONTENT_WIDTH = (210 - PAGE_MARGIN_MM * 2) * MM;
-export const A4_CONTENT_HEIGHT = (297 - PAGE_MARGIN_MM * 2) * MM;
+/** 종이 한 쪽의 본문 칸 크기 (px, 96dpi) */
+export function contentSize(options: PageOptions = DEFAULT_PAGE_OPTIONS) {
+  const paper = PAPERS[options.paper];
+  return { width: (paper.width - options.marginX * 2) * MM, height: (paper.height - options.marginY * 2) * MM };
+}
 /** 인쇄할 때 `html { font-size: 10pt }`라서 rem 하나가 이만큼이다 (px) */
-const REM_PX = (PRINT_FONT_PT * 96) / 72;
+const remPx = (options: PageOptions) => (options.fontPt * 96) / 72;
 
 export interface PageBreak {
   /** 이 구분선 아래에서 시작하는 쪽 번호 (2부터) */
@@ -42,7 +44,7 @@ export interface BlockBox {
  * 블록 위치로 쪽 수와 나뉘는 자리를 셈한다.
  * 쪽 경계가 글 블록 가운데를 지나면 그 비율대로 화면 위치를 정하고, 나눌 수 없는 블록이면 그 블록을 다음 쪽으로 넘긴다.
  */
-export function paginate(blocks: BlockBox[], pageHeight = A4_CONTENT_HEIGHT, offset = 0): PageEstimate {
+export function paginate(blocks: BlockBox[], pageHeight = contentSize().height, offset = 0): PageEstimate {
   const last = blocks.at(-1);
   if (!last) return { pages: 0, breaks: [] };
   const breaks: PageBreak[] = [];
@@ -94,27 +96,37 @@ function isSplittable(el: Element) {
   return true;
 }
 
+const escapeText = (text: string) => text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
 /**
- * 내보낼 PDF와 같은 문서(제목·본문·같은 CSS)를 A4 본문 폭의 보이지 않는 칸에 그린다.
- * iframe은 키보드 포커스를 가져갈 수 있어서 shadow DOM에 그리고, 문서 CSS의 body·main 규칙을 칸에 옮긴다.
+ * 내보낼 문서(제목·본문·같은 CSS)를 본문 칸 안에 그리는 마크업. 인쇄 CSS가 하는 일(rem을 본문 글자 크기 기준으로,
+ * 줄 간격, 여백 없음)을 칸 안에서 똑같이 한다. 쪽 수를 셀 때와 미리 볼 때 같이 쓴다.
+ * 문서 CSS의 body 규칙은 칸(.page)으로 옮기고, shadow DOM 안에 넣어야 앱 화면 스타일과 섞이지 않는다.
  */
-async function renderHidden(title: string, bodyHtml: string) {
+export function pageMarkup(title: string, bodyHtml: string, options: PageOptions) {
+  const rem = remPx(options);
+  const css = documentCss(options)
+    .replace(/@media print \{[^\n]*\}\n/, "")
+    .replace(/(^|\n)body \{/, "$1.page {")
+    .replace(/:root \{[^}]*\}/, "")
+    .replace(/@page \{[^}]*\}/, "")
+    .replace(/(\d*\.?\d+)rem/g, (_all, n: string) => `${Number(n) * rem}px`);
+  const heading = options.showTitle ? `<h1 class="title">${escapeText(title)}</h1>` : "";
+  return `<style>${css}.page{font-size:${rem}px;line-height:${options.lineHeight}}.page main{max-width:none;margin:0;padding:0}</style><div class="page"><main>${heading}${bodyHtml}</main></div>`;
+}
+
+/**
+ * 내보낼 PDF와 같은 문서를 본문 폭의 보이지 않는 칸에 그린다.
+ * iframe은 키보드 포커스를 가져갈 수 있어서 shadow DOM에 그린다.
+ */
+async function renderHidden(title: string, bodyHtml: string, options: PageOptions) {
   const host = document.createElement("div");
   host.setAttribute("aria-hidden", "true");
   host.inert = true;
-  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${A4_CONTENT_WIDTH}px;visibility:hidden;pointer-events:none;contain:layout style`;
+  host.style.cssText = `position:fixed;left:-100000px;top:0;width:${contentSize(options).width}px;visibility:hidden;pointer-events:none;contain:layout style`;
   const shadow = host.attachShadow({ mode: "open" });
-  // 인쇄 CSS가 하는 일(rem을 10pt 기준으로, 본문 10pt·줄 간격 160%, 여백 없음)을 칸 안에서 똑같이 한다.
-  const css = DOCUMENT_CSS.replace(/(^|\n)body \{/, "$1.page {")
-    .replace(/:root \{[^}]*\}/, "")
-    .replace(/(\d*\.?\d+)rem/g, (_all, n: string) => `${Number(n) * REM_PX}px`);
-  shadow.innerHTML = `<style>${css}.page{font-size:${REM_PX}px;line-height:${PRINT_LINE_HEIGHT}}.page main{max-width:none;margin:0;padding:0}</style><div class="page"><main></main></div>`;
+  shadow.innerHTML = pageMarkup(title, bodyHtml, options);
   const main = shadow.querySelector("main")!;
-  const heading = document.createElement("h1");
-  heading.className = "title";
-  heading.textContent = title;
-  main.append(heading);
-  main.insertAdjacentHTML("beforeend", bodyHtml);
   document.body.append(host);
   // 그림은 다 불러온 뒤에 잰다 (크기를 정하지 않은 그림의 높이).
   await Promise.all([...main.querySelectorAll("img")].map((img) => (img.complete ? null : img.decode().catch(() => null))));
@@ -127,7 +139,8 @@ async function renderHidden(title: string, bodyHtml: string) {
  */
 export async function measurePages(dom: HTMLElement, title: string, bodyHtml: string): Promise<PageEstimate> {
   if (!dom.textContent?.trim() && !dom.querySelector("img, video, table, hr")) return { pages: 0, breaks: [] };
-  const { host, main } = await renderHidden(title, bodyHtml);
+  const options = DEFAULT_PAGE_OPTIONS;
+  const { host, main } = await renderHidden(title, bodyHtml, options);
   try {
     const copies = [...main.children].slice(1);
     const originals = ([...dom.children] as HTMLElement[]).filter((el) => !el.classList.contains("ProseMirror-gapcursor") && !el.classList.contains("ProseMirror-trailingBreak") && !el.classList.contains("title-echo"));
@@ -155,6 +168,45 @@ export async function measurePages(dom: HTMLElement, title: string, bodyHtml: st
     }
     // 첫 블록 위의 제목도 첫 쪽을 차지하므로 블록 위치는 문서 맨 위에서 잰 그대로 쓴다.
     return paginate(blocks);
+  } finally {
+    host.remove();
+  }
+}
+
+/** 내보낼 문서의 쪽 나눔 (문서 안에서의 위치 기준) */
+export interface DocumentPages {
+  pages: number;
+  /** 각 쪽이 시작하는 높이 (px, 문서 맨 위에서 잰 값). 첫 쪽은 0 */
+  starts: number[];
+  /** 문서 전체 높이 (px) */
+  height: number;
+}
+
+/**
+ * 내보내기 설정대로 문서를 그려서 몇 쪽인지, 쪽마다 어디서 시작하는지 구한다. 미리보기가 쪽마다 그 구간을 잘라 보여 준다.
+ * bodyHtml은 내보내기용 본문 HTML(toExportHtml)
+ */
+export async function layoutDocument(title: string, bodyHtml: string, options: PageOptions): Promise<DocumentPages> {
+  const { host, main } = await renderHidden(title, bodyHtml, options);
+  try {
+    const base = main.getBoundingClientRect().top;
+    const height = main.getBoundingClientRect().height;
+    const blocks: BlockBox[] = [...main.children].map((el) => {
+      const rect = el.getBoundingClientRect();
+      const line = Number.parseFloat(getComputedStyle(el).lineHeight) || undefined;
+      const textual = el.tagName === "P" || /^H[1-6]$/.test(el.tagName);
+      return {
+        a4Top: rect.top - base,
+        a4Height: rect.height,
+        top: rect.top - base,
+        height: rect.height,
+        splittable: isSplittable(el),
+        ...(textual ? { lineHeight: line, a4LineHeight: line } : {}),
+      };
+    });
+    if (blocks.length === 0) return { pages: 1, starts: [0], height };
+    const result = paginate(blocks, contentSize(options).height);
+    return { pages: result.pages, starts: [0, ...result.breaks.map((b) => b.y)], height };
   } finally {
     host.remove();
   }

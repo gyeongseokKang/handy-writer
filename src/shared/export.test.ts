@@ -44,3 +44,29 @@ describe("inlineAssets", () => {
     ).toBe('<img src="">');
   });
 });
+
+describe("쪽 설정", () => {
+  it("범위를 벗어나거나 이상한 값은 쓸 수 있는 값으로 고친다", async () => {
+    const { DEFAULT_PAGE_OPTIONS, normalizePageOptions } = await import("./export");
+    expect(normalizePageOptions(undefined)).toEqual(DEFAULT_PAGE_OPTIONS);
+    expect(normalizePageOptions({ fontPt: 99, marginX: -3, marginY: "12", lineHeight: "abc", paper: "Tabloid", pageNumbers: "x", showTitle: "no" })).toEqual({
+      ...DEFAULT_PAGE_OPTIONS,
+      fontPt: 18,
+      marginX: 5,
+      marginY: 12,
+    });
+    expect(normalizePageOptions({ paper: "A5", pageNumbers: "of-total", showTitle: false })).toMatchObject({ paper: "A5", pageNumbers: "of-total", showTitle: false });
+  });
+
+  it("문서 CSS와 HTML에 고른 종이·여백·글자 크기가 들어가고, 제목은 끌 수 있다", async () => {
+    const { buildHtmlDocument, documentCss, normalizePageOptions } = await import("./export");
+    const options = normalizePageOptions({ paper: "A5", fontPt: 12, lineHeight: 1.8, marginX: 15, marginY: 25, showTitle: false });
+    const css = documentCss(options);
+    expect(css).toContain("@page { size: 148mm 210mm; margin: 25mm 15mm; }");
+    expect(css).toContain("font-size: 12pt");
+    expect(css).toContain("line-height: 1.8");
+    const html = buildHtmlDocument("제목", "<p>본문</p>", options);
+    expect(html).not.toContain('class="title"');
+    expect(buildHtmlDocument("제목", "<p>본문</p>")).toContain('<h1 class="title">제목</h1>');
+  });
+});

@@ -44,6 +44,9 @@ function inlines(walker: Walker, node: Node, marks: Marks = {}, out: DocInline[]
         height: Number(child.getAttribute("height")) || 0,
         alt: child.getAttribute("alt") ?? "",
       };
+      // 나란히 놓은 묶음 안의 그림은 화면처럼 한 칸 너비에 맞춘다.
+      const cols = Number(/--cols:\s*(\d+)/.exec(child.parentElement?.closest(".image-row")?.getAttribute("style") ?? "")?.[1]);
+      if (cols >= 2) image.cols = cols;
       if (image.src) {
         walker.images.push(image);
         out.push(image);
@@ -161,6 +164,12 @@ async function measure(images: DocImage[], load: (src: string) => Promise<{ widt
           else if (image.height) image.width = Math.round((image.height / size.height) * size.width);
           else Object.assign(image, size);
         }
+      }
+      if (image.cols && image.width > 0 && image.height > 0) {
+        // 칸 사이 간격(약 8px)을 빼고 한 줄이 본문 폭 안에 들어오게, 칸 너비로 맞춘다 (원래 크기가 작아도 칸을 채운다).
+        const column = Math.floor((MAX_IMAGE_WIDTH - 8 * (image.cols - 1)) / image.cols);
+        image.height = Math.round((image.height * column) / image.width);
+        image.width = column;
       }
       if (image.width > MAX_IMAGE_WIDTH) {
         image.height = Math.round((image.height * MAX_IMAGE_WIDTH) / image.width);

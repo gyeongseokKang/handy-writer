@@ -69,6 +69,10 @@ export interface EditorBridge {
   focusEmbed: (uid: string) => boolean;
   /** 대상 이름들을 임베드로 삽입한다. pos가 없으면 커서 위치에 넣는다. */
   insertEmbeds: (targets: string[], pos?: number) => void;
+  /** 커서(또는 선택한 블록)의 이미지들을 한 줄로 나란히 놓는다 (라벨 캡션도 만든다). 놓을 이미지가 없으면 false */
+  arrangeImages: () => boolean;
+  /** 나란히 놓인 이미지를 하나씩 위아래로 푼다. 나란히 놓인 이미지가 아니면 false */
+  splitImageRow: () => boolean;
   /** 템플릿이 참고할 본문 (선택한 글, 현재 문단, 현재 섹션, 글 전체). 이미 있는 템플릿 블록은 뺀다. */
   getTemplateContext: (scope: TemplateBlockAttrs["scope"]) => string;
   /** 선택한 글 (없으면 빈 문자열) */

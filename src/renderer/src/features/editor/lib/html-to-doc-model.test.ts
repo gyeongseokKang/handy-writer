@@ -72,4 +72,15 @@ describe("htmlToDocModel", () => {
     expect(model.blocks[0]).toEqual({ type: "paragraph", children: [{ type: "image", src: "a.png", alt: "가", width: MAX_IMAGE_WIDTH, height: 300 }] });
     expect(model.blocks[1]).toMatchObject({ children: [{ width: 300, height: 150 }] });
   });
+
+  it("나란히 놓은 그림은 한 칸 너비로 맞춘다", async () => {
+    const html = '<p class="image-row" style="--cols:2;"><img src="a.png"> <img src="b.png" width="100" height="50"></p><p><img src="c.png"></p>';
+    const model = await htmlToDocModel("글", html, async () => ({ width: 400, height: 200 }));
+    const images = model.blocks.flatMap((block) => ("children" in block ? block.children : [])).filter((item) => item.type === "image");
+    const column = Math.floor((MAX_IMAGE_WIDTH - 8) / 2);
+    expect(images[0]).toMatchObject({ cols: 2, width: column, height: column / 2 });
+    expect(images[1]).toMatchObject({ cols: 2, width: column, height: column / 2 });
+    expect(images[2]).not.toHaveProperty("cols");
+    expect(images[2]).toMatchObject({ width: 400 });
+  });
 });

@@ -22,6 +22,8 @@ export interface DocImage {
   width: number;
   height: number;
   alt: string;
+  /** 나란히 놓은 이미지 묶음의 칸 수. 있으면 한 칸 너비에 맞춰 줄인다. */
+  cols?: number;
 }
 
 export type DocInline = DocText | DocImage | { type: "break" } | { type: "footnote"; id: number };

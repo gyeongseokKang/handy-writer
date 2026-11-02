@@ -1,6 +1,6 @@
 import DragHandle from "@tiptap/extension-drag-handle-react";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { GripVertical } from "lucide-react";
+import { GripVertical, Ungroup } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -28,6 +28,7 @@ import { createSourceKeeper } from "../lib/source-keeper";
 import { FOCUS_REFRESH } from "../lib/focus-mode";
 import { titleEchoSize } from "../lib/title-echo";
 import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
+import { ContextMenu } from "@/shared/ui/context-menu";
 import { BlockMenu, selectBlock, type BlockTarget } from "./block-menu";
 import { BubbleToolbar } from "./bubble-toolbar";
 import { EditorWidthHandles } from "./editor-width-handles";
@@ -41,6 +42,7 @@ import { NoteProperties, PropertiesToggle, usePropertiesOpen } from "./note-prop
 import { PageBreakMarkers, PageCount, usePageBreaksShown, usePageEstimate } from "./page-breaks";
 import { NoteTitle } from "./note-title";
 import { SpellMenu } from "./spell-menu";
+import { sentenceAround, type SentenceRange } from "../lib/ai-polish";
 import { SpellPopover } from "./spell-popover";
 
 const SPELL_HOVER_CLOSE_MS = 250;
@@ -369,6 +371,17 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     setSpellTarget(null);
   };
 
+  // 문장 다듬기 제안: AI로 그 문장을 다듬어 바꾼다.
+  const applyPolished = (sentence: SentenceRange, polished: string) => {
+    if (!editor || !polished.trim()) return false;
+    const { doc } = editor.state;
+    // 요청한 뒤에 글이 바뀌었으면 엉뚱한 곳을 고치지 않는다.
+    if (sentence.to > doc.content.size || doc.textBetween(sentence.from, sentence.to, undefined, "\uFFFC") !== sentence.text) return false;
+    editor.view.dispatch(editor.state.tr.insertText(polished, sentence.from, sentence.to));
+    editor.view.focus();
+    return true;
+  };
+
   // 블록 왼쪽 손잡이(⋮⋮): 끌면 옮기고, 누르면 블록 종류를 바꾸는 메뉴가 뜬다.
   const handleTarget = useRef<BlockTarget | null>(null);
   const [blockMenu, setBlockMenu] = useState<{ target: BlockTarget; x: number; y: number } | null>(null);
@@ -378,6 +391,15 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
     const rect = event.currentTarget.getBoundingClientRect();
     selectBlock(editor, target);
     setBlockMenu({ target, x: rect.left, y: rect.bottom + 4 });
+  };
+
+  // 나란히 놓은 이미지 묶음을 우클릭하면 그룹 해제 메뉴가 뜬다.
+  const [imageMenu, setImageMenu] = useState<{ pos: number; x: number; y: number } | null>(null);
+  const openImageMenu = (event: React.MouseEvent<HTMLElement>) => {
+    const row = (event.target as HTMLElement).closest("p.image-row");
+    if (!editor || !row || !editor.view.dom.contains(row)) return;
+    event.preventDefault();
+    setImageMenu({ pos: editor.view.posAtDOM(row, 0), x: event.clientX, y: event.clientY });
   };
 
   // 제목에서 Enter: 본문의 첫 자리로. 숨겨진 제목 줄(글 제목과 같은 맨 앞 제목)은 건너뛴다.
@@ -537,7 +559,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           </NoteTags>
           {propertiesOpen && <NoteProperties frontmatter={frontmatter} onChange={changeFrontmatter} />}
           </div>
-          <div className="relative mt-6">
+          <div className="relative mt-6" onContextMenu={openImageMenu}>
             <DragHandle
               editor={editor}
               onNodeChange={({ node, pos }) => {
@@ -556,12 +578,24 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         </div>
       </div>
       <BubbleToolbar editor={editor} />
+      {imageMenu && (
+        <ContextMenu
+          x={imageMenu.x}
+          y={imageMenu.y}
+          label="이미지 묶음 메뉴"
+          items={[{ label: "그룹 해제", icon: <Ungroup />, onSelect: () => void editor.chain().focus().splitImageRow(imageMenu.pos).run() }]}
+          onClose={() => setImageMenu(null)}
+        />
+      )}
       {blockMenu && <BlockMenu editor={editor} target={blockMenu.target} x={blockMenu.x} y={blockMenu.y} onClose={() => setBlockMenu(null)} />}
       <TableMenu editor={editor} />
       {spellTarget && (
         <SpellPopover
           target={spellTarget}
           onApply={applySpell}
+          getSentence={() => (editor ? sentenceAround(editor.state.doc, spellTarget.from, spellTarget.to) : null)}
+          onApplyPolished={applyPolished}
+          noteName={name}
           onIgnore={() => {
             useSpellStore.getState().ignore(issueKey(spellTarget.issue));
             setSpellTarget(null);

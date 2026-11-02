@@ -3,7 +3,7 @@ import type { FSWatcher } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { ExportRequest } from "../shared/export";
+import { normalizePageOptions, type ExportRequest } from "../shared/export";
 import type { Template } from "../shared/templates";
 import { IPC, type WorkspaceInfo } from "../shared/types";
 import { registerAiIpc } from "./ai/ipc-ai";
@@ -118,6 +118,8 @@ export async function registerIpc() {
       name: String(request?.name ?? ""),
       format: request?.format,
       content: String(request?.content ?? ""),
+      // 값이 이상해도 exportNote에서 쓸 수 있는 범위로 고친다.
+      layout: normalizePageOptions(request?.layout),
     }),
   );
   ipcMain.handle(IPC.exportCopy, (_e, html: string, text: string) => copyNote(requireRoot(), String(html ?? ""), String(text ?? "")));

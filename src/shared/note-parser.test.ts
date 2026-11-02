@@ -5,7 +5,11 @@ import { createLinkResolver, parseNote, rewriteWikiLinks } from "./note-parser";
 describe("parseNote 링크", () => {
   it("별칭, 섹션, 블록, 임베드에서 대상 이름만 뽑고 중복을 없앤다", () => {
     const { links } = parseNote("[[A]] [[B|별칭]] [[C#섹션]] [[D^블록]] ![[E.png]] [[A]]");
-    expect(links).toEqual(["A", "B", "C", "D", "E.png"]);
+    expect(links).toEqual(["A", "B", "C", "D"]);
+  });
+
+  it("그림·동영상·PDF 같은 첨부 파일 임베드는 링크가 아니다 (연결 그래프에 나오지 않는다)", () => {
+    expect(parseNote("![[a.png|그림|120]] ![[b.PDF]] [[c.mp4]] ![[노트]] ![[폴더/d.webp]]").links).toEqual(["노트"]);
   });
 
   it("같은 글 안의 [[#섹션]]은 링크가 아니다", () => {
