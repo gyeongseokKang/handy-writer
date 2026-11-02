@@ -1,5 +1,5 @@
-import { ListTree, Pin, PinOff, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronRight, ListTree, Pin, PinOff, Sparkles } from "lucide-react";
+import { Fragment, useEffect, useRef, useState } from "react";
 
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useOutlineStore } from "@/entities/note/model/use-outline-store";
@@ -36,33 +36,46 @@ export function OutlinePanel() {
       ref={navRef}
       data-compact={compact || undefined}
       data-pinned={pinned || undefined}
-      title={compact && !pinned ? "목차" : undefined}
+      title={compact && !pinned && trail.length === 0 ? "목차" : undefined}
       className={cn(
-        "outline-panel group outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 absolute z-10 w-max max-w-56 rounded-lg border bg-card/90 text-sm shadow-sm backdrop-blur hover:w-64 hover:max-w-64 focus-within:w-64 focus-within:max-w-64",
+        "outline-panel group outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 absolute z-10 w-max rounded-lg border bg-card/90 text-sm shadow-sm backdrop-blur hover:w-64 hover:max-w-64 focus-within:w-64 focus-within:max-w-64",
         // 고정하면 마우스를 올리지 않아도 전체 목차가 펼쳐져 있다.
         pinned && "w-64 max-w-64 bg-card shadow-md",
-        compact ? "top-2 left-2" : "top-4 left-4",
+        // 자리가 좁아도 지금 제목까지의 단계는 한 줄로 보여 준다 (위쪽 띠).
+        compact ? "top-2 left-2 max-w-[min(34rem,calc(100%-1rem))]" : "top-4 left-4 max-w-56",
       )}
     >
       {/* 접힌 모습: 지금 보고 있는 제목과 그 위 제목들 */}
-      <div aria-hidden data-outline-current className={cn("flex gap-2 text-muted-foreground group-focus-within:hidden group-hover:hidden", pinned && "!hidden", compact ? "p-2" : "px-3 py-2")}>
+      <div aria-hidden data-outline-current className={cn("flex gap-2 text-muted-foreground group-focus-within:hidden group-hover:hidden", pinned && "!hidden", compact ? "items-center px-2 py-1.5" : "px-3 py-2")}>
         <ListTree className="mt-0.5 size-4 shrink-0" />
-        <div className={cn("min-w-0 space-y-0.5", compact && "hidden")}>
-          {trail.length === 0 ? (
-            <div>목차</div>
-          ) : (
-            trail.map(({ heading, depth, last, leaving }) => (
-              <div
-                key={heading.pos}
-                data-leaving={leaving || undefined}
-                style={{ paddingLeft: `${depth * 0.75}rem` }}
-                className={cn("outline-trail-line truncate", last ? "text-sm leading-5 text-foreground/80" : "text-xs leading-5")}
-              >
-                {heading.text}
-              </div>
-            ))
-          )}
-        </div>
+        {compact ? (
+          // 좁을 때: 상위 제목 › 지금 제목을 한 줄로 (넘치면 앞쪽부터 줄여서 지금 제목이 보이게)
+          <div data-outline-breadcrumb className="flex min-w-0 items-center gap-1 text-xs leading-5">
+            {trail.filter((line) => !line.leaving).map(({ heading, last }, index) => (
+              <Fragment key={heading.pos}>
+                {index > 0 && <ChevronRight className="size-3 shrink-0 opacity-60" />}
+                <span className={cn("outline-trail-line truncate", last ? "shrink-0 max-w-[18rem] text-foreground/80" : "min-w-0 max-w-40")}>{heading.text}</span>
+              </Fragment>
+            ))}
+          </div>
+        ) : (
+          <div className="min-w-0 space-y-0.5">
+            {trail.length === 0 ? (
+              <div>목차</div>
+            ) : (
+              trail.map(({ heading, depth, last, leaving }) => (
+                <div
+                  key={heading.pos}
+                  data-leaving={leaving || undefined}
+                  style={{ paddingLeft: `${depth * 0.75}rem` }}
+                  className={cn("outline-trail-line truncate", last ? "text-sm leading-5 text-foreground/80" : "text-xs leading-5")}
+                >
+                  {heading.text}
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* 펼친 모습: 전체 목차 */}

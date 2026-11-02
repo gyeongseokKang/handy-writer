@@ -46,13 +46,16 @@ assert(saved.includes("[^1]: 첫 각주 내용") && saved.includes("[^출처]: �
 
 // ── 탭 ──
 assert(JSON.stringify(await tabNames()) === '["각주"]', "연 글이 탭으로 보인다");
+await tree.getByText("자료", { exact: true }).click({ modifiers: ["Control"] });
+await sleep(300);
+assert(JSON.stringify(await tabNames()) === '["자료"]', "Ctrl+클릭은 지금 탭을 바꾼다 (누르면 새 탭으로 여는 기본 설정일 때)");
+await tree.getByText("각주", { exact: true }).click();
+await tree.getByText("셋째", { exact: true }).click();
+await sleep(300);
+assert(JSON.stringify(await tabNames()) === '["자료","각주","셋째"]' && (await activeTab()) === "셋째", `그냥 누르면 새 탭으로 연다 (${await tabNames()})`);
 await tree.getByText("자료", { exact: true }).click();
-await sleep(300);
-assert(JSON.stringify(await tabNames()) === '["자료"]', "그냥 누르면 지금 탭을 바꾼다");
-await tree.getByText("각주", { exact: true }).click({ modifiers: ["Control"] });
-await tree.getByText("셋째", { exact: true }).click({ modifiers: ["Control"] });
-await sleep(300);
-assert(JSON.stringify(await tabNames()) === '["자료","각주","셋째"]' && (await activeTab()) === "셋째", `Ctrl+클릭은 새 탭으로 연다 (${await tabNames()})`);
+await sleep(200);
+assert(JSON.stringify(await tabNames()) === '["자료","각주","셋째"]' && (await activeTab()) === "자료", "이미 열려 있는 글을 누르면 그 탭으로 옮겨 간다");
 await page.keyboard.press("Control+1");
 await sleep(200);
 assert((await activeTab()) === "자료", "Ctrl+1은 첫 탭");
@@ -75,7 +78,7 @@ assert(JSON.stringify(await tabNames()) === '["자료","각주"]' && (await acti
 await tabs.getByRole("button", { name: "자료 탭 닫기" }).click();
 await sleep(300);
 assert(JSON.stringify(await tabNames()) === '["각주"]', "X로 탭을 닫는다");
-await tree.getByText("자료", { exact: true }).click({ modifiers: ["Control"] });
+await tree.getByText("자료", { exact: true }).click();
 const title = page.getByLabel("글 제목").first();
 await title.fill("자료 모음");
 await title.press("Enter");

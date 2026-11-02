@@ -93,7 +93,7 @@ await page.screenshot({ path: path.join(OUT, "title-tags.png") });
 
 // ── 닫은 탭 다시 열기 ──
 const tabs = page.getByRole("tablist", { name: "열린 글" });
-await page.locator("nav[aria-label='글 목록']").getByText("메모", { exact: true }).click({ modifiers: ["Control"] });
+await page.locator("nav[aria-label='글 목록']").getByText("메모", { exact: true }).click();
 await sleep(300);
 await tabs.getByRole("button", { name: "메모 탭 닫기" }).click();
 await sleep(300);
@@ -113,7 +113,8 @@ assert((await rightTabs.count()) === 1, "다시 넓어지면 펼친다");
 
 // ── 목차: 글 칸 왼쪽에 자리가 없으면 아이콘만 ──
 const outline = page.getByRole("navigation", { name: "목차" });
-assert((await outline.getAttribute("data-compact")) === "true", "글 칸 옆에 자리가 없으면 목차를 아이콘으로 줄인다");
+assert((await outline.getAttribute("data-compact")) === "true", "글 칸 옆에 자리가 없으면 목차를 한 줄로 줄인다");
+assert((await outline.locator("[data-outline-breadcrumb]").count()) === 1, "줄어도 지금 제목까지의 단계는 한 줄로 보여 준다");
 await page.setViewportSize({ width: 2000, height: 900 });
 await sleep(500);
 assert((await outline.getAttribute("data-compact")) === null, "자리가 넉넉하면 지금 제목까지 보여 준다");
