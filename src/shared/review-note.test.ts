@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  defaultReviewMeta, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewProblems, reviewSummary, slugOfReviewPath, writeReviewMeta,
+  defaultReviewMeta, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, slugOfReviewPath, sortSeries, writeReviewMeta,
 } from "./review-note";
 
 const ctx = {
@@ -86,5 +86,20 @@ describe("review → note (import)", () => {
 
   it("reads the slug from a published path like the site does", () => {
     expect(slugOfReviewPath("src/content/reviews/baby/2026-10-20-bugaboo-butterfly.md")).toBe("bugaboo-butterfly");
+  });
+});
+
+describe("series", () => {
+  it("reads, writes and publishes series fields", () => {
+    const fm = writeReviewMeta("", { ...defaultReviewMeta("baby"), series: "유모차 3종 비교", seriesOrder: 2 });
+    expect(readReviewMeta(fm)).toMatchObject({ series: "유모차 3종 비교", seriesOrder: 2 });
+    const site = reviewFrontmatterOf({ ...readReviewMeta(fm)!, verdict: "v", target: "t" }, "제목", [], "2026-11-02", undefined);
+    expect(site).toMatchObject({ series: "유모차 3종 비교", seriesOrder: 2 });
+    expect(reviewFrontmatterOf({ ...defaultReviewMeta(), seriesOrder: 3 }, "t", [], "2026-11-02", undefined)).not.toHaveProperty("seriesOrder");
+  });
+
+  it("orders a series by order, then date, then name", () => {
+    const e = (name: string, order: number | null, date: string | null) => ({ series: "s", path: `${name}.md`, name, order, date, published: false });
+    expect(sortSeries([e("다", null, "2026-01-01"), e("나", 2, null), e("가", 1, null), e("라", null, "2025-01-01")]).map((x) => x.name)).toEqual(["가", "나", "라", "다"]);
   });
 });

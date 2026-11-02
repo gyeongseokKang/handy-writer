@@ -31,6 +31,10 @@ export interface ReviewMeta {
   mapUrl?: string;
   visitedAt?: string;
   youtubeId?: string;
+  /** 시리즈 이름. 같은 이름을 적은 리뷰끼리 사이트에서 묶여 이전·다음편이 붙는다. */
+  series?: string;
+  /** 시리즈 안 순서 (비우면 날짜 순) */
+  seriesOrder?: number;
   /** 사이트 주소의 마지막 부분 (/review/<slug>). 비우면 글 이름으로 만든다. */
   slug?: string;
   /** 리뷰 날짜. 비우면 처음 게시한 날 */
@@ -49,6 +53,22 @@ export interface ReviewNotePreview {
   warnings: string[];
   /** 이번 게시로 지울 예전 경로 (분류·주소·날짜를 바꿨을 때) */
   replaces: string | null;
+}
+
+/** 작업 폴더에서 리뷰 정보에 시리즈를 적은 글 하나 */
+export interface ReviewSeriesEntry {
+  series: string;
+  path: string;
+  name: string;
+  order: number | null;
+  date: string | null;
+  published: boolean;
+}
+
+/** 시리즈 안 순서: 순서 → 날짜 → 이름 (사이트와 같은 규칙, 순서가 없으면 뒤로) */
+export function sortSeries(entries: ReviewSeriesEntry[]) {
+  const order = (e: ReviewSeriesEntry) => e.order ?? Number.POSITIVE_INFINITY;
+  return [...entries].sort((a, b) => order(a) - order(b) || (a.date ?? "9999").localeCompare(b.date ?? "9999") || a.name.localeCompare(b.name, "ko"));
 }
 
 export interface ReviewNotePublishResult extends ReviewNotePreview {
@@ -121,6 +141,9 @@ export function readReviewMeta(frontmatter: string): ReviewMeta | null {
     if (raw[key] !== undefined && raw[key] !== null) meta[key] = str(raw[key]);
   }
   if (raw["featured"]) meta.featured = true;
+  if (str(raw["series"]).trim()) meta.series = str(raw["series"]).trim();
+  const order = Number(raw["seriesOrder"]);
+  if (raw["seriesOrder"] !== undefined && raw["seriesOrder"] !== null && raw["seriesOrder"] !== "" && Number.isFinite(order)) meta.seriesOrder = order;
   return meta;
 }
 
@@ -290,6 +313,7 @@ export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: strin
     ...(meta.category === "place" && meta.mapUrl?.trim() ? { mapUrl: meta.mapUrl.trim() } : {}),
     ...(meta.category === "place" && meta.visitedAt?.trim() ? { visitedAt: meta.visitedAt.trim() } : {}),
     ...(meta.category === "video" && meta.youtubeId?.trim() ? { youtubeId: meta.youtubeId.trim() } : {}),
+    ...(meta.series?.trim() ? { series: meta.series.trim(), ...(meta.seriesOrder !== undefined ? { seriesOrder: meta.seriesOrder } : {}) } : {}),
   };
 }
 
@@ -302,6 +326,8 @@ export function metaFromReview(fm: ReviewFrontmatter, path: string): ReviewMeta 
   };
   for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId"] as const) if (fm[key]) meta[key] = fm[key];
   if (fm.featured) meta.featured = true;
+  if (fm.series) meta.series = fm.series;
+  if (typeof fm.seriesOrder === "number") meta.seriesOrder = fm.seriesOrder;
   return meta;
 }
 

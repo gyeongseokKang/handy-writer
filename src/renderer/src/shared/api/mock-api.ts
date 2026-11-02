@@ -95,6 +95,7 @@ export function createMockApi(): HandyApi {
         previewNote: async (notePath) => ({ path: `src/content/reviews/etc/2026-01-01-${notePath.replace(/\.md$/, "")}.md`, slug: "mock", date: "2026-01-01", markdown: "---\ntitle: mock\n---\n", warnings: [], replaces: null }),
         publishNote: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
         importPost: async (postPath) => ({ path: postPath, created: false }),
+        listSeries: async () => [],
         deployStatus: async () => ({ ...decideDeployState({ deployedSha: "aaaaaaa", remoteSha: "bbbbbbb", localSha: "bbbbbbb", behindBy: 1 }), checkedAt: new Date().toISOString() }),
         repoStatus: async () => (config.repo ? { repo: config.repo, name: "handy-review", branch: "main", ahead: 0, behind: 0, changes: 0 } : null),
         reveal: async () => {},

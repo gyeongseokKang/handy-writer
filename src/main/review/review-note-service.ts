@@ -13,7 +13,7 @@ import { extractSection, splitEmbedTarget } from "../../shared/note-section";
 import { reviewAssetDir, today } from "../../shared/review";
 import {
   metaFromReview, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewPathFor, reviewProblems,
-  reviewSlugOf, slugOfReviewPath, writeReviewMeta, type ReviewMeta, type ReviewNotePreview, type ReviewNotePublishResult,
+  reviewSlugOf, slugOfReviewPath, writeReviewMeta, type ReviewMeta, type ReviewNotePreview, type ReviewNotePublishResult, type ReviewSeriesEntry,
 } from "../../shared/review-note";
 import type { NoteMeta } from "../../shared/types";
 
@@ -178,6 +178,19 @@ export async function publishNoteReview(root: string, repo: string, notePath: st
   const sha = (await runGit(repo, ["rev-parse", "HEAD"], { readOnly: true })).stdout.trim();
   const { path, slug, date, markdown, warnings, replaces, meta } = plan;
   return { path, slug, date, markdown, warnings, replaces, meta, committed: !!staged, sha };
+}
+
+/** 작업 폴더에서 시리즈를 적은 리뷰 글들 (리뷰 칸의 자동완성과 같은 시리즈 목록) */
+export async function listReviewSeries(root: string): Promise<ReviewSeriesEntry[]> {
+  const out: ReviewSeriesEntry[] = [];
+  for (const n of await listNotes(root)) {
+    const raw = await readNote(root, n.path).catch(() => "");
+    if (!raw.includes("series")) continue;
+    const meta = readReviewMeta(splitFrontmatter(raw).frontmatter);
+    if (!meta?.series) continue;
+    out.push({ series: meta.series, path: n.path, name: n.name, order: meta.seriesOrder ?? null, date: meta.date ?? null, published: !!meta.published });
+  }
+  return out;
 }
 
 /** 저장소의 리뷰 글을 작업 폴더의 `리뷰/` 글로 가져온다. 이미 가져온 글이면 그 글을 돌려준다. */

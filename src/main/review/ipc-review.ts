@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { IPC } from "../../shared/types";
 import type { DeployProviderInfo } from "../../shared/review";
 import { checkReviewRepo, deployStatus, listPosts, loadReviewConfig, reviewRepoStatus, saveReviewConfig } from "./review-service";
-import { importReviewToNote, previewNoteReview, publishNoteReview } from "./review-note-service";
+import { importReviewToNote, listReviewSeries, previewNoteReview, publishNoteReview } from "./review-note-service";
 
 async function repoOrThrow() {
   const { repo } = await loadReviewConfig();
@@ -27,6 +27,7 @@ export function registerReviewIpc(requireRoot: () => string) {
   ipcMain.handle(IPC.reviewList, async () => listPosts(await repoOrThrow()));
   ipcMain.handle(IPC.reviewPreviewNote, async (_e, notePath: string) => previewNoteReview(requireRoot(), await repoOrThrow(), notePath));
   ipcMain.handle(IPC.reviewPublishNote, async (_e, notePath: string) => publishNoteReview(requireRoot(), await repoOrThrow(), notePath));
+  ipcMain.handle(IPC.reviewListSeries, () => listReviewSeries(requireRoot()));
   ipcMain.handle(IPC.reviewImport, async (_e, postPath: string) => importReviewToNote(requireRoot(), await repoOrThrow(), postPath));
   ipcMain.handle(IPC.reviewDeployStatus, async () => {
     const config = await loadReviewConfig();

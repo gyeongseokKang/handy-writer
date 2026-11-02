@@ -8,7 +8,7 @@ import {
 } from "@shared/review";
 import {
   readReviewMeta, reviewProblems, reviewSlugOf, slugOfReviewPath, writeReviewMeta,
-  type ReviewMeta, type ReviewNotePreview,
+  sortSeries, type ReviewMeta, type ReviewNotePreview, type ReviewSeriesEntry,
 } from "@shared/review-note";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
@@ -153,6 +153,59 @@ function PreviewDialog({ preview, onClose }: { preview: ReviewNotePreview; onClo
         )}
         <pre className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">{preview.markdown}</pre>
       </div>
+    </div>
+  );
+}
+
+/** 시리즈 이름(같은 이름끼리 묶임)과 순서, 같은 시리즈의 다른 글 */
+function SeriesInput({ meta, path, name, onChange }: { meta: ReviewMeta; path: string; name: string; onChange: (p: Partial<ReviewMeta>) => void }) {
+  const [entries, setEntries] = useState<ReviewSeriesEntry[]>([]);
+  useEffect(() => { void api.review.listSeries().then(setEntries, () => setEntries([])); }, [path, meta.series]);
+  const names = useMemo(() => [...new Set(entries.map((e) => e.series))].sort((a, b) => a.localeCompare(b, "ko")), [entries]);
+  const series = meta.series?.trim();
+  // 이 글은 저장 전 값으로 끼워 넣는다.
+  const list = useMemo(() => {
+    if (!series) return [];
+    const others = entries.filter((e) => e.series === series && e.path !== path);
+    return sortSeries([...others, { series, path, name, order: meta.seriesOrder ?? null, date: meta.date ?? null, published: !!meta.published }]);
+  }, [entries, series, path, name, meta.seriesOrder, meta.date, meta.published]);
+  return (
+    <div className="space-y-2">
+      <div className="grid grid-cols-[1fr_4.5rem] gap-2">
+        <Field label="시리즈" hint="같은 이름끼리 묶여요">
+          <input className={input} list="review-series-names" value={meta.series ?? ""} placeholder="없으면 비워 두기" onChange={(e) => onChange({ series: e.target.value })} />
+          <datalist id="review-series-names">{names.map((n) => <option key={n} value={n} />)}</datalist>
+        </Field>
+        <Field label="몇 편">
+          <input
+            className={input}
+            type="number"
+            min={1}
+            disabled={!series}
+            value={meta.seriesOrder ?? ""}
+            placeholder={series ? String(list.findIndex((e) => e.path === path) + 1) : ""}
+            onChange={(e) => onChange({ seriesOrder: e.target.value === "" ? undefined : Number(e.target.value) })}
+          />
+        </Field>
+      </div>
+      {list.length > 1 && (
+        <ol className="space-y-0.5 rounded-md border p-1.5 text-xs">
+          {list.map((e, i) => (
+            <li key={e.path}>
+              <button
+                type="button"
+                disabled={e.path === path}
+                onClick={() => useWorkspaceStore.getState().openNote(e.path)}
+                className={cn("flex w-full items-center gap-1.5 rounded px-1.5 py-1 text-left hover:bg-accent disabled:cursor-default", e.path === path && "bg-accent font-medium")}
+              >
+                <span className="w-4 shrink-0 text-right text-muted-foreground tabular-nums">{i + 1}</span>
+                <span className="min-w-0 flex-1 truncate">{e.name}</span>
+                <span className={cn("shrink-0", e.published ? "text-emerald-600" : "text-muted-foreground")}>{e.published ? "게시됨" : "게시 전"}</span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
     </div>
   );
 }
@@ -345,6 +398,7 @@ export function ReviewSection() {
         </>
       )}
       {fm.category === "video" && <Field label="유튜브 영상 ID"><input className={input} value={fm.youtubeId ?? ""} placeholder="dQw4w9WgXcQ" onChange={(e) => patch({ youtubeId: e.target.value })} /></Field>}
+      <SeriesInput meta={fm} path={activePath} name={title} onChange={patch} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!fm.featured} onChange={(e) => patch({ featured: e.target.checked })} /> 첫 화면 추천 리뷰</label>
 
       <details className="rounded-md border px-2.5 py-1.5 text-sm" open={!fm.published ? undefined : false}>
