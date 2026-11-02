@@ -8,6 +8,19 @@ import { IPC, type HandyApi, type NotesChangedEvent } from "../shared/types";
 
 const api: HandyApi = {
   platform: process.platform,
+  review: {
+    getConfig: () => ipcRenderer.invoke(IPC.reviewGetConfig),
+    chooseRepo: () => ipcRenderer.invoke(IPC.reviewChooseRepo),
+    setDeploy: (deploy) => ipcRenderer.invoke(IPC.reviewSetDeploy, deploy),
+    list: () => ipcRenderer.invoke(IPC.reviewList),
+    create: (category, title) => ipcRenderer.invoke(IPC.reviewCreate, category, title),
+    read: (path) => ipcRenderer.invoke(IPC.reviewRead, path),
+    write: (post) => ipcRenderer.invoke(IPC.reviewWrite, post),
+    saveImage: (postPath, name, data) => ipcRenderer.invoke(IPC.reviewSaveImage, postPath, name, data),
+    publish: (postPath) => ipcRenderer.invoke(IPC.reviewPublish, postPath),
+    deployStatus: () => ipcRenderer.invoke(IPC.reviewDeployStatus),
+    reveal: (path) => ipcRenderer.invoke(IPC.reviewReveal, path),
+  },
   workspace: {
     get: () => ipcRenderer.invoke(IPC.workspaceGet),
     choose: () => ipcRenderer.invoke(IPC.workspaceChoose),

@@ -1,4 +1,4 @@
-import { Download, FilePlus2, FolderOpen, Minimize2, PenLine, Sparkles } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Minimize2, PenLine, Sparkles, Star } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -33,6 +33,7 @@ import { RightPanel } from "./right-panel";
 import { HelpDialog } from "./help-dialog";
 import { SettingsDialog } from "./settings-dialog";
 import { ShortcutsDialog } from "./shortcuts-dialog";
+import { ReviewDialog } from "@/features/review/ui/review-dialog";
 
 /** 글을 붙여넣을 수 있는 자리인지 (입력 칸이나 에디터) */
 function isEditable(el: Element | null) {
@@ -82,6 +83,9 @@ function EmptyEditor() {
         <Button variant="outline" size="sm" onClick={() => useUiStore.getState().setExtract({ mode: "new" })}>
           <Download /> 링크에서 가져오기
         </Button>
+        <Button variant="outline" size="sm" onClick={() => useUiStore.getState().setReviewOpen(true)}>
+          <Star /> 리뷰 쓰기
+        </Button>
       </div>
     </div>
   );
@@ -99,6 +103,7 @@ export function AppShell() {
   const extract = useUiStore((state) => state.extract);
   const settingsOpen = useUiStore((state) => state.settingsOpen);
   const shortcutsOpen = useUiStore((state) => state.shortcutsOpen);
+  const reviewOpen = useUiStore((state) => state.reviewOpen);
   const styleSettingsOpen = useUiStore((state) => state.styleSettingsOpen);
   const onboardingOpen = useUiStore((state) => state.onboardingOpen);
   const manuscriptFolder = useUiStore((state) => state.manuscriptFolder);
@@ -281,6 +286,7 @@ export function AppShell() {
       {extract && <ExtractDialog mode={extract.mode} />}
       {settingsOpen && <SettingsDialog />}
       {shortcutsOpen && <ShortcutsDialog />}
+      {reviewOpen && <ReviewDialog />}
       {styleSettingsOpen && <StyleSettings onClose={() => useUiStore.getState().setStyleSettingsOpen(false)} />}
       {onboardingOpen && <OnboardingDialog />}
       {helpOpen && <HelpDialog />}
