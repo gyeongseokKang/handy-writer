@@ -11,10 +11,13 @@ export interface DeployProvider {
   deployedSha(): Promise<string>;
 }
 
-export class VercelVersionJsonProvider implements DeployProvider {
+const defaultFetch: typeof fetch = (input, init) => net.fetch(input as string, init);
+
+/** 정적 사이트의 /version.json 을 읽는 공통 구현. 호스트(Vercel/Cloudflare)는 빌드 env 만 다르다. */
+abstract class VersionJsonProvider implements DeployProvider {
   readonly info: DeployProviderInfo;
-  constructor(siteUrl: string, private readonly fetchImpl: typeof fetch = (input, init) => net.fetch(input as string, init)) {
-    this.info = { kind: "vercel-version-json", siteUrl: siteUrl.replace(/\/+$/, "") };
+  constructor(kind: DeployProviderInfo["kind"], siteUrl: string, private readonly fetchImpl: typeof fetch = defaultFetch) {
+    this.info = { kind, siteUrl: siteUrl.replace(/\/+$/, "") };
   }
   async deployedSha() {
     const res = await this.fetchImpl(`${this.info.siteUrl}/version.json?t=${Date.now()}`, { cache: "no-store" });
@@ -25,7 +28,23 @@ export class VercelVersionJsonProvider implements DeployProvider {
   }
 }
 
+export class VercelVersionJsonProvider extends VersionJsonProvider {
+  constructor(siteUrl: string, fetchImpl?: typeof fetch) { super("vercel-version-json", siteUrl, fetchImpl); }
+}
+
+/**
+ * Cloudflare Workers/Pages 정적 배포. 빌드 때 WORKERS_CI_COMMIT_SHA / CF_PAGES_COMMIT_SHA 가 version.json 에 들어간다.
+ * 토큰이 필요한 Cloudflare API(배포 목록·빌드 상태 조회·재배포)는 일부러 쓰지 않는다. 나중에 붙일 자리만 남겨 둠.
+ */
+export class CloudflareVersionJsonProvider extends VersionJsonProvider {
+  constructor(siteUrl: string, fetchImpl?: typeof fetch) { super("cloudflare-version-json", siteUrl, fetchImpl); }
+}
+
 export function createDeployProvider(info: DeployProviderInfo | null): DeployProvider | null {
   if (!info?.siteUrl) return null;
-  return new VercelVersionJsonProvider(info.siteUrl);
+  switch (info.kind) {
+    case "cloudflare-version-json": return new CloudflareVersionJsonProvider(info.siteUrl);
+    case "vercel-version-json": return new VercelVersionJsonProvider(info.siteUrl);
+    default: return new CloudflareVersionJsonProvider(info.siteUrl);
+  }
 }

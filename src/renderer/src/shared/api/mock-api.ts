@@ -87,7 +87,7 @@ export function createMockApi(): HandyApi {
     platform: "mock",
     review: (() => {
       const posts = new Map<string, ReviewPost>();
-      let config: { repo: string | null; deploy: { kind: "vercel-version-json"; siteUrl: string } | null } = { repo: "/mock/handy-review", deploy: null };
+      let config: { repo: string | null; deploy: { kind: "vercel-version-json" | "cloudflare-version-json"; siteUrl: string } | null } = { repo: "/mock/handy-review", deploy: null };
       return {
         getConfig: async () => config,
         chooseRepo: async () => config,

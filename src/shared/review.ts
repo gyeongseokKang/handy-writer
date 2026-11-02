@@ -81,7 +81,11 @@ export function cleanFrontmatter(fm: ReviewFrontmatter): Record<string, unknown>
 // ── 배포 상태 ──────────────────────────────────────────────
 
 /** 배포된 사이트가 몇 번 커밋으로 빌드됐는지 알려 주는 곳. 지금은 Vercel 사이트의 /version.json 하나. */
-export interface DeployProviderInfo { kind: "vercel-version-json"; siteUrl: string }
+/** 배포 확인 방식. 둘 다 사이트의 /version.json(sha) 을 읽을 뿐, 배포를 일으키지 않는다. */
+export type DeployProviderKind = "vercel-version-json" | "cloudflare-version-json";
+export interface DeployProviderInfo { kind: DeployProviderKind; siteUrl: string }
+export const DEFAULT_DEPLOY_KIND: DeployProviderKind = "cloudflare-version-json";
+export const DEFAULT_REVIEW_SITE_URL = "https://review.handykang.com";
 
 export type DeployState =
   | "up-to-date" // 배포된 커밋 = 원격 main 최신

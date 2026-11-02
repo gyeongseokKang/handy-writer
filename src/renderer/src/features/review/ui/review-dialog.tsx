@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import {
   REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL,
   type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewLink, type ReviewPost, type ReviewPostSummary,
+  DEFAULT_DEPLOY_KIND, DEFAULT_REVIEW_SITE_URL,
 } from "@shared/review";
 import type { ReviewConfig } from "@shared/types";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -92,12 +93,12 @@ function DeployBar({ config, onConfig }: { config: ReviewConfig; onConfig: (c: R
   useEffect(() => { void check(); }, [check, config.deploy?.siteUrl]);
   const saveSite = async () => {
     const url = site.trim();
-    onConfig(await api.review.setDeploy(url ? { kind: "vercel-version-json", siteUrl: url } : null));
+    onConfig(await api.review.setDeploy(url ? { kind: config.deploy?.kind ?? DEFAULT_DEPLOY_KIND, siteUrl: url } : null));
   };
   const badge = status ? DEPLOY_BADGE[status.state] : null;
   return (
     <div className="flex flex-wrap items-center gap-2 text-xs">
-      <input className={`${input} w-64 py-1 text-xs`} value={site} placeholder="사이트 주소 (예: https://review.도메인)" onChange={(e) => setSite(e.target.value)} onBlur={() => void saveSite()} onKeyDown={(e) => e.key === "Enter" && void saveSite()} />
+      <input className={`${input} w-64 py-1 text-xs`} value={site} placeholder={`사이트 주소 (예: ${DEFAULT_REVIEW_SITE_URL})`} onChange={(e) => setSite(e.target.value)} onBlur={() => void saveSite()} onKeyDown={(e) => e.key === "Enter" && void saveSite()} />
       {badge && (
         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${badge.cls}`} title={`${status!.message}\n배포: ${status!.deployedSha?.slice(0, 7) ?? "-"} / 원격: ${status!.remoteSha?.slice(0, 7) ?? "-"} / 로컬: ${status!.localSha?.slice(0, 7) ?? "-"}`}>
           {status!.state === "up-to-date" ? <CloudCheck className="size-3.5" /> : <CloudOff className="size-3.5" />}
