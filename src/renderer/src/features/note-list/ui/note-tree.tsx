@@ -6,6 +6,7 @@ import { useGitStore } from "@/entities/git/model/use-git-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { cn } from "@/shared/lib/utils";
 
+import { canDrop, type DragItem } from "../lib/tree-dnd";
 import { useTreeUi, type TreeTarget } from "../model/use-tree-ui";
 import { Favorites } from "./favorites";
 import { MoveDialog } from "./move-dialog";
@@ -52,6 +53,53 @@ const onContextMenu = (target: TreeTarget) => (event: React.MouseEvent) => {
   useTreeUi.getState().openMenu(event.clientX, event.clientY, target);
 };
 
+/**
+ * 글과 폴더를 끌어서 다른 폴더(또는 맨 위)로 옮긴다.
+ * dragSource는 끌기를 시작하는 줄에, dropZone은 놓을 수 있는 폴더 줄과 빈 곳에 붙인다.
+ */
+function dragSource(item: DragItem) {
+  return {
+    draggable: true,
+    onDragStart: (event: React.DragEvent) => {
+      event.stopPropagation();
+      event.dataTransfer.effectAllowed = "move";
+      // 에디터나 다른 곳에 글자로 떨어지지 않게 전용 형식으로만 싣는다.
+      event.dataTransfer.setData("application/x-handy-tree", item.path);
+      useTreeUi.getState().setDrag(item);
+    },
+    onDragEnd: () => useTreeUi.getState().setDrag(null),
+  };
+}
+
+function dropZone(folder: string, onHover?: () => void) {
+  return {
+    onDragOver: (event: React.DragEvent) => {
+      const { drag, setDropTarget } = useTreeUi.getState();
+      if (!drag) return;
+      // 가장 안쪽 폴더만 받는다. 놓을 수 없는 곳이면 표시도 하지 않는다.
+      event.stopPropagation();
+      if (!canDrop(drag, folder)) {
+        setDropTarget(null);
+        return;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTarget(folder);
+      onHover?.();
+    },
+    onDrop: (event: React.DragEvent) => {
+      const { drag, setDrag } = useTreeUi.getState();
+      if (!drag) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setDrag(null);
+      if (!canDrop(drag, folder)) return;
+      const ws = useWorkspaceStore.getState();
+      void (drag.kind === "note" ? ws.moveNote(drag.path, folder) : ws.moveFolder(drag.path, folder));
+    },
+  };
+}
+
 /** 목록 안에서 바로 이름을 고친다. Enter·포커스를 잃으면 저장, Esc는 취소 */
 function RenameInput({ initial, label, depth, onSubmit }: { initial: string; label: string; depth: number; onSubmit: (name: string) => Promise<unknown> }) {
   const stopRename = useTreeUi((s) => s.stopRename);
@@ -97,6 +145,9 @@ function NoteRow({ note, depth }: { note: NoteMeta; depth: number }) {
   return (
     <div
       onContextMenu={onContextMenu({ kind: "note", note })}
+      {...dragSource({ kind: "note", path: note.path })}
+      // 글 위에 놓으면 그 글이 있는 폴더로 들어간다.
+      {...dropZone(note.folder)}
       className={cn(
         "group flex items-center rounded-md pr-1 text-sm hover:bg-accent/70",
         active && "bg-accent font-medium text-accent-foreground",
@@ -146,6 +197,20 @@ function FolderRow({ folder, depth, forceOpen }: { folder: FolderNode; depth: nu
   const createNote = useWorkspaceStore((state) => state.createNote);
   const open = forceOpen || !collapsed;
   const renaming = useTreeUi((s) => s.renaming?.kind === "folder" && s.renaming.path === folder.path);
+  const dropping = useTreeUi((s) => s.dropTarget === folder.path);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 접힌 폴더 위에 잠깐 머물면 펼쳐서 안쪽 폴더에도 놓을 수 있게 한다.
+  const openOnHover = () => {
+    if (open || hoverTimer.current) return;
+    hoverTimer.current = setTimeout(() => {
+      hoverTimer.current = null;
+      if (useTreeUi.getState().dropTarget === folder.path && useWorkspaceStore.getState().collapsedFolders[folder.path]) toggleFolder(folder.path);
+    }, 600);
+  };
+  const clearHover = () => {
+    if (hoverTimer.current) clearTimeout(hoverTimer.current);
+    hoverTimer.current = null;
+  };
 
   return (
     <div>
@@ -154,8 +219,16 @@ function FolderRow({ folder, depth, forceOpen }: { folder: FolderNode; depth: nu
       ) : (
         <div
           data-folder-path={folder.path}
+          data-drop-target={dropping || undefined}
           onContextMenu={onContextMenu({ kind: "folder", path: folder.path, name: folder.name })}
-          className="group flex items-center rounded-md pr-1 text-sm text-muted-foreground hover:bg-accent/70"
+          {...dragSource({ kind: "folder", path: folder.path })}
+          {...dropZone(folder.path, openOnHover)}
+          onDragLeave={clearHover}
+          onDrop={(event) => {
+            clearHover();
+            dropZone(folder.path).onDrop(event);
+          }}
+          className={cn("group flex items-center rounded-md pr-1 text-sm text-muted-foreground hover:bg-accent/70", dropping && "bg-accent text-foreground ring-2 ring-ring")}
         >
           <button
             type="button"
@@ -208,6 +281,7 @@ export function NoteTree() {
   const notes = useWorkspaceStore((state) => state.notes);
   const folders = useWorkspaceStore((state) => state.folders);
   const query = useWorkspaceStore((state) => state.query);
+  const rootDropping = useTreeUi((s) => s.dropTarget === "");
 
   const needle = query.trim().toLowerCase();
   const filtered = useMemo(() => (needle ? notes.filter((note) => note.path.toLowerCase().includes(needle)) : notes), [notes, needle]);
@@ -216,7 +290,13 @@ export function NoteTree() {
 
   return (
     // 빈 곳을 우클릭하면 맨 위에 새 글·새 폴더를 만드는 메뉴가 뜬다.
-    <div className="min-h-full pb-4" onContextMenu={onContextMenu({ kind: "root" })}>
+    <div
+      className={cn("min-h-full pb-4", rootDropping && "bg-accent/40")}
+      data-drop-target={rootDropping || undefined}
+      onContextMenu={onContextMenu({ kind: "root" })}
+      // 폴더가 아닌 빈 곳에 놓으면 맨 위(작업 폴더)로 옮긴다.
+      {...dropZone("")}
+    >
       {!needle && <Favorites />}
       {tree.folders.length === 0 && tree.notes.length === 0 ? (
         <p className="px-3 py-6 text-center text-sm text-muted-foreground">{needle ? "검색 결과가 없어요" : "아직 글이 없어요"}</p>

@@ -154,6 +154,19 @@ export function createMockApi(): HandyApi {
         emit();
         return next;
       },
+      moveFolder: async (path, folder) => {
+        const next = `${folder ? `${folder}/` : ""}${path.split("/").pop()}`;
+        if (folder === path || folder.startsWith(`${path}/`)) throw new Error("폴더를 자기 자신이나 그 안으로는 옮길 수 없어요.");
+        if (next === path) return path;
+        for (const [file, content] of [...files]) {
+          if (!file.startsWith(`${path}/`)) continue;
+          files.delete(file);
+          files.set(next + file.slice(path.length), content);
+        }
+        if (emptyFolders.delete(path)) emptyFolders.add(next);
+        emit();
+        return next;
+      },
       removeFolder: async (path) => {
         for (const file of [...files.keys()]) if (file.startsWith(`${path}/`)) files.delete(file);
         emptyFolders.delete(path);

@@ -159,6 +159,20 @@ export async function renameFolder(root: string, relPath: string, newName: strin
   return toPosix(relative(resolve(root), to));
 }
 
+/** 폴더를 다른 폴더 안으로 옮기고 새 상대 경로를 돌려준다. 자기 자신이나 그 안으로는 옮길 수 없다. */
+export async function moveFolder(root: string, relPath: string, folder: string): Promise<string> {
+  if (!relPath) throw new Error("작업 폴더 자체는 옮길 수 없어요.");
+  const from = resolveInside(root, relPath);
+  const dir = resolveInside(root, folder);
+  if (dir === from || dir.startsWith(`${from}${sep}`)) throw new Error("폴더를 자기 자신이나 그 안으로는 옮길 수 없어요.");
+  const to = join(dir, basename(from));
+  if (to === from) return relPath;
+  if (await exists(to)) throw new Error(`옮길 폴더에 같은 이름의 폴더가 이미 있어요: ${basename(from)}`);
+  await mkdir(dir, { recursive: true });
+  await rename(from, to);
+  return toPosix(relative(resolve(root), to));
+}
+
 /** 글을 다른 폴더로 옮긴다. 이름은 그대로라 [[위키링크]]는 깨지지 않는다. */
 export async function moveNote(root: string, relPath: string, folder: string): Promise<NoteMeta> {
   assertNotePath(relPath);

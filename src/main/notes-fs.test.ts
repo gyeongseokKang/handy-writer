@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createFolder, createNote, duplicateNote, listFolders, listNotes, moveNote, readNote, renameFolder, renameNote, resolveInside, sanitizeNoteName, writeNote } from "./notes-fs";
+import { createFolder, createNote, duplicateNote, listFolders, listNotes, moveFolder, moveNote, readNote, renameFolder, renameNote, resolveInside, sanitizeNoteName, writeNote } from "./notes-fs";
 
 let root: string;
 
@@ -140,3 +140,32 @@ describe("글 옮기기와 복제", () => {
     expect(await readNote(root, "a/글 2.md")).toBe("본문");
   });
 });
+
+describe("moveFolder", () => {
+  it("폴더를 안의 글과 함께 다른 폴더나 맨 위로 옮기고 새 경로를 돌려준다", async () => {
+    await writeNote(root, "a/하위/글.md", "본문");
+    await mkdir(join(root, "b"));
+    expect(await moveFolder(root, "a", "b")).toBe("b/a");
+    expect((await listNotes(root)).map((n) => n.path)).toEqual(["b/a/하위/글.md"]);
+    expect(await moveFolder(root, "b/a/하위", "")).toBe("하위");
+    expect((await listNotes(root)).map((n) => n.path)).toEqual(["하위/글.md"]);
+  });
+
+  it("지금 있는 곳이면 그대로 두고, 작업 폴더나 자기 안으로는 옮기지 못한다", async () => {
+    await mkdir(join(root, "a/b"), { recursive: true });
+    expect(await moveFolder(root, "a/b", "a")).toBe("a/b");
+    await expect(moveFolder(root, "", "a")).rejects.toThrow("작업 폴더");
+    await expect(moveFolder(root, "a", "a")).rejects.toThrow("자기 자신");
+    await expect(moveFolder(root, "a", "a/b")).rejects.toThrow("자기 자신");
+    // 이름이 비슷한 폴더는 자기 안이 아니다.
+    await mkdir(join(root, "ab"));
+    expect(await moveFolder(root, "a", "ab")).toBe("ab/a");
+  });
+
+  it("옮길 곳에 같은 이름의 폴더가 있으면 거부한다", async () => {
+    await mkdir(join(root, "a/x"), { recursive: true });
+    await mkdir(join(root, "b/x"), { recursive: true });
+    await expect(moveFolder(root, "a/x", "b")).rejects.toThrow("같은 이름의 폴더");
+  });
+});
+
