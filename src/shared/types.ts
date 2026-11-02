@@ -89,6 +89,8 @@ export interface HandyApi {
     /** 새 폴더를 만들고 상대 경로를 돌려준다. */
     createFolder: (parent: string, name?: string) => Promise<string>;
     renameFolder: (path: string, newName: string) => Promise<string>;
+    /** 폴더를 다른 폴더(빈 문자열이면 작업 폴더 맨 위) 안으로 옮기고 새 상대 경로를 돌려준다. */
+    moveFolder: (path: string, folder: string) => Promise<string>;
     /** 폴더를 안의 글과 함께 휴지통으로 옮긴다. */
     removeFolder: (path: string) => Promise<void>;
     move: (path: string, folder: string) => Promise<NoteMeta>;
@@ -247,6 +249,7 @@ export const IPC = {
   notesFolders: "notes:folders",
   notesCreateFolder: "notes:create-folder",
   notesRenameFolder: "notes:rename-folder",
+  notesMoveFolder: "notes:move-folder",
   notesRemoveFolder: "notes:remove-folder",
   notesMove: "notes:move",
   notesDuplicate: "notes:duplicate",

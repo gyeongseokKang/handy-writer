@@ -13,6 +13,7 @@ registerLogIpc();
 
 /** 창을 닫기 전에 화면이 저장을 마칠 때까지 기다리는 최대 시간. 화면이 멈췄어도 창은 닫혀야 한다. */
 const CLOSE_TIMEOUT_MS = 4000;
+let quitting = false;
 const closeReplies = new Map<number, (unsaved: string[]) => void>();
 
 ipcMain.on(IPC.appCloseReady, (event, unsaved: unknown) => {
@@ -66,9 +67,12 @@ function createWindow() {
     if (closing || win.webContents.isCrashed()) return;
     event.preventDefault();
     void readyToClose(win).then((ok) => {
+      if (!ok) quitting = false; // 닫지 않기로 했으면 끄려던 것도 취소
       if (!ok || win.isDestroyed()) return;
       closing = true;
-      win.close();
+      // 앱을 끄려던 것(업데이트 설치 등)이면 이어서 끈다. 창만 닫으면 맥에서는 앱이 살아 있어서 끄기가 멈춘 것처럼 보인다.
+      if (quitting) app.quit();
+      else win.close();
     });
   });
 
@@ -102,6 +106,10 @@ app.whenReady().then(async () => {
   });
 });
 
+// 앱을 끄라는 요청이 있었는지. 창의 close 가드가 한 번 막아도 저장을 마친 뒤 끝까지 끈다.
+app.on("before-quit", () => {
+  quitting = true;
+});
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") app.quit();
 });

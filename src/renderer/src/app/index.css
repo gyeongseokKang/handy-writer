@@ -336,9 +336,9 @@
 .dark .history-diff del { color: oklch(0.8 0.13 25); }
 .history-gap { margin: 0.35rem 0; padding: 0.15rem 0.75rem; font-size: 0.75rem; color: var(--muted-foreground); border-top: 1px dashed var(--border); border-bottom: 1px dashed var(--border); }
 
-/* 카드가 가운데로 오면 변경을 차례로 강조한다: 추가는 초록으로 번지고, 삭제는 줄이 그어진다. */
-.history-card.is-active .history-diff ins { animation: history-add 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(0.12s + var(--i, 0) * 35ms); }
-.history-card.is-active .history-diff del { animation: history-remove 0.7s ease both; animation-delay: calc(0.12s + var(--i, 0) * 35ms); }
+/* 카드가 가운데로 오면 모든 변경을 한꺼번에 강조한다(줄마다 시차를 두면 어지러워서): 추가는 초록으로 번지고, 삭제는 줄이 그어진다. */
+.history-card.is-active .history-diff ins { animation: history-add 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: 0.12s; }
+.history-card.is-active .history-diff del { animation: history-remove 0.7s ease both; animation-delay: 0.12s; }
 @keyframes history-add {
   0% { background-color: transparent; box-shadow: 0 0 0 0 oklch(0.72 0.19 150 / 0); opacity: 0.2; }
   45% { background-color: oklch(0.72 0.19 150 / 0.65); box-shadow: 0 0 0 3px oklch(0.72 0.19 150 / 0.35); opacity: 1; }

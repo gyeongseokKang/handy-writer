@@ -26,7 +26,7 @@ import { NoteSearcher } from "./notes-search";
 import { listTemplates, removeTemplate, saveTemplate } from "./templates-fs";
 import { hanspellTransport } from "./spell/hanspell-transport";
 import { createOnlineSpeller } from "./spell/online-speller";
-import { createFolder, createNote, duplicateNote, listFolders, listNotes, moveNote, readNote, renameFolder, resolveInside, writeNote } from "./notes-fs";
+import { createFolder, createNote, duplicateNote, listFolders, listNotes, moveFolder, moveNote, readNote, renameFolder, resolveInside, writeNote } from "./notes-fs";
 import { loadWorkspaceRoot, saveWorkspaceRoot } from "./workspace-config";
 import { watchNotes } from "./watcher";
 
@@ -179,6 +179,12 @@ export async function registerIpc() {
   ipcMain.handle(IPC.notesRenameFolder, async (_e, path: string, newName: string) => {
     const from = String(path);
     const next = await renameFolder(requireRoot(), from, String(newName));
+    await remapManuscriptFile(requireRoot(), (p) => (p === from || p.startsWith(`${from}/`) ? next + p.slice(from.length) : p));
+    return next;
+  });
+  ipcMain.handle(IPC.notesMoveFolder, async (_e, path: string, folder: string) => {
+    const from = String(path);
+    const next = await moveFolder(requireRoot(), from, String(folder ?? ""));
     await remapManuscriptFile(requireRoot(), (p) => (p === from || p.startsWith(`${from}/`) ? next + p.slice(from.length) : p));
     return next;
   });

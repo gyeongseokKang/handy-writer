@@ -106,6 +106,8 @@ interface WorkspaceState {
   /** 새 폴더를 만들고 경로를 돌려준다. 실패하면 null */
   createFolder: (parent: string) => Promise<string | null>;
   renameFolder: (path: string, newName: string) => Promise<boolean>;
+  /** 폴더를 다른 폴더(빈 문자열이면 맨 위) 안으로 옮긴다. */
+  moveFolder: (path: string, folder: string) => Promise<boolean>;
   removeFolder: (path: string) => Promise<void>;
   setQuery: (query: string) => void;
   toggleFolder: (folder: string) => void;
@@ -390,6 +392,29 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         remap(moved);
         // 접어 둔 상태도 새 이름으로 옮긴다.
         set((state) => ({ collapsedFolders: Object.fromEntries(Object.entries(state.collapsedFolders).map(([key, value]) => [moved(key), value])) }));
+        await get().refresh({ attachments: false });
+        return true;
+      } catch (error) {
+        toast.error(errorMessage(error));
+        return false;
+      }
+    },
+
+    moveFolder: async (path, folder) => {
+      try {
+        const { activePath, splitPath } = get();
+        const inside = (p: string) => p === path || p.startsWith(`${path}/`);
+        await Promise.all([activePath, splitPath].filter((p): p is string => p !== null && inside(p)).map(flushPath));
+        const next = await api.notes.moveFolder(path, folder);
+        const moved = (p: string) => (inside(p) ? next + p.slice(path.length) : p);
+        remap(moved);
+        // 접어 둔 상태도 새 자리로 옮기고, 들어간 폴더는 펼쳐서 옮겨진 것이 보이게 한다.
+        set((state) => ({
+          collapsedFolders: {
+            ...Object.fromEntries(Object.entries(state.collapsedFolders).map(([key, value]) => [moved(key), value])),
+            ...(folder ? { [folder]: false } : {}),
+          },
+        }));
         await get().refresh({ attachments: false });
         return true;
       } catch (error) {
