@@ -8,7 +8,7 @@ import { isMap, parseDocument, type Document } from "yaml";
 import { isRemoteUrl, decodeMarkdownTarget, kindOfPath, parseEmbedParams } from "./attachments";
 import { isTitleHeading } from "./title-heading";
 import {
-  REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL, REVIEWS_DIR, slugify, today,
+  REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL, REVIEWS_DIR, cleanFrontmatter, slugify, today,
   type ReviewCategory, type ReviewFrontmatter, type ReviewLink,
 } from "./review";
 
@@ -39,6 +39,8 @@ export interface ReviewMeta {
   slug?: string;
   /** 리뷰 날짜. 비우면 처음 게시한 날 */
   date?: string;
+  /** 마지막으로 내용을 바꿔 다시 게시한 날. 게시할 때 저절로 채운다 */
+  updated?: string;
   /** 게시한 저장소 안 경로. 다시 게시하면 이 글을 고친다. */
   published?: string;
 }
@@ -137,7 +139,7 @@ export function readReviewMeta(frontmatter: string): ReviewMeta | null {
       label: str(l?.["label"]), url: str(l?.["url"]), affiliate: !!l?.["affiliate"],
     })),
   };
-  for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId", "slug", "date", "published"] as const) {
+  for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId", "slug", "date", "updated", "published"] as const) {
     if (raw[key] !== undefined && raw[key] !== null) meta[key] = str(raw[key]);
   }
   if (raw["featured"]) meta.featured = true;
@@ -177,6 +179,41 @@ export function writeReviewMeta(frontmatter: string, meta: ReviewMeta | null): s
   }
   if (!isMap(doc.contents) || doc.contents.items.length === 0) return "";
   return `---\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false })}---\n`;
+}
+
+// ── 쿠팡 링크 ────────────────────────────────────────────
+
+/**
+ * 쿠팡 링크의 종류. partners: 파트너스 링크(link.coupang.com/a/…, coupa.ng/…)라 수수료가 붙는다.
+ * product: 쿠팡 상품·검색 주소를 그대로 붙인 것이라 수수료가 안 붙는다. 쿠팡이 아니면 null
+ */
+export function coupangLinkKind(url: string): "partners" | "product" | null {
+  let host: string;
+  let path: string;
+  try {
+    const u = new URL(url.trim());
+    host = u.hostname.toLowerCase();
+    path = u.pathname;
+  } catch {
+    return null;
+  }
+  if (host === "coupa.ng") return "partners";
+  if (host === "link.coupang.com") return /^\/(a|re)\//.test(path) ? "partners" : "product";
+  if (host === "coupang.com" || host.endsWith(".coupang.com")) return "product";
+  return null;
+}
+
+/** 파트너스 링크는 법에 따라 제휴 고지가 필요해서 늘 제휴로 본다. */
+export const withAffiliate = (link: ReviewLink): ReviewLink => (coupangLinkKind(link.url) === "partners" && !link.affiliate ? { ...link, affiliate: true } : link);
+
+/** 게시는 되지만 확인해 볼 것 (수익이 안 붙는 링크 등). 없으면 빈 배열 */
+export function reviewWarnings(meta: ReviewMeta): string[] {
+  const warnings: string[] = [];
+  for (const link of meta.links) {
+    if (!link.url.trim()) continue;
+    if (coupangLinkKind(link.url) === "product") warnings.push(`‘${link.label || link.url}’은 쿠팡 일반 주소라 수수료가 붙지 않아요. 쿠팡 파트너스에서 만든 링크(link.coupang.com/a/…)로 바꿔 주세요.`);
+  }
+  return warnings;
 }
 
 /** 게시하기 전에 사이트 스키마에서 막히는 것을 미리 알려 준다. 문제가 없으면 빈 배열 */
@@ -305,7 +342,7 @@ export function noteBodyToReview(body: string, ctx: ConvertContext): ConvertResu
 export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: string[], date: string, cover: string | undefined): ReviewFrontmatter {
   return {
     title, category: meta.category, rating: meta.rating, verdict: meta.verdict.trim(), target: meta.target.trim(),
-    pros: meta.pros, cons: meta.cons, links: meta.links, tags, date,
+    pros: meta.pros, cons: meta.cons, links: meta.links.map(withAffiliate), tags, date,
     ...(meta.price?.trim() ? { price: meta.price.trim() } : {}),
     ...(cover ? { cover } : {}),
     ...(meta.featured ? { featured: true } : {}),
@@ -314,7 +351,29 @@ export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: strin
     ...(meta.category === "place" && meta.visitedAt?.trim() ? { visitedAt: meta.visitedAt.trim() } : {}),
     ...(meta.category === "video" && meta.youtubeId?.trim() ? { youtubeId: meta.youtubeId.trim() } : {}),
     ...(meta.series?.trim() ? { series: meta.series.trim(), ...(meta.seriesOrder !== undefined ? { seriesOrder: meta.seriesOrder } : {}) } : {}),
+    ...(meta.updated && meta.updated > date ? { updated: meta.updated } : {}),
   };
+}
+
+/**
+ * 다시 게시할 때 업데이트 날짜를 정한다. 사이트에 있던 글과 내용(업데이트 날짜 빼고)이 같으면 원래 날짜를 그대로 두고,
+ * 바뀌었으면 오늘로 한다. 처음 게시하거나 리뷰 날짜와 같은 날이면 남기지 않는다.
+ */
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((k) => `${JSON.stringify(k)}:${canonical((value as Record<string, unknown>)[k])}`).join(",")}}`;
+  return JSON.stringify(value ?? null);
+}
+
+export function nextUpdated(input: { previous: { frontmatter: ReviewFrontmatter; body: string } | null; next: { frontmatter: ReviewFrontmatter; body: string }; today: string }): string | undefined {
+  const { previous, next, today: now } = input;
+  if (!previous) return undefined;
+  // 빈 값과 기본값을 같은 규칙으로 덜어 내고, 키 순서와 상관없이 견준다.
+  const strip = ({ updated: _u, ...rest }: ReviewFrontmatter) => canonical(cleanFrontmatter({ ...rest } as ReviewFrontmatter));
+  const same = strip(previous.frontmatter) === strip(next.frontmatter) && previous.body.trim() === next.body.trim();
+  const kept = previous.frontmatter.updated;
+  const updated = same ? kept : now;
+  return updated && updated > next.frontmatter.date ? updated : undefined;
 }
 
 /** 핸디 리뷰 글 → 작업 폴더 글의 review 정보 (가져오기) */
@@ -326,6 +385,7 @@ export function metaFromReview(fm: ReviewFrontmatter, path: string): ReviewMeta 
   };
   for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId"] as const) if (fm[key]) meta[key] = fm[key];
   if (fm.featured) meta.featured = true;
+  if (fm.updated) meta.updated = fm.updated;
   if (fm.series) meta.series = fm.series;
   if (typeof fm.seriesOrder === "number") meta.seriesOrder = fm.seriesOrder;
   return meta;

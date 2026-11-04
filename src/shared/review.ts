@@ -27,6 +27,8 @@ export interface ReviewFrontmatter {
   mapUrl?: string;
   visitedAt?: string;
   youtubeId?: string;
+  /** 마지막으로 내용을 바꿔 다시 게시한 날 (YYYY-MM-DD) */
+  updated?: string;
   /** 시리즈 이름. 같은 이름끼리 사이트에서 한 묶음 */
   series?: string;
   /** 시리즈 안 순서 */
