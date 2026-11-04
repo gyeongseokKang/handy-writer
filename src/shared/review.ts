@@ -9,6 +9,25 @@ export const REVIEW_CATEGORY_LABEL: Record<ReviewCategory, string> = {
 
 export interface ReviewLink { label: string; url: string; affiliate: boolean }
 
+// ── 책·소설 고정 필드 (handy-review src/content.config.ts 와 같게 유지) ──
+export const BOOK_TYPES = ["일반", "소설", "개발"] as const;
+export type BookType = (typeof BOOK_TYPES)[number];
+export const NOVEL_LENGTHS = ["단편", "중편", "장편"] as const;
+export type NovelLength = (typeof NOVEL_LENGTHS)[number];
+export const NOVEL_STATUSES = ["완결", "연재중", "연재중단"] as const;
+export type NovelStatus = (typeof NOVEL_STATUSES)[number];
+export const NOVEL_GENRES = ["정통무협", "신무협", "선협", "판타지", "현대판타지", "로판", "대체역사", "SF", "로맨스", "기타"] as const;
+export type NovelGenre = (typeof NOVEL_GENRES)[number];
+/** 1화 ≈ 5,000자. 단편 <100 · 중편 100–299 · 장편 300+ */
+export const lengthOf = (episodes: number): NovelLength => (episodes < 100 ? "단편" : episodes < 300 ? "중편" : "장편");
+/** 소설 리뷰에서 태그로 쓰면 안 되는 말 (고정 필드로 쓴다) */
+export const NOVEL_RESERVED_TAGS: readonly string[] = [...NOVEL_LENGTHS, ...NOVEL_STATUSES, ...NOVEL_GENRES, "미완결", "무협"];
+
+/** 소설 세력 구도 (3~6개, 첫 세력이 주인공 쪽) */
+export interface ReviewFaction { name: string; alignment: string; members: string[]; description: string }
+/** 플랫폼별 표지 (2장 이상이면 사이트에서 겹친 스택) */
+export interface ReviewCover { src: string; platform?: string }
+
 export interface ReviewFrontmatter {
   title: string;
   category: ReviewCategory;
@@ -37,6 +56,17 @@ export interface ReviewFrontmatter {
   series?: string;
   /** 시리즈 안 순서 */
   seriesOrder?: number;
+  /** 한줄평 카피 (목록 카드 인용구). 소설은 필수 */
+  oneLiner?: string;
+  /** 책 필수: 하위 분류 */
+  bookType?: BookType;
+  /** 소설 필수: 화수·분량·연재 상태·장르 */
+  episodes?: number;
+  length?: NovelLength;
+  status?: NovelStatus;
+  genre?: NovelGenre;
+  factions?: ReviewFaction[];
+  covers?: ReviewCover[];
 }
 
 export interface ReviewPost { path: string; frontmatter: ReviewFrontmatter; body: string }
@@ -78,7 +108,12 @@ export function cleanFrontmatter(fm: ReviewFrontmatter): Record<string, unknown>
   for (const [k, v] of Object.entries(fm)) {
     if (v === undefined || v === "" || v === false) continue;
     if (Array.isArray(v)) {
-      const items = k === "links" ? (v as ReviewLink[]).filter((l) => l.url.trim()) : (v as string[]).map((s) => s.trim()).filter(Boolean);
+      const items = k === "links"
+        ? (v as ReviewLink[]).filter((l) => l.url.trim())
+        : v.some((x) => x && typeof x === "object")
+          ? v // 세력·표지처럼 객체 목록은 그대로 둔다
+          : (v as string[]).map((s) => String(s).trim()).filter(Boolean);
+      if (items.length === 0 && (k === "factions" || k === "covers")) continue;
       out[k] = items;
       continue;
     }

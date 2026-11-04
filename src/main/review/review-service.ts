@@ -2,11 +2,11 @@ import { app } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "node:path";
-import { parse, stringify } from "yaml";
+import { Document, isSeq, parse, visit } from "yaml";
 
 import {
   DEFAULT_DEPLOY_KIND, DEFAULT_REVIEW_SITE_URL, REVIEW_CATEGORIES, REVIEWS_DIR, cleanFrontmatter, decideDeployState, reviewAssetDir, reviewTemplate,
-  type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewPost, type ReviewPostSummary,
+  type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewLink, type ReviewPost, type ReviewPostSummary,
 } from "../../shared/review";
 import { runGit } from "../git/runner";
 import { parseStatusV2 } from "../git/parse";
@@ -45,8 +45,33 @@ function inside(repo: string, rel: string) {
   return abs;
 }
 
+/** 사이트 글들이 쓰는 항목 순서. 여기 없는 항목은 뒤에 붙는다. */
+const FIELD_ORDER = [
+  "title", "author", "category", "bookType", "episodes", "length", "status", "genre", "rating", "verdict", "oneLiner", "factions",
+  "pros", "cons", "links", "cover", "covers", "target", "publisher", "price", "address", "mapUrl", "visitedAt", "youtubeId",
+  "series", "seriesOrder", "date", "updated", "tags", "featured",
+];
+/** 짧은 문자열 목록은 한 줄로 쓴다 (tags: [a, b], members: [a, b]) — 사이트에서 손으로 쓴 글과 모양을 맞춘다. */
+const FLOW_KEYS = new Set(["tags", "members"]);
+
 export function serializePost(fm: ReviewFrontmatter, body: string) {
-  return `---\n${stringify(cleanFrontmatter(fm), { lineWidth: 0 }).trimEnd()}\n---\n\n${body.trim()}\n`;
+  const clean = cleanFrontmatter(fm);
+  // 기본값과 같은 값은 빼서 사이트 글과 같은 모양으로 (affiliate: false, members: [])
+  if (Array.isArray(clean["links"])) clean["links"] = (clean["links"] as ReviewLink[]).map(({ affiliate, ...l }) => (affiliate ? { ...l, affiliate } : l));
+  if (Array.isArray(clean["factions"])) {
+    // 항목 순서(name, alignment, members, description)는 그대로 두고 빈 members만 뺀다.
+    clean["factions"] = (clean["factions"] as Record<string, unknown>[]).map((f) =>
+      Object.fromEntries(Object.entries(f).filter(([k, v]) => !(k === "members" && Array.isArray(v) && v.length === 0))));
+  }
+  const rank = (k: string) => { const i = FIELD_ORDER.indexOf(k); return i === -1 ? FIELD_ORDER.length : i; };
+  const ordered = Object.fromEntries(Object.entries(clean).sort(([a], [b]) => rank(a) - rank(b)));
+  const doc = new Document(ordered);
+  visit(doc, { Pair(_, pair) {
+    const key = String((pair.key as { value?: unknown })?.value ?? "");
+    if (FLOW_KEYS.has(key) && isSeq(pair.value)) pair.value.flow = true;
+    return undefined;
+  } });
+  return `---\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false }).trimEnd()}\n---\n${body.trim()}\n`;
 }
 
 export function parsePost(path: string, text: string): ReviewPost {

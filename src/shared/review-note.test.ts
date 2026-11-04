@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  coupangLinkKind, defaultReviewMeta, metaFromReview, nextUpdated, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, reviewWarnings, slugOfReviewPath, sortSeries, writeReviewMeta,
+  coupangLinkKind, defaultReviewMeta, metaFromReview, nextUpdated, reviewSlugOf, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, reviewWarnings, slugOfReviewPath, sortSeries, writeReviewMeta,
 } from "./review-note";
 
 const ctx = {
@@ -152,5 +152,44 @@ describe("book author", () => {
     const site = reviewFrontmatterOf({ ...meta, verdict: "v", target: "t" }, "t", [], "2026-11-04", undefined);
     expect(site).toMatchObject({ author: "낙락장송", publisher: "마이블" });
     expect(metaFromReview(site, "src/content/reviews/book/2026-11-04-x.md")).toMatchObject({ author: "낙락장송", publisher: "마이블" });
+  });
+});
+
+describe("novel fields (site schema)", () => {
+  const novel = {
+    ...defaultReviewMeta("book"), verdict: "v", target: "t", author: "장영훈", bookType: "소설" as const,
+    episodes: 896, length: "장편" as const, status: "완결" as const, genre: "신무협" as const, oneLiner: "복수하러 돌아왔는데, 사람을 얻었다",
+    factions: [{ name: "천마신교", alignment: "마도", members: ["천마", "검무극", "이안", "넷째"], description: "주인공 집안" }],
+    covers: [{ src: "a.jpg", platform: "네이버 시리즈" }, { src: "b.jpg", platform: "네이버 웹툰" }],
+  };
+
+  it("round-trips through the note frontmatter and to the site frontmatter", () => {
+    const meta = readReviewMeta(writeReviewMeta("", novel))!;
+    expect(meta).toMatchObject({ bookType: "소설", episodes: 896, length: "장편", status: "완결", genre: "신무협", oneLiner: novel.oneLiner });
+    expect(meta.factions?.[0]).toMatchObject({ name: "천마신교", members: ["천마", "검무극", "이안", "넷째"] });
+    const site = reviewFrontmatterOf(meta, "절대회귀", ["무협물"], "2026-11-04", undefined, [{ src: "/images/x/cover-1.jpg", platform: "네이버 시리즈" }]);
+    expect(site).toMatchObject({ bookType: "소설", episodes: 896, length: "장편", status: "완결", genre: "신무협", oneLiner: novel.oneLiner, covers: [{ src: "/images/x/cover-1.jpg", platform: "네이버 시리즈" }] });
+    expect(site.factions?.[0]!.members).toHaveLength(3); // 사이트는 3명까지
+    expect(metaFromReview(site, "src/content/reviews/book/2026-11-04-절대회귀-장영훈.md")).toMatchObject({ bookType: "소설", episodes: 896, genre: "신무협", oneLiner: novel.oneLiner });
+  });
+
+  it("drops novel-only fields for other categories and book types", () => {
+    expect(reviewFrontmatterOf({ ...novel, bookType: "일반" }, "t", [], "2026-11-04", undefined)).not.toHaveProperty("episodes");
+    expect(reviewFrontmatterOf({ ...novel, category: "tech" }, "t", [], "2026-11-04", undefined)).not.toHaveProperty("bookType");
+  });
+
+  it("blocks publishing the same things the site build rejects", () => {
+    expect(reviewProblems(novel, ["무협물"])).toEqual([]);
+    expect(reviewProblems({ ...defaultReviewMeta("book"), verdict: "v", target: "t" })).toContain("책 리뷰는 하위 분류(일반·소설·개발)를 골라 주세요.");
+    const missing = reviewProblems({ ...defaultReviewMeta("book"), verdict: "v", target: "t", bookType: "소설" });
+    expect(missing).toHaveLength(5);
+    expect(reviewProblems({ ...novel, length: "중편" })).toEqual(["896화는 장편이에요. 분량을 고쳐 주세요."]);
+    expect(reviewProblems(novel, ["완결", "신무협", "무협"])[0]).toContain("'완결', '신무협', '무협'");
+  });
+
+  it("uses the site's 제목-작가 address for books", () => {
+    expect(reviewSlugOf({ ...novel }, "삼국지 촉한개발5개년계획")).toBe(reviewSlugOf({ ...defaultReviewMeta("etc") }, "삼국지 촉한개발5개년계획-장영훈"));
+    expect(reviewSlugOf({ ...novel }, "절대회귀")).toBe("절대회귀-장영훈");
+    expect(reviewSlugOf({ ...novel, slug: "custom" }, "절대회귀")).toBe("custom");
   });
 });

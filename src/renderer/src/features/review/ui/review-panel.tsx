@@ -3,11 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  DEFAULT_REVIEW_SITE_URL, REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL,
+  BOOK_TYPES, DEFAULT_REVIEW_SITE_URL, lengthOf, NOVEL_GENRES, NOVEL_LENGTHS, NOVEL_STATUSES, REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL,
+  type BookType, type NovelGenre, type NovelLength, type NovelStatus,
   type DeployStatus, type ReviewCategory, type ReviewLink, type ReviewPostSummary,
 } from "@shared/review";
 import {
-  coupangLinkKind, readReviewMeta, reviewProblems, reviewSlugOf, reviewWarnings, slugOfReviewPath, writeReviewMeta,
+  coupangLinkKind, frontmatterTagList, readReviewMeta, reviewProblems, reviewSlugOf, reviewWarnings, slugOfReviewPath, writeReviewMeta,
   sortSeries, type ReviewMeta, type ReviewNotePreview, type ReviewSeriesEntry,
 } from "@shared/review-note";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
@@ -331,7 +332,7 @@ export function ReviewSection() {
   const fm = draft;
   const slug = reviewSlugOf(fm, title);
   const publishedSlug = fm.published ? slugOfReviewPath(fm.published) : null;
-  const problems = reviewProblems(fm);
+  const problems = reviewProblems(fm, frontmatterTagList(frontmatter));
   const warnings = reviewWarnings(fm);
 
   const runPreview = async () => {
@@ -411,6 +412,9 @@ export function ReviewSection() {
       </div>
       <Field label="별점" group><RatingInput value={fm.rating} onChange={(rating) => patch({ rating })} /></Field>
       <Field label="한 줄 결론"><input className={input} value={fm.verdict} placeholder="한 손으로 접히는 휴대성이 전부다." onChange={(e) => patch({ verdict: e.target.value })} /></Field>
+      <Field label="한줄평" hint={fm.category === "book" && fm.bookType === "소설" ? "소설은 필수 · 목록 카드 인용구" : "선택 · 목록 카드 인용구"}>
+        <input className={input} value={fm.oneLiner ?? ""} placeholder="복수하러 돌아왔는데, 사람을 얻었다" onChange={(e) => patch({ oneLiner: e.target.value })} />
+      </Field>
       <Field label="추천 대상"><input className={input} value={fm.target} placeholder="대중교통이 잦은 부모" onChange={(e) => patch({ target: e.target.value })} /></Field>
       <LinesInput label="좋은 점" items={fm.pros} placeholder={"좋았던 점\n또 좋았던 점"} onChange={(pros) => patch({ pros })} />
       <LinesInput label="아쉬운 점" items={fm.cons} placeholder="아쉬웠던 점" onChange={(cons) => patch({ cons })} />
@@ -427,9 +431,63 @@ export function ReviewSection() {
         </>
       )}
       {fm.category === "book" && (
-        <div className="grid grid-cols-2 gap-2">
-          <Field label="작가" hint="같은 작가끼리 묶여요"><input className={input} value={fm.author ?? ""} placeholder="낙락장송" onChange={(e) => patch({ author: e.target.value })} /></Field>
-          <Field label="출판사"><input className={input} value={fm.publisher ?? ""} placeholder="선택" onChange={(e) => patch({ publisher: e.target.value })} /></Field>
+        <div className="space-y-2 rounded-md border p-2.5">
+          <div className="grid grid-cols-2 gap-2">
+            <Field label="작가" hint="주소·묶음에 써요"><input className={input} value={fm.author ?? ""} placeholder="낙락장송" onChange={(e) => patch({ author: e.target.value })} /></Field>
+            <Field label="출판사"><input className={input} value={fm.publisher ?? ""} placeholder="선택" onChange={(e) => patch({ publisher: e.target.value })} /></Field>
+          </div>
+          <Field label="책 종류" hint="필수">
+            <select className={input} value={fm.bookType ?? ""} onChange={(e) => patch({ bookType: (e.target.value || undefined) as BookType | undefined })}>
+              <option value="">고르기</option>
+              {BOOK_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
+          {fm.bookType === "소설" && (
+            <>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="장르">
+                  <select className={input} value={fm.genre ?? ""} onChange={(e) => patch({ genre: (e.target.value || undefined) as NovelGenre | undefined })}>
+                    <option value="">고르기</option>
+                    {NOVEL_GENRES.map((g) => <option key={g} value={g}>{g}</option>)}
+                  </select>
+                </Field>
+                <Field label="연재 상태">
+                  <select className={input} value={fm.status ?? ""} onChange={(e) => patch({ status: (e.target.value || undefined) as NovelStatus | undefined })}>
+                    <option value="">고르기</option>
+                    {NOVEL_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Field label="화수" hint="분량은 저절로">
+                  <input
+                    className={input}
+                    type="number"
+                    min={1}
+                    value={fm.episodes ?? ""}
+                    placeholder="512"
+                    // 화수를 넣으면 사이트 기준(단편 <100 · 중편 100–299 · 장편 300+)으로 분량을 맞춘다.
+                    onChange={(e) => {
+                      const n = Number(e.target.value);
+                      patch(e.target.value && n > 0 ? { episodes: Math.floor(n), length: lengthOf(Math.floor(n)) } : { episodes: undefined });
+                    }}
+                  />
+                </Field>
+                <Field label="분량">
+                  <select className={input} value={fm.length ?? ""} onChange={(e) => patch({ length: (e.target.value || undefined) as NovelLength | undefined })}>
+                    <option value="">고르기</option>
+                    {NOVEL_LENGTHS.map((l) => <option key={l} value={l}>{l}</option>)}
+                  </select>
+                </Field>
+              </div>
+              <p className="text-xs text-muted-foreground">분량·상태·장르는 태그로 달지 않아요. 단편 100화 미만 · 중편 100~299화 · 장편 300화 이상.</p>
+            </>
+          )}
+          {(fm.factions?.length || fm.covers?.length) ? (
+            <p className="text-xs text-muted-foreground">
+              {fm.factions?.length ? `세력 구도 ${fm.factions.length}개` : ""}{fm.factions?.length && fm.covers?.length ? " · " : ""}{fm.covers?.length ? `플랫폼별 표지 ${fm.covers.length}장` : ""} — 속성(frontmatter)에서 고치고, 게시할 때 그대로 올라가요.
+            </p>
+          ) : null}
         </div>
       )}
       {fm.category === "video" && <Field label="유튜브 영상 ID"><input className={input} value={fm.youtubeId ?? ""} placeholder="dQw4w9WgXcQ" onChange={(e) => patch({ youtubeId: e.target.value })} /></Field>}
