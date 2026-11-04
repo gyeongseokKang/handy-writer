@@ -426,6 +426,12 @@ export function ReviewSection() {
           <Field label="방문일"><input className={input} type="date" value={fm.visitedAt ?? ""} onChange={(e) => patch({ visitedAt: e.target.value })} /></Field>
         </>
       )}
+      {fm.category === "book" && (
+        <div className="grid grid-cols-2 gap-2">
+          <Field label="작가" hint="같은 작가끼리 묶여요"><input className={input} value={fm.author ?? ""} placeholder="낙락장송" onChange={(e) => patch({ author: e.target.value })} /></Field>
+          <Field label="출판사"><input className={input} value={fm.publisher ?? ""} placeholder="선택" onChange={(e) => patch({ publisher: e.target.value })} /></Field>
+        </div>
+      )}
       {fm.category === "video" && <Field label="유튜브 영상 ID"><input className={input} value={fm.youtubeId ?? ""} placeholder="dQw4w9WgXcQ" onChange={(e) => patch({ youtubeId: e.target.value })} /></Field>}
       <SeriesInput meta={fm} path={activePath} name={title} onChange={patch} />
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!!fm.featured} onChange={(e) => patch({ featured: e.target.checked })} /> 첫 화면 추천 리뷰</label>

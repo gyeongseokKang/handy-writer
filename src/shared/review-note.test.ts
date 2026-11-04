@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  coupangLinkKind, defaultReviewMeta, nextUpdated, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, reviewWarnings, slugOfReviewPath, sortSeries, writeReviewMeta,
+  coupangLinkKind, defaultReviewMeta, metaFromReview, nextUpdated, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, reviewWarnings, slugOfReviewPath, sortSeries, writeReviewMeta,
 } from "./review-note";
 
 const ctx = {
@@ -141,5 +141,16 @@ describe("updated date", () => {
 
   it("ignores defaults the site parser fills in (empty address etc.)", () => {
     expect(nextUpdated({ previous: { frontmatter: { ...fm(), address: "", featured: false } as never, body: "a" }, next: { frontmatter: fm(), body: "a" }, today: "2026-11-04" })).toBeUndefined();
+  });
+});
+
+describe("book author", () => {
+  it("keeps author and publisher through note → site → note", () => {
+    const fm = writeReviewMeta("", { ...defaultReviewMeta("book"), author: "낙락장송", publisher: "마이블" });
+    const meta = readReviewMeta(fm)!;
+    expect(meta).toMatchObject({ author: "낙락장송", publisher: "마이블" });
+    const site = reviewFrontmatterOf({ ...meta, verdict: "v", target: "t" }, "t", [], "2026-11-04", undefined);
+    expect(site).toMatchObject({ author: "낙락장송", publisher: "마이블" });
+    expect(metaFromReview(site, "src/content/reviews/book/2026-11-04-x.md")).toMatchObject({ author: "낙락장송", publisher: "마이블" });
   });
 });
