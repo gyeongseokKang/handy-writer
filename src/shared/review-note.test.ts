@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  defaultReviewMeta, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, slugOfReviewPath, sortSeries, writeReviewMeta,
+  coupangLinkKind, defaultReviewMeta, nextUpdated, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewProblems, reviewSummary, reviewWarnings, slugOfReviewPath, sortSeries, writeReviewMeta,
 } from "./review-note";
 
 const ctx = {
@@ -101,5 +101,45 @@ describe("series", () => {
   it("orders a series by order, then date, then name", () => {
     const e = (name: string, order: number | null, date: string | null) => ({ series: "s", path: `${name}.md`, name, order, date, published: false });
     expect(sortSeries([e("다", null, "2026-01-01"), e("나", 2, null), e("가", 1, null), e("라", null, "2025-01-01")]).map((x) => x.name)).toEqual(["가", "나", "라", "다"]);
+  });
+});
+
+describe("coupang links", () => {
+  it("tells partners links from plain coupang addresses", () => {
+    expect(coupangLinkKind("https://link.coupang.com/a/bXyZ12")).toBe("partners");
+    expect(coupangLinkKind("https://link.coupang.com/re/AFFSDP?lptag=AF123")).toBe("partners");
+    expect(coupangLinkKind("https://coupa.ng/cdEfGh")).toBe("partners");
+    expect(coupangLinkKind("https://www.coupang.com/vp/products/123?itemId=4")).toBe("product");
+    expect(coupangLinkKind("https://m.coupang.com/vm/products/123")).toBe("product");
+    expect(coupangLinkKind("https://example.com/coupang")).toBeNull();
+    expect(coupangLinkKind("쿠팡")).toBeNull();
+  });
+
+  it("warns about plain coupang links and always marks partners links as affiliate when publishing", () => {
+    const meta = { ...defaultReviewMeta(), verdict: "v", target: "t", links: [
+      { label: "쿠팡", url: "https://www.coupang.com/vp/products/1", affiliate: true },
+      { label: "파트너스", url: "https://link.coupang.com/a/abc", affiliate: false },
+      { label: "공식", url: "https://example.com", affiliate: false },
+    ] };
+    expect(reviewWarnings(meta)).toHaveLength(1);
+    expect(reviewWarnings(meta)[0]).toContain("‘쿠팡’");
+    const site = reviewFrontmatterOf(meta, "t", [], "2026-11-04", undefined);
+    expect(site.links.map((l) => l.affiliate)).toEqual([true, true, false]);
+  });
+});
+
+describe("updated date", () => {
+  const fm = (extra: Partial<ReturnType<typeof reviewFrontmatterOf>> = {}) => ({ ...reviewFrontmatterOf({ ...defaultReviewMeta("baby"), verdict: "v", target: "t" }, "제목", ["육아"], "2026-11-01", undefined), ...extra });
+  it("is today when content changed, kept when unchanged, and never on first publish or the review day", () => {
+    expect(nextUpdated({ previous: null, next: { frontmatter: fm(), body: "a" }, today: "2026-11-04" })).toBeUndefined();
+    expect(nextUpdated({ previous: { frontmatter: fm(), body: "a" }, next: { frontmatter: fm(), body: "a\n" }, today: "2026-11-04" })).toBeUndefined();
+    expect(nextUpdated({ previous: { frontmatter: fm(), body: "a" }, next: { frontmatter: fm(), body: "b" }, today: "2026-11-04" })).toBe("2026-11-04");
+    expect(nextUpdated({ previous: { frontmatter: fm({ updated: "2026-11-03" }), body: "a" }, next: { frontmatter: fm(), body: "a" }, today: "2026-11-04" })).toBe("2026-11-03");
+    expect(nextUpdated({ previous: { frontmatter: fm(), body: "a" }, next: { frontmatter: fm({ rating: 3 }), body: "a" }, today: "2026-11-04" })).toBe("2026-11-04");
+    expect(nextUpdated({ previous: { frontmatter: fm(), body: "a" }, next: { frontmatter: fm(), body: "b" }, today: "2026-11-01" })).toBeUndefined();
+  });
+
+  it("ignores defaults the site parser fills in (empty address etc.)", () => {
+    expect(nextUpdated({ previous: { frontmatter: { ...fm(), address: "", featured: false } as never, body: "a" }, next: { frontmatter: fm(), body: "a" }, today: "2026-11-04" })).toBeUndefined();
   });
 });

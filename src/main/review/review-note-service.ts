@@ -12,7 +12,7 @@ import { splitFrontmatter } from "../../shared/frontmatter";
 import { extractSection, splitEmbedTarget } from "../../shared/note-section";
 import { reviewAssetDir, today } from "../../shared/review";
 import {
-  metaFromReview, noteBodyToReview, readReviewMeta, reviewBodyToNote, reviewFrontmatterOf, reviewPathFor, reviewProblems,
+  metaFromReview, nextUpdated, noteBodyToReview, readReviewMeta, reviewWarnings, withAffiliate, reviewBodyToNote, reviewFrontmatterOf, reviewPathFor, reviewProblems,
   reviewSlugOf, slugOfReviewPath, writeReviewMeta, type ReviewMeta, type ReviewNotePreview, type ReviewNotePublishResult, type ReviewSeriesEntry,
 } from "../../shared/review-note";
 import type { NoteMeta } from "../../shared/types";
@@ -126,8 +126,14 @@ async function planPublish(root: string, repo: string, notePath: string): Promis
     }
   }
 
-  const fm = reviewFrontmatterOf(meta, title, frontmatterTags(frontmatter), date, cover);
-  return { path, slug, date, markdown: serializePost(fm, converted.body), warnings, replaces, meta: { ...meta, slug, date, published: path }, copies };
+  warnings.push(...reviewWarnings(meta));
+  const fm = reviewFrontmatterOf({ ...meta, updated: undefined }, title, frontmatterTags(frontmatter), date, cover);
+  // 사이트에 이미 있는 글(같은 경로나 옮기기 전 경로)과 견줘서, 내용이 바뀌었으면 업데이트 날짜를 오늘로 한다.
+  const previousPath = meta.published && existsSync(resolveInside(repo, meta.published)) ? meta.published : null;
+  const previous = previousPath ? await readPost(repo, previousPath).catch(() => null) : null;
+  const updated = nextUpdated({ previous: previous && { frontmatter: previous.frontmatter, body: previous.body }, next: { frontmatter: fm, body: converted.body }, today: today() });
+  if (updated) fm.updated = updated;
+  return { path, slug, date, markdown: serializePost(fm, converted.body), warnings, replaces, meta: { ...meta, links: meta.links.map(withAffiliate), slug, date, published: path, updated }, copies };
 }
 
 export async function previewNoteReview(root: string, repo: string, notePath: string): Promise<ReviewNotePreview> {

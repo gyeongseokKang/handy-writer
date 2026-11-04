@@ -1,4 +1,4 @@
-import { CloudCheck, CloudOff, Eye, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
+import { BadgeCheck, CloudCheck, CloudOff, TriangleAlert, Eye, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -7,7 +7,7 @@ import {
   type DeployStatus, type ReviewCategory, type ReviewLink, type ReviewPostSummary,
 } from "@shared/review";
 import {
-  readReviewMeta, reviewProblems, reviewSlugOf, slugOfReviewPath, writeReviewMeta,
+  coupangLinkKind, readReviewMeta, reviewProblems, reviewSlugOf, reviewWarnings, slugOfReviewPath, writeReviewMeta,
   sortSeries, type ReviewMeta, type ReviewNotePreview, type ReviewSeriesEntry,
 } from "@shared/review-note";
 import { useEditorBridge } from "@/entities/note/model/use-editor-bridge";
@@ -85,6 +85,21 @@ function LinesInput({ label, items, onChange, placeholder }: { label: string; it
   );
 }
 
+/** 쿠팡 링크면 수수료가 붙는 링크인지 알려 준다. */
+function LinkStatus({ url }: { url: string }) {
+  const kind = coupangLinkKind(url);
+  if (kind === "partners") return <p className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400"><BadgeCheck className="size-3.5" /> 쿠팡 파트너스 링크예요</p>;
+  if (kind === "product") {
+    return (
+      <p className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400">
+        <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+        <span>쿠팡 일반 주소라 수수료가 붙지 않아요. 쿠팡 파트너스에서 이 상품의 링크(link.coupang.com/a/…)를 만들어 넣어 주세요.</span>
+      </p>
+    );
+  }
+  return null;
+}
+
 function LinksInput({ links, onChange }: { links: ReviewLink[]; onChange: (v: ReviewLink[]) => void }) {
   const set = (i: number, patch: Partial<ReviewLink>) => onChange(links.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   return (
@@ -98,9 +113,16 @@ function LinksInput({ links, onChange }: { links: ReviewLink[]; onChange: (v: Re
                 <Trash2 className="size-3.5" />
               </button>
             </div>
-            <input className={input} value={l.url} placeholder="https://" onChange={(e) => set(i, { url: e.target.value })} />
+            <input
+              className={input}
+              value={l.url}
+              placeholder="https://"
+              // 파트너스 링크를 넣으면 제휴 표시를 저절로 켠다 (고지 문구가 빠지지 않게).
+              onChange={(e) => set(i, { url: e.target.value, ...(coupangLinkKind(e.target.value) === "partners" ? { affiliate: true } : {}) })}
+            />
+            <LinkStatus url={l.url} />
             <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <input type="checkbox" checked={l.affiliate} onChange={(e) => set(i, { affiliate: e.target.checked })} /> 제휴 링크(쿠팡 파트너스)
+              <input type="checkbox" checked={l.affiliate} disabled={coupangLinkKind(l.url) === "partners"} onChange={(e) => set(i, { affiliate: e.target.checked })} /> 제휴 링크(쿠팡 파트너스)
             </label>
           </div>
         ))}
@@ -310,6 +332,7 @@ export function ReviewSection() {
   const slug = reviewSlugOf(fm, title);
   const publishedSlug = fm.published ? slugOfReviewPath(fm.published) : null;
   const problems = reviewProblems(fm);
+  const warnings = reviewWarnings(fm);
 
   const runPreview = async () => {
     setBusy("preview");
@@ -317,6 +340,7 @@ export function ReviewSection() {
   };
   const publish = async () => {
     if (problems.length > 0) return toast.error(problems.join("\n"));
+    if (warnings.length > 0 && !window.confirm(`${warnings.join("\n\n")}\n\n그래도 게시할까요?`)) return;
     setBusy("publish");
     try {
       await flushDraft();
@@ -351,7 +375,11 @@ export function ReviewSection() {
               <Send /> {busy === "publish" ? "게시 중…" : fm.published ? "다시 게시" : "게시"}
             </Button>
           </div>
-          {problems.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-400">{problems[0]}</p>}
+          {problems.length > 0 ? (
+            <p className="text-xs text-amber-700 dark:text-amber-400">{problems[0]}</p>
+          ) : warnings.length > 0 ? (
+            <p className="flex items-start gap-1 text-xs text-amber-700 dark:text-amber-400"><TriangleAlert className="mt-0.5 size-3.5 shrink-0" />수수료가 안 붙는 쿠팡 링크가 {warnings.length}개 있어요.</p>
+          ) : null}
           <div className="flex items-center gap-1.5 text-xs">
             {publishedSlug ? (
               <a href={`${siteUrl}/review/${encodeURIComponent(publishedSlug)}`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-1 text-muted-foreground hover:text-foreground hover:underline">
@@ -360,6 +388,7 @@ export function ReviewSection() {
             ) : (
               <span className="text-muted-foreground">아직 게시 안 함</span>
             )}
+            {fm.updated && <span className="shrink-0 text-muted-foreground" title="내용을 바꿔 다시 게시한 날 (게시할 때 저절로 정해요)">· 업데이트 {fm.updated.slice(5).replace("-", ".")}</span>}
             {badge && (
               <span title={deploy.status!.message} className={cn("ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5", badge.cls)}>
                 {deploy.status!.state === "up-to-date" ? <CloudCheck className="size-3" /> : <CloudOff className="size-3" />}{badge.text}

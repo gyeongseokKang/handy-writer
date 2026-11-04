@@ -89,5 +89,17 @@ describe("publish a note as a review", () => {
     const again = await publishNoteReview(ws, repo, first.path);
     expect(again.path).toBe(post);
     expect(again.replaces).toBeNull();
+    // 내용이 그대로면 업데이트 날짜를 남기지 않고, 바꾸면 오늘 날짜가 붙는다.
+    expect(again.meta.updated).toBeUndefined();
+    expect(readFileSync(join(repo, post), "utf8")).not.toContain("updated:");
+    writeFileSync(join(ws, first.path), readFileSync(join(ws, first.path), "utf8").replace(/\n*$/, "\n\n3개월 더 써 보니 바퀴가 닳았어요.\n"));
+    const changed = await publishNoteReview(ws, repo, first.path);
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    expect(changed.meta.updated).toBe(today);
+    expect(readFileSync(join(repo, post), "utf8")).toContain(`updated: ${today}`);
+    // 다시 그대로 게시하면 업데이트 날짜를 그대로 둔다.
+    writeFileSync(join(ws, first.path), writeReviewMeta(splitFrontmatter(readFileSync(join(ws, first.path), "utf8")).frontmatter, changed.meta) + "\n" + splitFrontmatter(readFileSync(join(ws, first.path), "utf8")).body);
+    expect((await publishNoteReview(ws, repo, first.path)).meta.updated).toBe(today);
   });
 });
