@@ -31,6 +31,10 @@ export interface ReviewMeta {
   mapUrl?: string;
   visitedAt?: string;
   youtubeId?: string;
+  /** 책·소설: 작가. 사이트에서 같은 작가의 다른 작품을 연재처 위에 묶어 보여 준다 */
+  author?: string;
+  /** 책·소설: 출판사 */
+  publisher?: string;
   /** 시리즈 이름. 같은 이름을 적은 리뷰끼리 사이트에서 묶여 이전·다음편이 붙는다. */
   series?: string;
   /** 시리즈 안 순서 (비우면 날짜 순) */
@@ -139,7 +143,7 @@ export function readReviewMeta(frontmatter: string): ReviewMeta | null {
       label: str(l?.["label"]), url: str(l?.["url"]), affiliate: !!l?.["affiliate"],
     })),
   };
-  for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId", "slug", "date", "updated", "published"] as const) {
+  for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId", "author", "publisher", "slug", "date", "updated", "published"] as const) {
     if (raw[key] !== undefined && raw[key] !== null) meta[key] = str(raw[key]);
   }
   if (raw["featured"]) meta.featured = true;
@@ -350,6 +354,8 @@ export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: strin
     ...(meta.category === "place" && meta.mapUrl?.trim() ? { mapUrl: meta.mapUrl.trim() } : {}),
     ...(meta.category === "place" && meta.visitedAt?.trim() ? { visitedAt: meta.visitedAt.trim() } : {}),
     ...(meta.category === "video" && meta.youtubeId?.trim() ? { youtubeId: meta.youtubeId.trim() } : {}),
+    ...(meta.author?.trim() ? { author: meta.author.trim() } : {}),
+    ...(meta.publisher?.trim() ? { publisher: meta.publisher.trim() } : {}),
     ...(meta.series?.trim() ? { series: meta.series.trim(), ...(meta.seriesOrder !== undefined ? { seriesOrder: meta.seriesOrder } : {}) } : {}),
     ...(meta.updated && meta.updated > date ? { updated: meta.updated } : {}),
   };
@@ -386,6 +392,8 @@ export function metaFromReview(fm: ReviewFrontmatter, path: string): ReviewMeta 
   for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId"] as const) if (fm[key]) meta[key] = fm[key];
   if (fm.featured) meta.featured = true;
   if (fm.updated) meta.updated = fm.updated;
+  if (fm.author) meta.author = fm.author;
+  if (fm.publisher) meta.publisher = fm.publisher;
   if (fm.series) meta.series = fm.series;
   if (typeof fm.seriesOrder === "number") meta.seriesOrder = fm.seriesOrder;
   return meta;
