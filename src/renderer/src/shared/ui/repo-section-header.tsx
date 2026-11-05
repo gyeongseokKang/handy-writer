@@ -18,7 +18,7 @@ export interface RepoMenuItem {
  * 오른쪽 ⋯ 메뉴에 Git 관련 동작·설정을 모은다. 스크롤해도 맨 위에 붙어 있다.
  */
 export function RepoSectionHeader({
-  icon, name, branch, status, open, onToggle, menu, actions, title, onBranchClick, branchLabel, branchActive,
+  icon, name, branch, status, open, onToggle, menu, actions, title, onBranchClick, branchLabel, branchActive, onContextMenu,
 }: {
   icon: ReactNode;
   name: string;
@@ -35,6 +35,8 @@ export function RepoSectionHeader({
   onBranchClick?: () => void;
   branchLabel?: string;
   branchActive?: boolean;
+  /** 머리줄 우클릭 (예: 배포 대시보드 열기) */
+  onContextMenu?: () => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   // 메뉴는 화면 기준(fixed)으로 띄워서 스크롤 칸에 잘리지 않게 하고, 아래 자리가 모자라면 위로 연다.
@@ -68,7 +70,11 @@ export function RepoSectionHeader({
   }, [menuOpen]);
 
   return (
-    <div ref={ref} className="sticky top-0 z-10 bg-muted/95 backdrop-blur">
+    <div
+      ref={ref}
+      className="sticky top-0 z-10 bg-muted/95 backdrop-blur"
+      onContextMenu={onContextMenu && ((event) => { event.preventDefault(); setMenuOpen(false); onContextMenu(); })}
+    >
       <div className="group flex items-center gap-1 px-2 py-1.5 text-xs">
         <button
           type="button"

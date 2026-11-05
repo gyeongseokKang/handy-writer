@@ -1,4 +1,4 @@
-import { ArrowDownToLine, ChevronRight, CloudCheck, CloudOff, ExternalLink, FileText, FolderOpen, FolderSearch, RefreshCw, Star } from "lucide-react";
+import { ArrowDownToLine, ChevronRight, CloudCheck, CloudOff, ExternalLink, FileText, FolderOpen, FolderSearch, LayoutDashboard, RefreshCw, Star } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
 import { RepoSectionHeader, useSectionOpen } from "@/shared/ui/repo-section-header";
 import { useReviewRepoStore } from "../model/use-review-repo-store";
+import { ReviewDashboardDialog } from "./review-dashboard";
 
 const DEPLOY_TEXT: Record<DeployStatus["state"], string> = {
   "up-to-date": "사이트에 반영됨",
@@ -32,6 +33,7 @@ export function ReviewSection() {
   const [open, toggle] = useSectionOpen("handy-review");
   const [pulling, setPulling] = useState(false);
   const [busyPath, setBusyPath] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState(false);
 
   useEffect(() => {
     const refresh = () => void useReviewRepoStore.getState().refresh();
@@ -85,7 +87,8 @@ export function ReviewSection() {
         icon={<Star className="size-3.5" />}
         name="핸디 리뷰"
         branch={repo.branch ?? (repo.error ? "Git 오류" : "HEAD")}
-        title={repo.error ?? repo.repo}
+        title={`${repo.error ?? repo.repo}\n우클릭: 배포 대시보드`}
+        onContextMenu={() => setDashboard(true)}
         open={open}
         onToggle={toggle}
         status={(
@@ -114,6 +117,7 @@ export function ReviewSection() {
         )}
         menu={[
           { hint: true, label: deploy ? `${DEPLOY_TEXT[deploy.state]} · ${deploy.message}` : repo.repo, onSelect: () => {} },
+          { label: "배포 대시보드", icon: <LayoutDashboard className="size-3.5" />, onSelect: () => setDashboard(true) },
           ...(repo.behind > 0 ? [{ label: `최신으로 받기 (${repo.behind}개)`, icon: <ArrowDownToLine className="size-3.5" />, disabled: pulling, onSelect: () => void pull() }] : []),
           { label: "배포 상태 다시 확인", icon: <RefreshCw className={cn("size-3.5", checking && "animate-spin")} />, onSelect: () => void useReviewRepoStore.getState().refresh({ deploy: true }) },
           { label: "사이트 열기", icon: <ExternalLink className="size-3.5" />, onSelect: () => window.open(siteUrl, "_blank") },
@@ -145,6 +149,7 @@ export function ReviewSection() {
           ))}
         </nav>
       )}
+      {dashboard && <ReviewDashboardDialog onClose={() => setDashboard(false)} />}
     </section>
   );
 }

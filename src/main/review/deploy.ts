@@ -9,6 +9,8 @@ import type { DeployProviderInfo } from "../../shared/review";
 export interface DeployProvider {
   readonly info: DeployProviderInfo;
   deployedSha(): Promise<string>;
+  /** 배포된 커밋과 빌드 시각 (시각은 없으면 null) */
+  deployed(): Promise<{ sha: string; builtAt: string | null }>;
 }
 
 const defaultFetch: typeof fetch = (input, init) => net.fetch(input as string, init);
@@ -20,11 +22,14 @@ abstract class VersionJsonProvider implements DeployProvider {
     this.info = { kind, siteUrl: siteUrl.replace(/\/+$/, "") };
   }
   async deployedSha() {
+    return (await this.deployed()).sha;
+  }
+  async deployed() {
     const res = await this.fetchImpl(`${this.info.siteUrl}/version.json?t=${Date.now()}`, { cache: "no-store" });
     if (!res.ok) throw new Error(`version.json 응답 ${res.status}`);
-    const body = (await res.json()) as { sha?: unknown };
+    const body = (await res.json()) as { sha?: unknown; builtAt?: unknown };
     if (typeof body.sha !== "string" || !/^[0-9a-f]{7,40}$/.test(body.sha)) throw new Error("version.json에 커밋 SHA가 없어요.");
-    return body.sha;
+    return { sha: body.sha, builtAt: typeof body.builtAt === "string" ? body.builtAt : null };
   }
 }
 

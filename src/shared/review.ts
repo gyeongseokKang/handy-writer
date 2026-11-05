@@ -145,6 +145,8 @@ export interface DeployStatus {
   localSha: string | null;
   /** 원격 main이 배포본보다 몇 커밋 앞서는지. 모르면 null */
   behindBy: number | null;
+  /** 사이트 version.json의 빌드 시각 (있을 때만) */
+  deployedAt?: string | null;
   checkedAt: string;
   message: string;
 }
@@ -176,4 +178,102 @@ export interface ReviewRepoStatus {
   /** 커밋 안 한 변경 수 */
   changes: number;
   error?: string;
+}
+
+/* ───────── 배포 대시보드 ───────── */
+
+/**
+ * 대시보드의 글 하나의 상태.
+ *  draft: 작업 폴더에만 있고 아직 게시 안 함
+ *  blocked: 게시하려 해도 고칠 것이 있음 (필수 항목 빠짐 등)
+ *  changed: 게시한 뒤 글을 고쳤는데 아직 다시 게시 안 함
+ *  unpushed: 저장소에는 썼지만 원격에 안 올라감 (커밋 안 했거나 푸시 안 함)
+ *  pending: 원격에는 올라갔지만 사이트가 아직 그 커밋으로 배포 안 됨
+ *  live: 사이트에 반영됨
+ *  published: 원격에 있음 (사이트 배포 버전을 몰라 반영 여부는 모름)
+ */
+export type DashboardPostState = "draft" | "blocked" | "changed" | "unpushed" | "pending" | "live" | "published";
+
+export const DASHBOARD_POST_LABEL: Record<DashboardPostState, string> = {
+  draft: "게시 안 함",
+  blocked: "게시 막힘",
+  changed: "수정 후 미게시",
+  unpushed: "푸시 안 됨",
+  pending: "반영 대기",
+  live: "반영됨",
+  published: "게시됨",
+};
+
+export interface ReviewDashboardPost {
+  title: string;
+  category: ReviewCategory | null;
+  /** 연결된 작업 폴더 글. 저장소에만 있는 글이면 null */
+  notePath: string | null;
+  /** 저장소 안 리뷰 글 경로. 아직 게시 안 했으면 null */
+  postPath: string | null;
+  slug: string | null;
+  state: DashboardPostState;
+  /** 게시를 막는 문제 */
+  problems: string[];
+  /** 원격 main에서 이 글을 마지막으로 바꾼 커밋 */
+  commitSha: string | null;
+  commitDate: string | null;
+}
+
+export type BuildResult = "success" | "failure" | "pending";
+
+export interface ReviewDashboardCommit {
+  sha: string;
+  subject: string;
+  date: string;
+  /** 사이트에 배포된 커밋(또는 그 이전)인지. 배포 버전을 모르면 null */
+  deployed: boolean | null;
+  /** GitHub에 올라온 빌드 결과 (gh로 읽을 수 있을 때만) */
+  build: BuildResult | null;
+  buildUrl: string | null;
+}
+
+export interface ReviewDashboard {
+  status: DeployStatus;
+  siteUrl: string | null;
+  commits: ReviewDashboardCommit[];
+  posts: ReviewDashboardPost[];
+  /** 빌드 결과를 읽은 방법. gh가 없거나 로그인 안 했으면 unavailable */
+  buildCheck: "gh" | "unavailable";
+}
+
+export function dashboardPostState(input: {
+  hasNote: boolean;
+  /** 저장소에 리뷰 글 파일이 있는지 */
+  inRepo: boolean;
+  problems: number;
+  /** 작업 폴더 글로 다시 만든 리뷰가 저장소 파일과 다른지 */
+  differs: boolean;
+  /** 원격 main에 이 글을 바꾼 커밋이 있고, 그 뒤로 이 컴퓨터에서 바꾼 것이 없는지 */
+  onRemote: boolean;
+  /** 원격의 마지막 커밋이 배포됐는지. 배포 버전을 모르면 null */
+  deployed: boolean | null;
+}): DashboardPostState {
+  if (input.hasNote && !input.inRepo) return input.problems > 0 ? "blocked" : "draft";
+  if (input.hasNote && input.differs) return input.problems > 0 ? "blocked" : "changed";
+  if (!input.onRemote) return "unpushed";
+  if (input.deployed === null) return "published";
+  return input.deployed ? "live" : "pending";
+}
+
+/** GitHub check-run 목록 → 빌드 결과 하나. 하나라도 실패면 실패, 하나라도 도는 중이면 진행 중. */
+export function summarizeChecks(runs: { status?: string | null; conclusion?: string | null; html_url?: string | null; details_url?: string | null }[]): { build: BuildResult; url: string | null } | null {
+  if (runs.length === 0) return null;
+  const urlOf = (r: (typeof runs)[number]) => r.details_url || r.html_url || null;
+  const failed = runs.find((r) => r.status === "completed" && ["failure", "timed_out", "cancelled", "action_required", "startup_failure"].includes(r.conclusion ?? ""));
+  if (failed) return { build: "failure", url: urlOf(failed) };
+  const running = runs.find((r) => r.status !== "completed");
+  if (running) return { build: "pending", url: urlOf(running) };
+  return { build: "success", url: urlOf(runs[0]!) };
+}
+
+/** git remote 주소 → GitHub owner/repo */
+export function parseGitHubRemote(url: string): { owner: string; repo: string } | null {
+  const m = /github\.com[:/]+([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/.exec(url.trim());
+  return m ? { owner: m[1]!, repo: m[2]! } : null;
 }
