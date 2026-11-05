@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { DeployStatus, ReviewRepoStatus } from "@shared/review";
+import type { DeployStatus, ReviewPostSummary, ReviewRepoStatus } from "@shared/review";
 import type { ReviewConfig } from "@shared/types";
 import { api } from "@/shared/api/handy-api";
 
@@ -9,6 +9,8 @@ interface ReviewRepoState {
   repo: ReviewRepoStatus | null;
   deploy: DeployStatus | null;
   checking: boolean;
+  /** 저장소에 있는 리뷰 글 (사이드바 핸디 리뷰 트리) */
+  posts: ReviewPostSummary[];
   /** 설정과 Git 상태를 다시 읽는다. deploy면 사이트 배포 상태까지 확인한다(원격을 받아 와서 조금 느리다). */
   refresh: (options?: { deploy?: boolean }) => Promise<void>;
   setConfig: (config: ReviewConfig) => void;
@@ -20,11 +22,13 @@ export const useReviewRepoStore = create<ReviewRepoState>((set, get) => ({
   repo: null,
   deploy: null,
   checking: false,
+  posts: [],
   refresh: async ({ deploy = false } = {}) => {
     try {
       const config = await api.review.getConfig();
       set({ config });
-      if (!config.repo) return set({ repo: null, deploy: null });
+      if (!config.repo) return set({ repo: null, deploy: null, posts: [] });
+      void api.review.list().then((posts) => set({ posts }), () => set({ posts: [] }));
       if (deploy) {
         set({ checking: true });
         const status = await api.review.deployStatus().catch(() => null);

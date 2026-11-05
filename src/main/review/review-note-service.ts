@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, posix, relative } from "node:path";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
@@ -8,7 +8,7 @@ import { listNotes, readNote, resolveInside, writeNote, createNote } from "../no
 import { runGit } from "../git/runner";
 import { readPost, serializePost } from "./review-service";
 import { resolveAttachment, isRemoteUrl } from "../../shared/attachments";
-import { splitFrontmatter } from "../../shared/frontmatter";
+import { serializeNote, splitFrontmatter } from "../../shared/frontmatter";
 import { extractSection, splitEmbedTarget } from "../../shared/note-section";
 import { reviewAssetDir, today } from "../../shared/review";
 import {
@@ -244,4 +244,45 @@ export async function importReviewToNote(root: string, repo: string, postPath: s
   const created = await createNote(root, REVIEW_NOTE_FOLDER, post.frontmatter.title || slugOfReviewPath(postPath));
   await writeNote(root, created.path, `${frontmatter}\n${body.trim()}\n`);
   return { path: created.path, created: true };
+}
+
+/** 대시보드용: 작업 폴더의 리뷰 글마다 게시 막힘·저장소 파일과 다른지 */
+export interface ReviewNoteCheck {
+  notePath: string;
+  title: string;
+  meta: ReviewMeta;
+  /** 다시 게시하면 쓸 저장소 경로 (만들지 못하면 null) */
+  path: string | null;
+  problems: string[];
+  /** 지금 게시하면 저장소 파일이 바뀌는지 (주소가 바뀌는 것 포함) */
+  differs: boolean;
+}
+
+export async function checkReviewNotes(root: string, repo: string): Promise<ReviewNoteCheck[]> {
+  const out: ReviewNoteCheck[] = [];
+  for (const n of await listNotes(root)) {
+    const raw = await readNote(root, n.path).catch(() => "");
+    if (!raw.includes("review")) continue;
+    const { frontmatter } = splitFrontmatter(raw);
+    const meta = readReviewMeta(frontmatter);
+    if (!meta) continue;
+    const title = stemOf(n.path);
+    try {
+      const plan = await planPublish(root, repo, n.path);
+      const current = existsSync(resolveInside(repo, plan.path)) ? await readFile(resolveInside(repo, plan.path), "utf8") : null;
+      out.push({ notePath: n.path, title, meta, path: plan.path, problems: reviewProblems(plan.meta, plan.tags), differs: plan.path !== meta.published || current !== plan.markdown });
+    } catch (e) {
+      out.push({ notePath: n.path, title, meta, path: null, problems: [(e as Error).message], differs: true });
+    }
+  }
+  return out;
+}
+
+/** 게시하고 그 결과(slug·date·published·updated)를 글 frontmatter에도 적는다. 대시보드에서 여러 글을 한꺼번에 게시할 때 쓴다. */
+export async function publishNoteReviewAndRecord(root: string, repo: string, notePath: string): Promise<ReviewNotePublishResult> {
+  const result = await publishNoteReview(root, repo, notePath);
+  const raw = await readNote(root, notePath);
+  const { frontmatter, body } = splitFrontmatter(raw);
+  await writeNote(root, notePath, serializeNote(writeReviewMeta(frontmatter, result.meta), body));
+  return result;
 }

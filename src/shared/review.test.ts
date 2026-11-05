@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cleanFrontmatter, decideDeployState, reviewTemplate, slugify } from "./review";
+import { cleanFrontmatter, dashboardPostState, decideDeployState, parseGitHubRemote, reviewTemplate, slugify, summarizeChecks } from "./review";
 
 describe("review", () => {
   it("makes a post path from category, date and slug", () => {
@@ -22,5 +22,35 @@ describe("review", () => {
     expect(decideDeployState({ deployedSha: "bbb", remoteSha: "bbb", localSha: "old", localAhead: 0 }).state).toBe("up-to-date");
     expect(decideDeployState({ deployedSha: "aaa", remoteSha: "bbb", localSha: "old", localAhead: 0 }).state).toBe("deploy-needed");
     expect(decideDeployState({ deployedSha: "bbb", remoteSha: "bbb", localSha: "new", localAhead: 2 }).state).toBe("unpushed");
+  });
+});
+
+describe("deploy dashboard helpers", () => {
+  it("decides a review's state", () => {
+    const base = { hasNote: true, inRepo: true, problems: 0, differs: false, onRemote: true, deployed: true };
+    expect(dashboardPostState(base)).toBe("live");
+    expect(dashboardPostState({ ...base, deployed: false })).toBe("pending");
+    expect(dashboardPostState({ ...base, deployed: null })).toBe("published");
+    expect(dashboardPostState({ ...base, onRemote: false })).toBe("unpushed");
+    expect(dashboardPostState({ ...base, differs: true })).toBe("changed");
+    expect(dashboardPostState({ ...base, differs: true, problems: 1 })).toBe("blocked");
+    expect(dashboardPostState({ ...base, inRepo: false })).toBe("draft");
+    expect(dashboardPostState({ ...base, inRepo: false, problems: 2 })).toBe("blocked");
+    // 작업 폴더에 없는 저장소 글은 다른지 비교하지 않는다
+    expect(dashboardPostState({ ...base, hasNote: false, differs: true })).toBe("live");
+  });
+
+  it("summarizes check runs", () => {
+    expect(summarizeChecks([])).toBeNull();
+    expect(summarizeChecks([{ status: "completed", conclusion: "success", details_url: "u1" }])).toEqual({ build: "success", url: "u1" });
+    expect(summarizeChecks([{ status: "completed", conclusion: "success" }, { status: "in_progress", html_url: "u2" }])).toEqual({ build: "pending", url: "u2" });
+    expect(summarizeChecks([{ status: "in_progress" }, { status: "completed", conclusion: "failure", details_url: "u3" }])).toEqual({ build: "failure", url: "u3" });
+    expect(summarizeChecks([{ status: "completed", conclusion: "skipped" }])?.build).toBe("success");
+  });
+
+  it("reads GitHub owner/repo from a remote url", () => {
+    expect(parseGitHubRemote("git@github.com:gyeongseokKang/handy-review.git")).toEqual({ owner: "gyeongseokKang", repo: "handy-review" });
+    expect(parseGitHubRemote("https://github.com/gyeongseokKang/handy-review")).toEqual({ owner: "gyeongseokKang", repo: "handy-review" });
+    expect(parseGitHubRemote("https://gitlab.com/a/b.git")).toBeNull();
   });
 });

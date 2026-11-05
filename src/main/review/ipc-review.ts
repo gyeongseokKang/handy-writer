@@ -4,7 +4,8 @@ import { join } from "node:path";
 import { IPC } from "../../shared/types";
 import type { DeployProviderInfo } from "../../shared/review";
 import { checkReviewRepo, deployStatus, listPosts, loadReviewConfig, pullReviewRepo, reviewRepoStatus, saveReviewConfig } from "./review-service";
-import { importReviewToNote, listReviewSeries, previewNoteReview, publishNoteReview } from "./review-note-service";
+import { importReviewToNote, listReviewSeries, previewNoteReview, publishNoteReview, publishNoteReviewAndRecord } from "./review-note-service";
+import { reviewDashboard } from "./dashboard";
 
 async function repoOrThrow() {
   const { repo } = await loadReviewConfig();
@@ -27,6 +28,14 @@ export function registerReviewIpc(requireRoot: () => string) {
   ipcMain.handle(IPC.reviewList, async () => listPosts(await repoOrThrow()));
   ipcMain.handle(IPC.reviewPreviewNote, async (_e, notePath: string) => previewNoteReview(requireRoot(), await repoOrThrow(), notePath));
   ipcMain.handle(IPC.reviewPublishNote, async (_e, notePath: string) => publishNoteReview(requireRoot(), await repoOrThrow(), notePath));
+  ipcMain.handle(IPC.reviewPublishNoteAndRecord, async (_e, notePath: string) => publishNoteReviewAndRecord(requireRoot(), await repoOrThrow(), notePath));
+  ipcMain.handle(IPC.reviewDashboard, async () => {
+    const config = await loadReviewConfig();
+    if (!config.repo) throw new Error("핸디 리뷰 저장소 폴더를 먼저 골라 주세요.");
+    let root: string | null = null;
+    try { root = requireRoot(); } catch { /* 작업 폴더가 없으면 저장소 글만 */ }
+    return reviewDashboard(root, config.repo, config.deploy);
+  });
   ipcMain.handle(IPC.reviewListSeries, () => listReviewSeries(requireRoot()));
   ipcMain.handle(IPC.reviewImport, async (_e, postPath: string) => importReviewToNote(requireRoot(), await repoOrThrow(), postPath));
   ipcMain.handle(IPC.reviewDeployStatus, async () => {

@@ -94,6 +94,27 @@ export function createMockApi(): HandyApi {
         list: async () => [],
         previewNote: async (notePath) => ({ path: `src/content/reviews/etc/2026-01-01-${notePath.replace(/\.md$/, "")}.md`, slug: "mock", date: "2026-01-01", markdown: "---\ntitle: mock\n---\n", warnings: [], replaces: null }),
         publishNote: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
+        publishNoteAndRecord: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
+        dashboard: async () => {
+          const now = Date.now();
+          const ago = (min: number) => new Date(now - min * 60_000).toISOString();
+          const status = { ...decideDeployState({ deployedSha: "a".repeat(40), remoteSha: "b".repeat(40), localSha: "b".repeat(40), behindBy: 1, localAhead: 0 }), deployedAt: ago(90), checkedAt: ago(0) };
+          return {
+            status,
+            siteUrl: "https://review.handykang.com",
+            buildCheck: "gh" as const,
+            commits: [
+              { sha: "b".repeat(40), subject: "리뷰: 화산귀환", date: ago(30), deployed: false, build: "failure" as const, buildUrl: "https://example.com/build" },
+              { sha: "a".repeat(40), subject: "리뷰: 전지적 독자 시점", date: ago(95), deployed: true, build: "success" as const, buildUrl: null },
+            ],
+            posts: [
+              { title: "화산귀환", category: "book" as const, notePath: "리뷰/화산귀환.md", postPath: "src/content/reviews/book/2026-01-02-화산귀환-비가.md", slug: "화산귀환-비가", state: "pending" as const, problems: [], commitSha: "b".repeat(40), commitDate: ago(30) },
+              { title: "전지적 독자 시점", category: "book" as const, notePath: "리뷰/전지적 독자 시점.md", postPath: "src/content/reviews/book/2026-01-01-전지적-독자-시점.md", slug: "전지적-독자-시점", state: "changed" as const, problems: [], commitSha: "a".repeat(40), commitDate: ago(95) },
+              { title: "새 리뷰", category: "etc" as const, notePath: "리뷰/새 리뷰.md", postPath: null, slug: null, state: "blocked" as const, problems: ["한줄평을 적어 주세요."], commitSha: null, commitDate: null },
+              { title: "유모차 비교", category: "baby" as const, notePath: null, postPath: "src/content/reviews/baby/2025-12-01-stroller.md", slug: "stroller", state: "live" as const, problems: [], commitSha: "a".repeat(40), commitDate: ago(400) },
+            ],
+          };
+        },
         importPost: async (postPath) => ({ path: postPath, created: false }),
         listSeries: async () => [],
         deployStatus: async () => ({ ...decideDeployState({ deployedSha: "aaaaaaa", remoteSha: "bbbbbbb", localSha: "bbbbbbb", behindBy: 1 }), checkedAt: new Date().toISOString() }),

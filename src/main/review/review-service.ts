@@ -151,11 +151,12 @@ export async function deployStatus(repo: string, info: DeployProviderInfo | null
   const localSha = await git(["rev-parse", "HEAD"]);
   const remoteSha = await git(["rev-parse", "@{upstream}"]);
   let deployedSha: string | null = null;
+  let deployedAt: string | null = null;
   let error: string | undefined;
   const provider = createDeployProvider(info);
   if (!provider) error = "사이트 주소를 넣으면 배포 상태를 확인해요.";
   else {
-    try { deployedSha = await provider.deployedSha(); } catch (e) { error = `배포 버전을 못 읽었어요: ${(e as Error).message}`; }
+    try { ({ sha: deployedSha, builtAt: deployedAt } = await provider.deployed()); } catch (e) { error = `배포 버전을 못 읽었어요: ${(e as Error).message}`; }
   }
   let behindBy: number | null = null;
   if (deployedSha && remoteSha) {
@@ -165,7 +166,7 @@ export async function deployStatus(repo: string, info: DeployProviderInfo | null
   // 이 컴퓨터에만 있는 커밋 수 (받을 커밋만 있는 '뒤처짐'은 푸시 안 함이 아니다)
   const ahead = await git(["rev-list", "--count", "@{upstream}..HEAD"]);
   const localAhead = ahead === null ? null : Number(ahead);
-  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, localAhead, error }), checkedAt: new Date().toISOString() };
+  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, localAhead, error }), deployedAt, checkedAt: new Date().toISOString() };
 }
 
 export const toRepoRelative = (repo: string, abs: string) => toPosix(relative(repo, abs));

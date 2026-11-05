@@ -1,4 +1,4 @@
-import type { DeployProviderInfo, DeployStatus, ReviewPostSummary, ReviewRepoStatus } from "./review";
+import type { DeployProviderInfo, DeployStatus, ReviewDashboard, ReviewPostSummary, ReviewRepoStatus } from "./review";
 import type { ReviewNotePreview, ReviewNotePublishResult, ReviewSeriesEntry } from "./review-note";
 import type { AiEvent, AiRequest, AiStatus } from "./ai";
 import type { AttachmentMeta } from "./attachments";
@@ -68,6 +68,10 @@ export interface HandyApi {
     previewNote: (notePath: string) => Promise<ReviewNotePreview>;
     /** 작업 폴더 글을 리뷰 글로 바꿔 저장소에 쓰고 커밋·푸시한다 */
     publishNote: (notePath: string) => Promise<ReviewNotePublishResult>;
+    /** 게시하고 결과(slug·date·published)를 글 파일 frontmatter에도 적는다 (대시보드에서 한꺼번에 게시할 때) */
+    publishNoteAndRecord: (notePath: string) => Promise<ReviewNotePublishResult>;
+    /** 배포 대시보드: 사이트 배포 버전, 최근 커밋과 빌드 결과, 글마다 반영 상태 */
+    dashboard: () => Promise<ReviewDashboard>;
     /** 저장소의 리뷰 글을 작업 폴더의 글로 가져온다 */
     importPost: (postPath: string) => Promise<{ path: string; created: boolean }>;
     /** 작업 폴더에서 시리즈를 적은 리뷰 글들 */
@@ -240,6 +244,8 @@ export const IPC = {
   reviewList: "review:list",
   reviewPreviewNote: "review:preview-note",
   reviewPublishNote: "review:publish-note",
+  reviewPublishNoteAndRecord: "review:publish-note-and-record",
+  reviewDashboard: "review:dashboard",
   reviewImport: "review:import",
   reviewListSeries: "review:list-series",
   reviewDeployStatus: "review:deploy-status",
