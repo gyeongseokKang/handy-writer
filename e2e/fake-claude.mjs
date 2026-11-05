@@ -66,6 +66,15 @@ process.stdin.on("end", async () => {
   }
 
   const text = input.match(/<text>\n([\s\S]*?)\n<\/text>/)?.[1];
+  // 퇴고: 실제 모델처럼 태그 밖에 생각을 쓰고, 고친 글과 고친 점을 태그로 나눠 답한다. 받은 퇴고 기준의 첫 줄을 고친 점에 드러낸다.
+  if (text !== undefined && input.includes("<revise_rules>")) {
+    const rule = input.match(/<revise_rules>\n([^\n]*)/)?.[1] ?? "";
+    const revised = text.replace(/정말 /g, "").replace(/사실 /g, "");
+    const answer = `글을 읽어 보니 군더더기가 있다.\n<revised>\n${revised}</revised>\n<notes>\n- 군더더기 삭제: '정말', '사실'을 뺐어요\n- 기준 적용: ${rule.replace(/^[-*]\s*/, "")}\n</notes>`;
+    delta(answer.slice(0, 20));
+    delta(answer.slice(20));
+    return out({ type: "result", subtype: "success", is_error: false, result: answer });
+  }
   const result =
     text !== undefined
       ? text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다")

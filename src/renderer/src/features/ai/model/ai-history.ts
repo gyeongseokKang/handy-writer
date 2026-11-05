@@ -12,6 +12,8 @@ export interface AiHistoryItem {
   instruction: string;
   /** 끝난 시각 (ISO) */
   at: string;
+  /** 퇴고: 무엇을 왜 고쳤는지 */
+  notes?: string[];
 }
 
 export const MAX_HISTORY = 50;

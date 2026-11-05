@@ -8,9 +8,9 @@ import { IPC } from "../../shared/types";
 import { logEntry } from "../app-log";
 import { projectSection, scanProject } from "../project-context";
 import { claudeStatus, findClaude, runClaude } from "./claude-cli";
-import { readRules, writeRules } from "./rules";
+import { readRules, writeRules, readReviseRules, writeReviseRules } from "./rules";
 
-const TASKS: AiTask[] = ["polish", "proofread", "continue", "custom", "template", "outline", "draft"];
+const TASKS: AiTask[] = ["polish", "proofread", "revise", "continue", "custom", "template", "outline", "draft"];
 
 /** 렌더러에서 온 값을 믿지 않고 모양을 확인한다. */
 function parseRequest(value: unknown): AiRequest {
@@ -49,6 +49,8 @@ export function registerAiIpc(requireRoot: () => string, isPickedProject: (path:
 
   ipcMain.handle(IPC.rulesGet, () => readRules(requireRoot()));
   ipcMain.handle(IPC.rulesSet, (_e, content: string) => writeRules(requireRoot(), String(content)));
+  ipcMain.handle(IPC.reviseRulesGet, () => readReviseRules(requireRoot()));
+  ipcMain.handle(IPC.reviseRulesSet, (_e, content: string) => writeReviseRules(requireRoot(), String(content)));
 
   ipcMain.handle(IPC.aiStatus, () => claudeStatus());
 
@@ -60,6 +62,9 @@ export function registerAiIpc(requireRoot: () => string, isPickedProject: (path:
 
     const projects = (request.sources ?? []).filter((source): source is ProjectSource => source.kind === "project" && isPickedProject(source.path));
     const projectSections = await Promise.all(projects.map(async (project) => projectSection(project.path, await scanProject(project.path))));
+
+    // 퇴고 룰은 렌더러가 보낸 값이 아니라 작업 폴더의 파일에서 읽는다.
+    if (request.task === "revise") request.reviseRules = await readReviseRules(root);
 
     const runId = request.runId;
     const controller = new AbortController();

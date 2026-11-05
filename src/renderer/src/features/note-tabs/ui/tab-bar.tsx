@@ -1,10 +1,11 @@
-import { Columns2, PanelRight, X } from "lucide-react";
+import { Columns2, Flame, PanelRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { NOTE_DRAG_TYPE } from "@/shared/lib/note-drag";
+import { shortcutLabel } from "@/shared/lib/shortcut";
 import { cn } from "@/shared/lib/utils";
 import { ContextMenu, type MenuItem } from "@/shared/ui/context-menu";
 
@@ -114,6 +115,7 @@ export function TabBar() {
           );
         })}
       </div>
+      <FocusModeButton />
       <RightPanelToggle />
       {menu && <ContextMenu x={menu.x} y={menu.y} label="탭 메뉴" items={menuItems(menu.path)} onClose={() => setMenu(null)} />}
     </div>
@@ -133,6 +135,21 @@ function RightPanelToggle() {
       className={cn("flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-accent hover:text-foreground", open && "text-foreground")}
     >
       <PanelRight className="size-4" />
+    </button>
+  );
+}
+
+/** 집중 모드로 바로 들어가는 불꽃 버튼. 올리면 불이 붙듯 주황빛으로 바뀐다. */
+function FocusModeButton() {
+  return (
+    <button
+      type="button"
+      aria-label="집중 모드"
+      title={`집중 모드 — 글만 남기고 지금 문단에 불을 켜요 (${shortcutLabel("Mod+Shift+D")})`}
+      onClick={() => useUiStore.getState().setFocusMode(true)}
+      className="group/focus flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground transition-colors hover:bg-orange-500/10 hover:text-orange-500"
+    >
+      <Flame className="size-4 transition-transform group-hover/focus:scale-110 group-hover/focus:fill-orange-400/40 group-hover/focus:drop-shadow-[0_0_4px_rgba(249,115,22,0.6)]" />
     </button>
   );
 }

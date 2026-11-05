@@ -52,7 +52,8 @@
     "test:e2e:split-drag": "node e2e/split-drag.e2e.mjs",
     "test:e2e:review-covers": "node e2e/review-covers.e2e.mjs",
     "test:e2e:review-publish": "node e2e/review-publish.e2e.mjs",
-    "test:e2e:save-commit": "node e2e/save-commit.e2e.mjs"
+    "test:e2e:save-commit": "node e2e/save-commit.e2e.mjs",
+    "test:e2e:revise": "node e2e/revise.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

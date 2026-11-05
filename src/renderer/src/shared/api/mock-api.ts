@@ -63,6 +63,7 @@ export function createMockApi(): HandyApi {
   const emptyFolders = new Set<string>();
   const logListeners = new Set<(entry: LogEntry) => void>();
   let rules = "";
+  let reviseRules = "";
   const gitListeners = new Set<(event: GitEvent) => void>();
   let gitSettings: GitSettings = { ...DEFAULT_GIT_SETTINGS };
   let gitStatus: GitStatus = {
@@ -317,6 +318,10 @@ export function createMockApi(): HandyApi {
       get: async () => rules,
       set: async (content) => {
         rules = content;
+      },
+      getRevise: async () => reviseRules,
+      setRevise: async (content) => {
+        reviseRules = content;
       },
     },
     git: {

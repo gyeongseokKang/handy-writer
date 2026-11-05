@@ -122,5 +122,18 @@ await page.getByRole("option", { name: /집중 모드/ }).click();
 assert(await waitFor(async () => (await page.locator("nav[aria-label='글 목록']").count()) === 0), "명령 팔레트로도 켠다");
 await page.keyboard.press("Escape");
 
+// 탭 막대 오른쪽 위의 불꽃 버튼으로 바로 들어간다
+await waitFor(async () => (await page.locator("nav[aria-label='글 목록']").count()) === 1);
+const flame = page.getByRole("button", { name: "집중 모드", exact: true });
+const flameBox = await flame.boundingBox();
+const panelBox = await page.getByRole("button", { name: "오른쪽 패널" }).boundingBox();
+assert(flameBox && panelBox && Math.abs(flameBox.y - panelBox.y) < 2 && flameBox.x < panelBox.x, "불꽃 버튼이 오른쪽 위, 패널 버튼 바로 옆에 있다");
+await flame.hover();
+await sleep(200);
+await page.screenshot({ path: path.join(OUT, "focus-flame.png"), clip: { x: 760, y: 0, width: 520, height: 60 } });
+await flame.click();
+assert(await waitFor(async () => (await page.locator("nav[aria-label='글 목록']").count()) === 0), "불꽃 버튼을 누르면 집중 모드가 켜진다");
+await page.keyboard.press("Escape");
+
 assert(logs.length === 0, `콘솔 오류 없음 ${logs.join(" | ")}`);
 await env.close();

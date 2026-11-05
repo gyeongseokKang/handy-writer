@@ -154,6 +154,9 @@ export interface HandyApi {
   rules: {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
+    /** 퇴고 룰 (`.handy-writer/revise-rules.md`) */
+    getRevise: () => Promise<string>;
+    setRevise: (content: string) => Promise<void>;
   };
   extract: {
     /** 웹 페이지의 본문(유튜브면 설명·자막)을 뽑는다. */
@@ -295,6 +298,8 @@ export const IPC = {
   attachmentsReveal: "attachments:reveal",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
+  reviseRulesGet: "rules:get-revise",
+  reviseRulesSet: "rules:set-revise",
   extractFromUrl: "extract:from-url",
   tagsSuggest: "tags:suggest",
   writingStatsGet: "writing-stats:get",

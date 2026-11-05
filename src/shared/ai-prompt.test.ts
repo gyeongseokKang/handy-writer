@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
-import { buildUserPrompt, extractContinuation, fitReferences } from "./ai-prompt";
+import { buildUserPrompt, extractContinuation, fitReferences, parseRevision } from "./ai-prompt";
 import { EMPTY_BRIEF } from "./draft";
 
 const base: AiRequest = {
@@ -166,5 +166,23 @@ describe("extractContinuation", () => {
   });
   it("falls back to the whole answer when the model did not use the tag", () => {
     expect(extractContinuation("이어서 쓴 문장입니다.")).toBe("이어서 쓴 문장입니다.");
+  });
+});
+
+describe("revise", () => {
+  const base: AiRequest = { runId: "r", task: "revise", rules: "", noteName: "글", text: "본문", before: "", instruction: "", templatePrompt: "", web: false, groundedOnly: false, references: [] };
+  it("uses my revise rules, or the default criteria when there are none", () => {
+    expect(buildUserPrompt({ ...base, reviseRules: "- 문장은 50자 안으로" })).toContain("<revise_rules>\n- 문장은 50자 안으로\n</revise_rules>");
+    const fallback = buildUserPrompt({ ...base, reviseRules: "" });
+    expect(fallback).toContain("군더더기");
+    expect(fallback).toContain("기본 기준");
+    expect(fallback).toContain("<revised>");
+  });
+  it("splits the answer into the revised text and the notes, dropping thinking outside the tags", () => {
+    const answer = "먼저 살펴보면…\n<revised>\n고친 글입니다.\n\n둘째 문단.</revised>\n<notes>\n- 군더더기 삭제: 같은 말이 반복됨\n- 문단 순서: 결론을 뒤로\n</notes>\n끝";
+    expect(parseRevision(answer)).toEqual({ revised: "고친 글입니다.\n\n둘째 문단.", notes: ["군더더기 삭제: 같은 말이 반복됨", "문단 순서: 결론을 뒤로"] });
+    expect(parseRevision("생각 중 <revised>고친", { streaming: true }).revised).toBe("고친");
+    expect(parseRevision("생각 중", { streaming: true }).revised).toBe("");
+    expect(parseRevision("태그 없는 답").revised).toBe("태그 없는 답");
   });
 });

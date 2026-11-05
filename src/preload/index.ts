@@ -83,6 +83,8 @@ const api: HandyApi = {
   rules: {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
+    getRevise: () => ipcRenderer.invoke(IPC.reviseRulesGet),
+    setRevise: (content) => ipcRenderer.invoke(IPC.reviseRulesSet, content),
   },
   extract: {
     fromUrl: (url) => ipcRenderer.invoke(IPC.extractFromUrl, url),
