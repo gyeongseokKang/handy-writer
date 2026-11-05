@@ -1,4 +1,5 @@
 import type { Editor } from "@tiptap/core";
+import { TextSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Bold, Check, ChevronDown, Code, Italic, Strikethrough } from "lucide-react";
@@ -31,9 +32,13 @@ function Hint({ label, keys }: { label: string; keys: string }) {
 }
 
 /** 선택한 채로 Tab: 블록 종류 메뉴를 연다 (목록·코드 블록 안에서는 원래대로 들여쓰기) */
-const opensBlockMenu = (editor: Editor, event: KeyboardEvent) =>
-  event.key === "Tab" && !event.shiftKey && !event.altKey && !event.metaKey && !event.ctrlKey && !event.isComposing &&
-  !editor.state.selection.empty && !editor.isActive("listItem") && !editor.isActive("taskItem") && !editor.isActive("codeBlock");
+function opensBlockMenu(editor: Editor, event: KeyboardEvent) {
+  if (event.key !== "Tab" || event.shiftKey || event.altKey || event.metaKey || event.ctrlKey || event.isComposing) return false;
+  // 에디터는 브라우저의 선택을 조금 늦게 받아 온다. 막 선택하고 바로 Tab을 눌러도 되게 화면의 선택도 본다.
+  const dom = window.getSelection();
+  const selected = !editor.state.selection.empty || (!!dom && !dom.isCollapsed && editor.view.dom.contains(dom.anchorNode));
+  return selected && !editor.isActive("listItem") && !editor.isActive("taskItem") && !editor.isActive("codeBlock");
+}
 
 function BlockTypeMenu({ editor }: { editor: Editor }) {
   const label = useEditorState({ editor, selector: ({ editor: e }) => currentBlockType(e).label });
@@ -49,6 +54,20 @@ function BlockTypeMenu({ editor }: { editor: Editor }) {
       if (!opensBlockMenu(editor, event)) return;
       event.preventDefault();
       event.stopPropagation();
+      // 에디터가 아직 화면의 선택을 못 받아 왔으면 먼저 옮겨 둔다 (포커스가 메뉴로 가면 더는 받아 오지 않는다).
+      const tr = editor.state.tr;
+      const dom = window.getSelection();
+      if (editor.state.selection.empty && dom?.anchorNode && dom.focusNode) {
+        try {
+          const anchor = editor.view.posAtDOM(dom.anchorNode, dom.anchorOffset);
+          const head = editor.view.posAtDOM(dom.focusNode, dom.focusOffset);
+          tr.setSelection(TextSelection.create(tr.doc, anchor, head));
+        } catch {
+          // 위치를 못 찾으면 그대로 둔다.
+        }
+      }
+      // 선택 막대는 선택하고 잠깐 뒤에 뜬다. 그 전에 Tab을 눌러도 바로 띄워서 메뉴가 화면에 붙어 있게 한다.
+      editor.view.dispatch(tr.setMeta("bubbleMenu", "show"));
       setByKeyboard(true);
       setOpen(true);
     };

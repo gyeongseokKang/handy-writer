@@ -74,6 +74,10 @@ export interface ReviewNotePreview {
   warnings: string[];
   /** 이번 게시로 지울 예전 경로 (분류·주소·날짜를 바꿨을 때) */
   replaces: string | null;
+  /** 저장소에 지금 있는 리뷰 글 내용 (옮기기 전 경로 포함). 처음 게시면 null */
+  current?: string | null;
+  /** 지금 게시하면 저장소 글이 바뀌는지 */
+  changed?: boolean;
 }
 
 /** 작업 폴더에서 리뷰 정보에 시리즈를 적은 글 하나 */
@@ -440,12 +444,16 @@ function canonical(value: unknown): string {
   return JSON.stringify(value ?? null);
 }
 
+/** 두 리뷰 글이 내용으로 같은지: 빈 값·기본값과 키 순서, 업데이트 날짜, 앞뒤 공백은 따지지 않는다. */
+export function sameReviewContent(a: { frontmatter: ReviewFrontmatter; body: string }, b: { frontmatter: ReviewFrontmatter; body: string }) {
+  const strip = ({ updated: _u, ...rest }: ReviewFrontmatter) => canonical(cleanFrontmatter({ ...rest } as ReviewFrontmatter));
+  return strip(a.frontmatter) === strip(b.frontmatter) && a.body.trim() === b.body.trim();
+}
+
 export function nextUpdated(input: { previous: { frontmatter: ReviewFrontmatter; body: string } | null; next: { frontmatter: ReviewFrontmatter; body: string }; today: string }): string | undefined {
   const { previous, next, today: now } = input;
   if (!previous) return undefined;
-  // 빈 값과 기본값을 같은 규칙으로 덜어 내고, 키 순서와 상관없이 견준다.
-  const strip = ({ updated: _u, ...rest }: ReviewFrontmatter) => canonical(cleanFrontmatter({ ...rest } as ReviewFrontmatter));
-  const same = strip(previous.frontmatter) === strip(next.frontmatter) && previous.body.trim() === next.body.trim();
+  const same = sameReviewContent(previous, next);
   const kept = previous.frontmatter.updated;
   const updated = same ? kept : now;
   return updated && updated > next.frontmatter.date ? updated : undefined;

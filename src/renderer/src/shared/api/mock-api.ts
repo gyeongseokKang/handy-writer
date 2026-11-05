@@ -92,7 +92,7 @@ export function createMockApi(): HandyApi {
         chooseRepo: async () => config,
         setDeploy: async (deploy) => (config = { ...config, deploy }),
         list: async () => [],
-        previewNote: async (notePath) => ({ path: `src/content/reviews/etc/2026-01-01-${notePath.replace(/\.md$/, "")}.md`, slug: "mock", date: "2026-01-01", markdown: "---\ntitle: mock\n---\n", warnings: [], replaces: null }),
+        previewNote: async (notePath) => ({ path: `src/content/reviews/etc/2026-01-01-${notePath.replace(/\.md$/, "")}.md`, slug: "mock", date: "2026-01-01", markdown: "---\ntitle: mock\n---\n", warnings: [], replaces: null, current: null, changed: true }),
         publishNote: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
         publishNoteAndRecord: async () => { throw new Error("미리보기 화면에서는 게시할 수 없어요."); },
         dashboard: async () => {
