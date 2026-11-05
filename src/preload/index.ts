@@ -111,6 +111,7 @@ const api: HandyApi = {
     init: () => ipcRenderer.invoke(IPC.gitInit),
     setRemote: (url) => ipcRenderer.invoke(IPC.gitSetRemote, url),
     commit: (message) => ipcRenderer.invoke(IPC.gitCommit, message),
+    commitPaths: (paths, message) => ipcRenderer.invoke(IPC.gitCommitPaths, paths, message),
     pull: () => ipcRenderer.invoke(IPC.gitPull),
     push: () => ipcRenderer.invoke(IPC.gitPush),
     forcePull: () => ipcRenderer.invoke(IPC.gitForcePull),

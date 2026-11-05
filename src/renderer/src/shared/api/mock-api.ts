@@ -348,6 +348,13 @@ export function createMockApi(): HandyApi {
         emitGit();
         return nothing ? { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." } : { outcome: "committed", message: "변경을 커밋했어요." };
       },
+      commitPaths: async (paths) => {
+        const hit = gitStatus.changes.filter((change) => paths.includes(change.path));
+        if (hit.length === 0) return { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." };
+        gitStatus = { ...gitStatus, changes: gitStatus.changes.filter((change) => !paths.includes(change.path)), ahead: gitStatus.ahead + 1 };
+        emitGit();
+        return { outcome: "committed", message: "변경을 커밋했어요.", hash: "abc1234" };
+      },
       pull: async () => ({ outcome: "up-to-date", message: "이미 최신이에요." }),
       push: async () => {
         gitStatus = { ...gitStatus, ahead: 0 };

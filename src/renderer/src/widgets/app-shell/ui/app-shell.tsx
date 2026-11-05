@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { useLogStore } from "@/entities/log/model/use-log-store";
 import { api } from "@/shared/api/handy-api";
 import { flushAll, unsavedPaths } from "@/shared/lib/pending-saves";
+import { saveAndCommit } from "../model/save-commit";
 import { shortcutLabel } from "@/shared/lib/shortcut";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
@@ -140,7 +141,11 @@ export function AppShell() {
         return;
       }
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      if (event.key === "\\") {
+      if (event.key.toLowerCase() === "s") {
+        // 저장은 늘 저절로 된다. Cmd/Ctrl+S는 지금 글을 커밋해 '여기까지'를 기록에 남긴다.
+        event.preventDefault();
+        void saveAndCommit();
+      } else if (event.key === "\\") {
         event.preventDefault();
         toggleSplit();
       } else if (/^[1-9]$/.test(event.key) && ws.tabs.length > 0) {

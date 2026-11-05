@@ -7,6 +7,7 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { toggleSplit } from "@/features/note-tabs/ui/tab-bar";
 import { createReviewNote, makeCurrentNoteReview } from "@/features/review/model/review-actions";
+import { saveAndCommit } from "./save-commit";
 
 const ui = () => useUiStore.getState();
 const ws = () => useWorkspaceStore.getState();
@@ -57,6 +58,7 @@ export function buildCommands(): Command[] {
         if (!useEditorBridge.getState().bridge?.splitImageRow()) toast.info("나란히 놓은 이미지 줄에 커서를 두고 실행해 주세요.");
       },
     },
+    { id: "note.commit", group: "글", title: "지금 글 커밋 (여기까지 기록에 남기기)", shortcut: "Mod+S", keywords: ["저장", "save", "commit", "git"], enabled: hasNote, run: () => void saveAndCommit() },
     { id: "note.copy-rich", group: "글", title: "서식 있는 글로 복사", shortcut: "Mod+Shift+C", keywords: ["copy", "블로그", "html"], enabled: hasNote, run: () => ui().requestEditor("copy-rich") },
     { id: "note.export-md", group: "글", title: "마크다운으로 내보내기", keywords: ["export", "md"], enabled: hasNote, run: () => ui().requestEditor("export-md") },
     { id: "note.export-html", group: "글", title: "HTML로 내보내기", keywords: ["export", "웹 문서"], enabled: hasNote, run: () => ui().requestEditor("export-html") },
