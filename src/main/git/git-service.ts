@@ -158,6 +158,25 @@ export class GitService {
     return { outcome: "committed", message: "변경을 커밋했어요." };
   }
 
+  /** 정한 파일만 커밋한다 (Cmd+S: 지금 글과 그 글의 첨부). 다른 파일의 변경·스테이징은 건드리지 않고, 푸시하지 않는다. */
+  commitPaths(root: string, paths: string[], message: string): Promise<GitOpResult & { hash?: string }> {
+    return this.enqueue(root, async () => {
+      const status = await this.readStatus(root);
+      if (!status.isRepo) throw new Error("아직 git 저장소가 아니에요.");
+      const changed = new Set(status.changes.map((change) => change.path));
+      if (status.changes.some((change) => change.kind === "conflicted" && paths.includes(change.path))) {
+        throw new Error("충돌이 해결되지 않은 글이라 커밋할 수 없어요.");
+      }
+      const targets = [...new Set(paths)].filter((path) => changed.has(path));
+      if (targets.length === 0) return { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." };
+      await runGit(root, ["add", "-A", "--", ...targets]).catch(fail);
+      // 경로를 주고 커밋하면 다른 파일에 스테이징해 둔 것은 이번 커밋에 들어가지 않는다.
+      await runGit(root, ["commit", "-m", message.trim() || formatCommitMessage(""), "--", ...targets]).catch(fail);
+      const hash = (await runGit(root, ["rev-parse", "--short", "HEAD"], { readOnly: true }).catch(fail)).stdout.trim();
+      return { outcome: "committed", message: "변경을 커밋했어요.", hash };
+    });
+  }
+
   pull(root: string): Promise<GitOpResult> {
     return this.enqueue(root, () => this.doPull(root));
   }

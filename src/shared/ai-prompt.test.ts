@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
-import { buildUserPrompt, fitReferences } from "./ai-prompt";
+import { buildUserPrompt, extractContinuation, fitReferences, parseRevision } from "./ai-prompt";
 import { EMPTY_BRIEF } from "./draft";
 
 const base: AiRequest = {
@@ -152,5 +152,37 @@ describe("초안 자료", () => {
   it("자료가 없으면 <sources>를 넣지 않고, 다른 작업에는 자료를 넣지 않는다", () => {
     expect(buildUserPrompt({ ...draftRequest, sources: [] })).not.toContain("<sources>");
     expect(buildUserPrompt({ ...base, sources: [video] })).not.toContain("<sources>");
+  });
+});
+
+describe("extractContinuation", () => {
+  it("keeps only the text inside the tag, dropping thinking outside it", () => {
+    expect(extractContinuation("이 문단은 소제목 아래에 있고, after와 이어져야 한다.\n<continuation>\n처음에는 눈치가 보였는데</continuation>\n끝")).toBe("처음에는 눈치가 보였는데");
+  });
+  it("shows what has arrived so far while streaming", () => {
+    expect(extractContinuation("생각 중…<continuation>처음에는 눈", { streaming: true })).toBe("처음에는 눈");
+    expect(extractContinuation("<continuation>처음에는</contin", { streaming: true })).toBe("처음에는");
+    expect(extractContinuation("이 문단은 소제목 아래에", { streaming: true })).toBe("");
+  });
+  it("falls back to the whole answer when the model did not use the tag", () => {
+    expect(extractContinuation("이어서 쓴 문장입니다.")).toBe("이어서 쓴 문장입니다.");
+  });
+});
+
+describe("revise", () => {
+  const base: AiRequest = { runId: "r", task: "revise", rules: "", noteName: "글", text: "본문", before: "", instruction: "", templatePrompt: "", web: false, groundedOnly: false, references: [] };
+  it("uses my revise rules, or the default criteria when there are none", () => {
+    expect(buildUserPrompt({ ...base, reviseRules: "- 문장은 50자 안으로" })).toContain("<revise_rules>\n- 문장은 50자 안으로\n</revise_rules>");
+    const fallback = buildUserPrompt({ ...base, reviseRules: "" });
+    expect(fallback).toContain("군더더기");
+    expect(fallback).toContain("기본 기준");
+    expect(fallback).toContain("<revised>");
+  });
+  it("splits the answer into the revised text and the notes, dropping thinking outside the tags", () => {
+    const answer = "먼저 살펴보면…\n<revised>\n고친 글입니다.\n\n둘째 문단.</revised>\n<notes>\n- 군더더기 삭제: 같은 말이 반복됨\n- 문단 순서: 결론을 뒤로\n</notes>\n끝";
+    expect(parseRevision(answer)).toEqual({ revised: "고친 글입니다.\n\n둘째 문단.", notes: ["군더더기 삭제: 같은 말이 반복됨", "문단 순서: 결론을 뒤로"] });
+    expect(parseRevision("생각 중 <revised>고친", { streaming: true }).revised).toBe("고친");
+    expect(parseRevision("생각 중", { streaming: true }).revised).toBe("");
+    expect(parseRevision("태그 없는 답").revised).toBe("태그 없는 답");
   });
 });

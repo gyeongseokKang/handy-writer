@@ -18,7 +18,8 @@ function RightPanelResizeHandle() {
   const width = useUiStore((s) => s.rightPanelWidth);
   const setWidth = useUiStore((s) => s.setRightPanelWidth);
   return (
-    <PanelResizeHandle edge="left" width={width} setWidth={setWidth} min={MIN_RIGHT_PANEL_WIDTH} max={MAX_RIGHT_PANEL_WIDTH} fallback={DEFAULT_RIGHT_PANEL_WIDTH} label="오른쪽 패널 너비 조절" />
+    <PanelResizeHandle edge="left" width={width} setWidth={setWidth} min={MIN_RIGHT_PANEL_WIDTH} max={MAX_RIGHT_PANEL_WIDTH} fallback={DEFAULT_RIGHT_PANEL_WIDTH} label="오른쪽 패널 너비 조절"
+      onCollapse={() => useUiStore.getState().toggleRightPanel()} collapseShortcut="Mod+Alt+]" />
   );
 }
 

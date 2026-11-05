@@ -40,10 +40,22 @@ const TASK_INSTRUCTIONS = {
     "<text>의 글을 글쓰기 룰에 맞게 자연스럽게 다듬으세요. 의미와 사실은 바꾸지 말고 문장과 표현만 개선합니다. 다듬은 전체 글만 출력하세요.",
   proofread:
     "<text>의 글에서 맞춤법, 띄어쓰기, 문장부호, 오탈자만 고치세요. 문체, 어휘, 문장 구조는 바꾸지 않습니다. 고친 전체 글만 출력하고, 고칠 곳이 없으면 원문을 그대로 출력하세요.",
+  revise:
+    "<text>의 글을 퇴고하세요. 퇴고는 맞춤법 교정이나 표현 다듬기보다 넓게, 글 전체를 다시 읽고 무엇을 빼고 무엇을 고칠지 판단하는 일입니다. 아래 퇴고 기준을 따라 고치되, 글쓴이의 주장·사실·목소리는 바꾸지 마세요. 새 내용이나 사실을 지어내지 말고, 필요하면 빼거나 줄이거나 순서를 바꾸세요. 마크다운 서식(제목, 목록, 인용, [[위키링크]])은 그대로 두세요. 고친 전체 글을 <revised>와 </revised> 사이에, 무엇을 왜 고쳤는지 중요한 것부터 다섯 개 안팎을 <notes>와 </notes> 사이에 `- 고친 점: 까닭` 한 줄씩 쓰세요. 생각이나 설명은 태그 밖에 쓰지 마세요.",
   continue:
-    "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 마지막 글자 바로 뒤에 이어 붙일 글만 출력하세요.",
+    "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 어떻게 쓸지에 대한 생각, 설명, 분석은 쓰지 말고, 마지막 글자 바로 뒤에 이어 붙일 글만 <continuation>과 </continuation> 사이에 쓰세요. 태그 밖에는 아무것도 쓰지 마세요.",
   custom: "다음 지시에 따라 <text>의 글을 처리하세요. 결과 글만 출력하세요.",
 } as const;
+
+/** 퇴고 룰이 비어 있을 때 쓰는 기본 퇴고 기준 (퇴고 룰 입력칸의 예시와 같다) */
+export const DEFAULT_REVISE_RULES = [
+  "- 같은 말과 군더더기(사실, 정말, ~하는 것 같다 등)를 뺀다",
+  "- 한 문장에는 생각 하나만 담고, 너무 긴 문장은 나눈다",
+  "- 주어와 서술어, 앞뒤 문장의 호응을 맞춘다",
+  "- 문단마다 중심 문장이 있는지 보고, 흐름이 어긋난 문단은 순서를 바꾸거나 잇는 말을 넣는다",
+  "- 추상적인 말은 구체적인 예나 숫자로 바꾸되, 없는 사실은 지어내지 않는다",
+  "- 처음과 끝이 같은 이야기를 하는지 확인한다",
+].join("\n");
 
 /** 템플릿 블록의 출력 규칙. 웹 검색 허용 여부에 따라 사실을 다루는 방식이 달라진다. */
 function templateOutputRules(request: AiRequest) {
@@ -116,10 +128,55 @@ export function buildUserPrompt(request: AiRequest, projectSections: string[] = 
     sections.push(`<text>\n${clip(request.text, MAX_TEXT_CHARS, "start")}\n</text>`);
   }
 
+  if (request.task === "revise") {
+    const own = request.reviseRules?.trim();
+    sections.push(`<revise_rules>\n${own || DEFAULT_REVISE_RULES}\n</revise_rules>\n위 퇴고 기준을 따르세요.${own ? "" : " (글쓴이가 정한 퇴고 룰이 없어 기본 기준이에요.)"}`);
+  }
+
   let task: string = TASK_INSTRUCTIONS[request.task];
   const instruction = request.instruction.trim();
   if (instruction) task += request.task === "custom" ? `\n지시: ${instruction}` : `\n추가 요청: ${instruction}`;
   sections.push(task);
 
   return sections.join("\n\n");
+}
+
+const CONTINUATION_OPEN = "<continuation>";
+const CONTINUATION_CLOSE = "</continuation>";
+
+/**
+ * 이어쓰기 답에서 이어 붙일 글만 꺼낸다. 모델이 태그 밖에 생각이나 설명을 늘어놓아도 버린다.
+ * 아직 받는 중이면 여는 태그 뒤부터 지금까지, 끝났는데 태그를 안 썼으면 답 전체(옛 모델·가짜 CLI).
+ */
+export function extractContinuation(text: string, { streaming = false } = {}): string {
+  const open = text.lastIndexOf(CONTINUATION_OPEN);
+  // 받는 중에 여는 태그가 아직 없으면 모델이 생각을 쓰는 중일 수 있어 보여 주지 않는다 (끝나면 태그가 없을 때만 전체를 쓴다).
+  if (open === -1) return streaming ? "" : text;
+  const rest = text.slice(open + CONTINUATION_OPEN.length);
+  const close = rest.indexOf(CONTINUATION_CLOSE);
+  const body = close === -1 ? rest.replace(/<\/?[a-z]*$/i, "") : rest.slice(0, close);
+  return body.replace(/^\s*\n/, "");
+}
+
+/** 태그 하나의 안쪽 글. 받는 중이면 여는 태그 뒤부터 지금까지, 닫는 태그의 앞부분은 떼어 낸다. 태그가 없으면 null */
+function tagged(text: string, tag: string): string | null {
+  const open = text.indexOf(`<${tag}>`);
+  if (open === -1) return null;
+  const rest = text.slice(open + tag.length + 2);
+  const close = rest.indexOf(`</${tag}>`);
+  return (close === -1 ? rest.replace(/<\/?[a-z]*$/i, "") : rest.slice(0, close)).replace(/^\s*\n/, "").replace(/\s+$/, "");
+}
+
+/**
+ * 퇴고 답을 고친 글과 고친 점으로 나눈다. 태그 밖의 생각은 버린다.
+ * 끝났는데 <revised>가 없으면(태그를 안 쓴 답) 답 전체를 고친 글로 본다. 받는 중에 아직 없으면 빈 글.
+ */
+export function parseRevision(text: string, { streaming = false } = {}): { revised: string; notes: string[] } {
+  const revised = tagged(text, "revised");
+  const notes = (tagged(text, "notes") ?? "")
+    .split("\n")
+    .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
+    .filter(Boolean);
+  if (revised === null) return { revised: streaming ? "" : text.trim(), notes };
+  return { revised, notes };
 }

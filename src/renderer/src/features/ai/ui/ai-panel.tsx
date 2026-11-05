@@ -1,4 +1,4 @@
-import { BookOpen, Check, CopyPlus, FileText, Loader2, PenLine, Plus, SpellCheck, Sparkles, Square, TextCursorInput, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Copy, CopyPlus, FileText, History, ListChecks, Loader2, PenLine, Plus, ScanText, SpellCheck, Sparkles, Square, TextCursorInput, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -7,7 +7,10 @@ import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-st
 import { useReferenceStore } from "@/entities/note/model/use-reference-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+
+import { DEFAULT_REVISE_RULES } from "@shared/ai-prompt";
 
 import { TASK_LABEL, useAiStore } from "../model/use-ai-store";
 import { DiffView } from "./diff-view";
@@ -170,35 +173,56 @@ function References() {
   );
 }
 
-function Rules() {
-  const rules = useAiStore((s) => s.rules);
-  const saved = useAiStore((s) => s.rulesSaved);
-  const setRules = useAiStore((s) => s.setRules);
-  const saveRules = useAiStore((s) => s.saveRules);
-  const dirty = rules !== saved;
-
+/** 룰 한 칸 (글쓰기 룰·퇴고 룰). 접어 두어도 무엇이 적혀 있는지 머리줄에 줄 수와 첫 줄이 보인다. */
+function RulesEditor({ icon, title, label, value, saved, onChange, onSave, placeholder, file, emptyHint }: {
+  icon: React.ReactNode; title: string; label: string; value: string; saved: string; onChange: (v: string) => void; onSave: () => void;
+  placeholder: string; file: string; emptyHint: string;
+}) {
+  const dirty = value !== saved;
+  const lines = saved.split("\n").map((l) => l.trim()).filter(Boolean);
+  const first = lines[0]?.replace(/^[-*•]\s*/, "") ?? "";
   return (
     <details className="group px-4 py-3">
-      <summary className="flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-muted-foreground select-none">
-        <PenLine className="size-3.5" /> 나의 글쓰기 룰 {saved.trim() ? "" : "(비어 있음)"}
+      <summary className="flex cursor-pointer list-none items-center gap-1.5 text-xs font-semibold text-muted-foreground select-none [&::-webkit-details-marker]:hidden">
+        <ChevronRight className="size-3.5 shrink-0 transition-transform group-open:rotate-90" />
+        {icon} {title}
+        {lines.length > 0 ? (
+          <span className="ml-auto shrink-0 rounded-full bg-primary/10 px-1.5 py-px text-[10px] font-medium text-primary">{lines.length}줄</span>
+        ) : (
+          <span className="ml-auto shrink-0 text-[10px] font-normal">{emptyHint}</span>
+        )}
+        {dirty && <span className="shrink-0 text-[10px] font-normal text-amber-600" title="저장 안 한 변경이 있어요">● 저장 안 함</span>}
       </summary>
+      {first && <p className="mt-1 truncate pl-5 text-[11px] text-muted-foreground group-open:hidden" title={lines.join("\n")}>{first}{lines.length > 1 ? ` 외 ${lines.length - 1}줄` : ""}</p>}
       <div className="mt-2 space-y-2">
-        <textarea
-          value={rules}
-          onChange={(event) => setRules(event.target.value)}
-          placeholder={RULES_PLACEHOLDER}
-          aria-label="글쓰기 룰"
-          rows={8}
-          className={`${fieldClass} resize-y`}
-        />
+        <textarea value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} aria-label={label} rows={8} className={`${fieldClass} resize-y`} />
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">작업 폴더의 .handy-writer/rules.md에 저장돼요</p>
-          <Button size="sm" disabled={!dirty} onClick={() => void saveRules()}>
-            저장
-          </Button>
+          <p className="text-xs text-muted-foreground">작업 폴더의 {file}에 저장돼요</p>
+          <Button size="sm" disabled={!dirty} onClick={onSave}>저장</Button>
         </div>
       </div>
     </details>
+  );
+}
+
+function Rules() {
+  const rules = useAiStore((s) => s.rules);
+  const saved = useAiStore((s) => s.rulesSaved);
+  const { setRules, saveRules } = useAiStore.getState();
+  return (
+    <RulesEditor icon={<PenLine className="size-3.5" />} title="나의 글쓰기 룰" label="글쓰기 룰" value={rules} saved={saved} onChange={setRules} onSave={() => void saveRules()}
+      placeholder={RULES_PLACEHOLDER} file=".handy-writer/rules.md" emptyHint="비어 있음" />
+  );
+}
+
+/** 퇴고 기준. 비어 있으면 기본 퇴고 기준을 쓴다. */
+function ReviseRules() {
+  const rules = useAiStore((s) => s.reviseRules);
+  const saved = useAiStore((s) => s.reviseRulesSaved);
+  const { setReviseRules, saveReviseRules } = useAiStore.getState();
+  return (
+    <RulesEditor icon={<ListChecks className="size-3.5" />} title="나의 퇴고 룰" label="퇴고 룰" value={rules} saved={saved} onChange={setReviseRules} onSave={() => void saveReviseRules()}
+      placeholder={`비워 두면 이 기본 기준으로 퇴고해요\n${DEFAULT_REVISE_RULES}`} file=".handy-writer/revise-rules.md" emptyHint="기본 기준 사용" />
   );
 }
 
@@ -212,7 +236,7 @@ function Result() {
   if (run.phase === "idle" || !run.task) return null;
 
   const canReplace = run.task !== "continue";
-  const canDiff = run.task === "proofread" || run.task === "polish";
+  const canDiff = run.task === "proofread" || run.task === "polish" || run.task === "revise";
   const copy = () => void navigator.clipboard.writeText(run.output).then(() => toast.success("결과를 복사했어요."));
 
   return (
@@ -245,6 +269,15 @@ function Result() {
               {run.output || "…"}
             </p>
           )}
+        </div>
+      )}
+
+      {run.task === "revise" && run.phase === "done" && run.notes.length > 0 && (
+        <div aria-label="퇴고에서 고친 점" className="space-y-1 rounded-md border bg-muted/40 p-2.5">
+          <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"><ListChecks className="size-3.5" /> 고친 점</p>
+          <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-5">
+            {run.notes.map((note, i) => <li key={i}>{note}</li>)}
+          </ol>
         </div>
       )}
 
@@ -284,6 +317,105 @@ function Result() {
   );
 }
 
+function timeAgo(iso: string) {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (Number.isNaN(minutes)) return "";
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return new Date(iso).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+/** 끝난 결과 기록: 적용하거나 닫아도 남아서 다시 펼쳐 보고 복사·삽입한다. 작업 폴더마다 따로 기억한다. */
+function HistoryList() {
+  const history = useAiStore((s) => s.history);
+  const activePath = useWorkspaceStore((s) => s.activePath);
+  const [scope, setScope] = useState<"note" | "all">("note");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const mine = history.filter((i) => i.notePath === activePath);
+  const shown = scope === "note" ? mine : history;
+  if (history.length === 0) return null;
+  const { removeHistory, insertHistory, clearHistory } = useAiStore.getState();
+  const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success("결과를 복사했어요."));
+
+  return (
+    <section aria-label="지난 AI 결과" className="space-y-2 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><History className="size-3.5" /> 지난 결과</h2>
+        <div role="tablist" aria-label="기록 범위" className="ml-auto flex rounded-md bg-muted p-0.5 text-[11px]">
+          {(["note", "all"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={scope === key}
+              onClick={() => setScope(key)}
+              className={cn("rounded px-2 py-0.5 text-muted-foreground", scope === key && "bg-background text-foreground shadow-sm")}
+            >
+              {key === "note" ? `이 글 ${mine.length}` : `전체 ${history.length}`}
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="py-2 text-center text-xs text-muted-foreground">이 글에서 받은 결과가 아직 없어요.</p>
+      ) : (
+        <ul className="space-y-1">
+          {shown.map((item) => {
+            const open = openId === item.id;
+            return (
+              <li key={item.id} className="rounded-md border bg-background">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenId(open ? null : item.id)}
+                  className="flex w-full items-start gap-1.5 px-2 py-1.5 text-left hover:bg-accent/50"
+                >
+                  <ChevronRight className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="font-medium">{TASK_LABEL[item.task]}</span>
+                      <span className="text-muted-foreground">{timeAgo(item.at)}</span>
+                      {scope === "all" && item.noteName && <span className="truncate text-muted-foreground">· {item.noteName}</span>}
+                    </span>
+                    {!open && <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.output}</span>}
+                  </span>
+                </button>
+                {open && (
+                  <div className="space-y-2 border-t px-2 py-2">
+                    {item.instruction && <p className="text-[11px] text-muted-foreground">요청: {item.instruction}</p>}
+                    {item.notes?.length ? (
+                      <ol aria-label="고친 점" className="list-decimal space-y-0.5 rounded bg-muted/40 py-1.5 pr-2 pl-6 text-[11px] leading-5 text-muted-foreground">
+                        {item.notes.map((note, i) => <li key={i}>{note}</li>)}
+                      </ol>
+                    ) : null}
+                    <p aria-label="지난 결과 글" className="max-h-72 overflow-y-auto text-sm leading-7 break-words whitespace-pre-wrap">{item.output}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => insertHistory(item.id)}><CopyPlus /> 아래에 삽입</Button>
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => copy(item.output)}><Copy /> 복사</Button>
+                      <Button size="sm" variant="ghost" className="ml-auto h-7 text-muted-foreground" onClick={() => removeHistory(item.id)}><Trash2 /> 지우기</Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {scope === "all" && history.length > 1 && (
+        <button
+          type="button"
+          className="text-[11px] text-muted-foreground underline"
+          onClick={() => window.confirm("지난 AI 결과를 모두 지울까요?") && clearHistory()}
+        >
+          기록 모두 지우기
+        </button>
+      )}
+    </section>
+  );
+}
+
 export function AiPanel() {
   const status = useAiStore((s) => s.status);
   const running = useAiStore((s) => s.run.phase === "running");
@@ -296,6 +428,7 @@ export function AiPanel() {
 
   useEffect(() => void refreshStatus(), [refreshStatus]);
   useEffect(() => void loadRules(), [loadRules, root]);
+  useEffect(() => useAiStore.getState().loadHistory(root), [root]);
 
   const disabled = running || status?.available === false;
 
@@ -312,10 +445,13 @@ export function AiPanel() {
           <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("polish")}>
             <Sparkles /> 다듬기
           </Button>
+          <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("revise")} title="나의 퇴고 룰(없으면 기본 기준)로 글 전체를 다시 보고 빼고 고쳐요. 고친 점도 알려 줘요">
+            <ScanText /> 퇴고
+          </Button>
           <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("continue")}>
             <TextCursorInput /> 이어쓰기
           </Button>
-          <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("custom")}>
+          <Button variant="outline" size="sm" className="col-span-2" disabled={disabled} onClick={() => void start("custom")}>
             지시대로 처리
           </Button>
         </div>
@@ -333,8 +469,10 @@ export function AiPanel() {
       </section>
 
       <Result />
+      <HistoryList />
       <References />
       <Rules />
+      <ReviseRules />
     </div>
   );
 }

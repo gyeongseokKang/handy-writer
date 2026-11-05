@@ -66,13 +66,26 @@ process.stdin.on("end", async () => {
   }
 
   const text = input.match(/<text>\n([\s\S]*?)\n<\/text>/)?.[1];
+  // 퇴고: 실제 모델처럼 태그 밖에 생각을 쓰고, 고친 글과 고친 점을 태그로 나눠 답한다. 받은 퇴고 기준의 첫 줄을 고친 점에 드러낸다.
+  if (text !== undefined && input.includes("<revise_rules>")) {
+    const rule = input.match(/<revise_rules>\n([^\n]*)/)?.[1] ?? "";
+    const revised = text.replace(/정말 /g, "").replace(/사실 /g, "");
+    const answer = `글을 읽어 보니 군더더기가 있다.\n<revised>\n${revised}</revised>\n<notes>\n- 군더더기 삭제: '정말', '사실'을 뺐어요\n- 기준 적용: ${rule.replace(/^[-*]\s*/, "")}\n</notes>`;
+    delta(answer.slice(0, 20));
+    delta(answer.slice(20));
+    return out({ type: "result", subtype: "success", is_error: false, result: answer });
+  }
   const result =
     text !== undefined
       ? text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다")
       : "이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요.";
 
-  const mid = Math.ceil(result.length / 2);
-  delta(result.slice(0, mid));
-  delta(result.slice(mid));
-  out({ type: "result", subtype: "success", is_error: false, result });
+  // 이어쓰기는 실제 모델처럼 태그 밖에 생각을 늘어놓고 <continuation> 안에 답을 쓴다 (앱이 태그 안만 쓰는지 시험).
+  const answer = text === undefined && input.includes("<continuation>")
+    ? `이 문단은 소제목 아래에 있고 after와 이어져야 한다.\n<continuation>\n${result}</continuation>\n그러니 이렇게 쓰면 된다.`
+    : result;
+  const mid = Math.ceil(answer.length / 2);
+  delta(answer.slice(0, mid));
+  delta(answer.slice(mid));
+  out({ type: "result", subtype: "success", is_error: false, result: answer });
 });

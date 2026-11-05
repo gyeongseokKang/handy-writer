@@ -1,4 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { copyFile, mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { countChars, dateKey, writtenToday, type TodayFiles, type WritingDays, type WritingStats } from "../shared/writing-stats";
@@ -33,14 +34,45 @@ export class WritingStatsStore {
 
   private async load(): Promise<StatsFile> {
     if (this.data) return this.data;
-    this.loading ??= readFile(this.file, "utf8")
-      .then((text) => {
-        const value = JSON.parse(text) as StatsFile;
-        return value?.version === 1 && value.roots && typeof value.roots === "object" ? value : { version: 1 as const, roots: {} };
-      })
-      .catch(() => ({ version: 1 as const, roots: {} }));
+    this.loading ??= this.readSafely();
     this.data = await this.loading;
     return this.data;
+  }
+
+  /**
+   * 기록 파일을 읽는다. 깨져 있으면(쓰다가 앱이 꺼진 경우 등) 빈 기록으로 덮어쓰지 않고,
+   * 깨진 파일은 따로 남긴 뒤 마지막으로 잘 읽었던 백업(.bak)에서 되살린다.
+   * 잘 읽히면 그 내용을 백업으로 남겨 둔다.
+   */
+  private async readSafely(): Promise<StatsFile> {
+    const empty = (): StatsFile => ({ version: 1, roots: {} });
+    const parse = (text: string): StatsFile | null => {
+      try {
+        const value = JSON.parse(text) as StatsFile;
+        return value?.version === 1 && value.roots && typeof value.roots === "object" ? value : null;
+      } catch {
+        return null;
+      }
+    };
+    let text: string;
+    try {
+      text = await readFile(this.file, "utf8");
+    } catch {
+      // 파일이 없으면(처음) 백업이 있는지만 본다.
+      const backup = await readFile(this.backup, "utf8").then(parse, () => null);
+      return backup ?? empty();
+    }
+    const value = parse(text);
+    if (value) {
+      await copyFile(this.file, this.backup).catch(() => {});
+      return value;
+    }
+    await rename(this.file, `${this.file}.broken-${Date.now()}`).catch(() => {});
+    return (await readFile(this.backup, "utf8").then(parse, () => null)) ?? empty();
+  }
+
+  private get backup() {
+    return `${this.file}.bak`;
   }
 
   /** 날짜가 바뀌었으면 어제까지의 기록을 접고 오늘을 새로 시작한다. */
@@ -89,12 +121,26 @@ export class WritingStatsStore {
     }, SAVE_DELAY_MS);
   }
 
-  /** 앱을 끄기 전이나 테스트에서 바로 파일에 쓴다. */
+  /** 앱을 끄기 전이나 테스트에서 바로 파일에 쓴다. 임시 파일에 다 쓴 뒤 바꿔 끼워서, 중간에 꺼져도 기록 파일이 깨지지 않는다. */
   async flush() {
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
     if (!this.data) return;
     await mkdir(dirname(this.file), { recursive: true });
-    await writeFile(this.file, JSON.stringify(this.data), "utf8");
+    const tmp = `${this.file}.tmp`;
+    await writeFile(tmp, JSON.stringify(this.data), "utf8");
+    await rename(tmp, this.file);
+  }
+
+  /** 앱이 꺼질 때: 기다려 주지 않으므로 그 자리에서 끝까지 쓴다. */
+  flushSync() {
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    if (!this.data) return;
+    mkdirSync(dirname(this.file), { recursive: true });
+    const tmp = `${this.file}.tmp`;
+    writeFileSync(tmp, JSON.stringify(this.data), "utf8");
+    renameSync(tmp, this.file);
   }
 }
+

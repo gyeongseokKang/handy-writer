@@ -83,6 +83,8 @@ const api: HandyApi = {
   rules: {
     get: () => ipcRenderer.invoke(IPC.rulesGet),
     set: (content) => ipcRenderer.invoke(IPC.rulesSet, content),
+    getRevise: () => ipcRenderer.invoke(IPC.reviseRulesGet),
+    setRevise: (content) => ipcRenderer.invoke(IPC.reviseRulesSet, content),
   },
   extract: {
     fromUrl: (url) => ipcRenderer.invoke(IPC.extractFromUrl, url),
@@ -111,6 +113,7 @@ const api: HandyApi = {
     init: () => ipcRenderer.invoke(IPC.gitInit),
     setRemote: (url) => ipcRenderer.invoke(IPC.gitSetRemote, url),
     commit: (message) => ipcRenderer.invoke(IPC.gitCommit, message),
+    commitPaths: (paths, message) => ipcRenderer.invoke(IPC.gitCommitPaths, paths, message),
     pull: () => ipcRenderer.invoke(IPC.gitPull),
     push: () => ipcRenderer.invoke(IPC.gitPush),
     forcePull: () => ipcRenderer.invoke(IPC.gitForcePull),

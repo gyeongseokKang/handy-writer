@@ -154,6 +154,9 @@ export interface HandyApi {
   rules: {
     get: () => Promise<string>;
     set: (content: string) => Promise<void>;
+    /** 퇴고 룰 (`.handy-writer/revise-rules.md`) */
+    getRevise: () => Promise<string>;
+    setRevise: (content: string) => Promise<void>;
   };
   extract: {
     /** 웹 페이지의 본문(유튜브면 설명·자막)을 뽑는다. */
@@ -185,6 +188,8 @@ export interface HandyApi {
     init: () => Promise<GitStatus>;
     setRemote: (url: string) => Promise<GitStatus>;
     commit: (message: string) => Promise<GitOpResult>;
+    /** 정한 파일만 커밋한다(푸시 안 함). 커밋했으면 짧은 해시를 돌려준다 */
+    commitPaths: (paths: string[], message: string) => Promise<GitOpResult & { hash?: string }>;
     pull: () => Promise<GitOpResult>;
     push: () => Promise<GitOpResult>;
     /** 내 변경을 백업 브랜치에 남기고 원격과 똑같이 맞춘다 */
@@ -293,6 +298,8 @@ export const IPC = {
   attachmentsReveal: "attachments:reveal",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
+  reviseRulesGet: "rules:get-revise",
+  reviseRulesSet: "rules:set-revise",
   extractFromUrl: "extract:from-url",
   tagsSuggest: "tags:suggest",
   writingStatsGet: "writing-stats:get",
@@ -305,6 +312,7 @@ export const IPC = {
   gitInit: "git:init",
   gitSetRemote: "git:set-remote",
   gitCommit: "git:commit",
+  gitCommitPaths: "git:commit-paths",
   gitPull: "git:pull",
   gitPush: "git:push",
   gitForcePull: "git:force-pull",

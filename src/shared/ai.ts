@@ -1,7 +1,7 @@
 import type { DraftBrief } from "./draft";
 import type { DraftSource } from "./draft-sources";
 
-export type AiTask = "polish" | "proofread" | "continue" | "custom" | "template" | "outline" | "draft";
+export type AiTask = "polish" | "proofread" | "revise" | "continue" | "custom" | "template" | "outline" | "draft";
 
 export interface AiReference {
   name: string;
@@ -14,6 +14,8 @@ export interface AiRequest {
   task: AiTask;
   /** 글쓰기 룰(`.handy-writer/rules.md`) 내용 */
   rules: string;
+  /** revise: 퇴고 룰(`.handy-writer/revise-rules.md`). 메인 프로세스가 파일에서 읽어 채운다 */
+  reviseRules?: string;
   /** 현재 글의 이름 */
   noteName: string;
   /** 다듬거나 교정할 대상 (continue에서는 쓰지 않는다) */

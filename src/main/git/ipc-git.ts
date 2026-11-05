@@ -94,6 +94,9 @@ export function createGitIpc(requireRoot: () => string) {
     ipcMain.handle(IPC.gitCommit, (_e, message: string) =>
       op(async (root) => service.commit(root, String(message ?? "").trim() || formatCommitMessage((await loadGitSettings(root)).commitMessage))),
     );
+    ipcMain.handle(IPC.gitCommitPaths, (_e, paths: unknown, message: string) =>
+      op((root) => service.commitPaths(root, Array.isArray(paths) ? paths.map(String) : [], String(message ?? ""))),
+    );
     ipcMain.handle(IPC.gitPull, () => op((root) => service.pull(root)));
     ipcMain.handle(IPC.gitPush, () => op((root) => service.push(root)));
     ipcMain.handle(IPC.gitForcePull, () => op((root) => service.forcePull(root)));

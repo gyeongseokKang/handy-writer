@@ -18,7 +18,7 @@ assert((await indicator.count()) === 0, "오류가 없으면 상태 막대에 �
 // 메인에서 난 오류 (AI 실패)
 await page.getByRole("tab", { name: "AI" }).click();
 await page.fill("textarea[aria-label='추가 요청']", "FAIL");
-await page.getByRole("button", { name: "지시대로 처리" }).click();
+await page.getByRole("button", { name: "지시대로 처리", exact: true }).click();
 await indicator.waitFor();
 assert((await indicator.innerText()).trim() === "1", "AI 오류가 나면 상태 막대에 새 오류 1이 보인다");
 assert((await indicator.getAttribute("class")).includes("text-destructive"), "새 오류는 빨갛게 보인다");
@@ -26,7 +26,7 @@ assert((await indicator.getAttribute("class")).includes("text-destructive"), "�
 // 사용자가 멈춘 것은 오류가 아니다
 await page.getByRole("button", { name: "닫기", exact: true }).click();
 await page.fill("textarea[aria-label='추가 요청']", "SLOW");
-await page.getByRole("button", { name: "다듬기" }).click();
+await page.getByRole("button", { name: "다듬기", exact: true }).click();
 await page.getByRole("button", { name: "중지" }).click();
 await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')");
 await sleep(300);
@@ -35,7 +35,7 @@ await page.getByRole("button", { name: "닫기", exact: true }).click();
 
 // 화면에서 난 오류 (알림)
 await page.fill("textarea[aria-label='추가 요청']", "");
-await page.getByRole("button", { name: "지시대로 처리" }).click();
+await page.getByRole("button", { name: "지시대로 처리", exact: true }).click();
 await page.waitForFunction(() => document.querySelector("[aria-label='오류 로그']")?.textContent?.trim() === "2");
 ok("화면의 오류 알림도 로그에 모인다");
 

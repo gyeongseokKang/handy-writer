@@ -9,6 +9,8 @@ import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
 
 import { loadNoteEmbed, type NoteEmbedResult } from "../lib/note-embed";
+import { useEmbedStore } from "@/entities/note/model/use-embed-store";
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 
 /** 다른 글(또는 그 글의 한 절)을 읽기 전용으로 펼쳐 보여 준다. 그 글이 저장되면 다시 읽는다. */
 function NoteEmbed({ target }: { target: string }) {
@@ -89,10 +91,19 @@ export function EmbedView({ node, selected }: ReactNodeViewProps) {
     );
   }
 
+  // 이미지·영상을 누르면 오른쪽 첨부 탭에서 그 항목의 설정(라벨·크기)을 연다. 가운데 글의 첨부만 (분할 화면 글은 목록에 없다).
+  const uid = node.attrs["uid"] as string | null;
+  const revealSettings = () => {
+    if (!uid || source.type === "note" || source.type === "missing" || !useEmbedStore.getState().items.some((item) => item.uid === uid)) return;
+    useUiStore.getState().setRightTab("files");
+    useEmbedStore.getState().reveal(uid);
+  };
+
   return (
     <NodeViewWrapper
       as="span"
       className={cn("embed", selected && "embed-selected")}
+      onClick={revealSettings}
       style={source.type === "note" || (width === null && (source.kind === "image" || source.kind === "video")) ? { display: "block", width: "100%" } : undefined}
       data-embed-view={source.kind}
       contentEditable={false}

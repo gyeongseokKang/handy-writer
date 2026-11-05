@@ -63,6 +63,7 @@ export function createMockApi(): HandyApi {
   const emptyFolders = new Set<string>();
   const logListeners = new Set<(entry: LogEntry) => void>();
   let rules = "";
+  let reviseRules = "";
   const gitListeners = new Set<(event: GitEvent) => void>();
   let gitSettings: GitSettings = { ...DEFAULT_GIT_SETTINGS };
   let gitStatus: GitStatus = {
@@ -318,6 +319,10 @@ export function createMockApi(): HandyApi {
       set: async (content) => {
         rules = content;
       },
+      getRevise: async () => reviseRules,
+      setRevise: async (content) => {
+        reviseRules = content;
+      },
     },
     git: {
       // 브라우저 미리보기용: 지금 글에서 문단을 하나씩 뺀 가짜 버전을 만든다.
@@ -347,6 +352,13 @@ export function createMockApi(): HandyApi {
         gitStatus = { ...gitStatus, changes: [], ahead: nothing ? gitStatus.ahead : gitStatus.ahead + 1 };
         emitGit();
         return nothing ? { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." } : { outcome: "committed", message: "변경을 커밋했어요." };
+      },
+      commitPaths: async (paths) => {
+        const hit = gitStatus.changes.filter((change) => paths.includes(change.path));
+        if (hit.length === 0) return { outcome: "nothing-to-commit", message: "커밋할 변경이 없어요." };
+        gitStatus = { ...gitStatus, changes: gitStatus.changes.filter((change) => !paths.includes(change.path)), ahead: gitStatus.ahead + 1 };
+        emitGit();
+        return { outcome: "committed", message: "변경을 커밋했어요.", hash: "abc1234" };
       },
       pull: async () => ({ outcome: "up-to-date", message: "이미 최신이에요." }),
       push: async () => {

@@ -1,4 +1,5 @@
 import type { AiEvent, AiStatus, AiTask } from "@shared/ai";
+import { extractContinuation, parseRevision } from "@shared/ai-prompt";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -7,9 +8,12 @@ import { useEditorBridge, type EditorContext } from "@/entities/note/model/use-e
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 
+import { addHistory, loadHistory, saveHistory, type AiHistoryItem } from "./ai-history";
+
 export const TASK_LABEL: Record<AiTask, string> = {
   proofread: "맞춤법 교정",
   polish: "다듬기",
+  revise: "퇴고",
   continue: "이어쓰기",
   custom: "지시대로 처리",
   template: "템플릿 블록",
@@ -31,21 +35,41 @@ interface RunState {
   notePath: string | null;
   /** 도구를 쓰는 동안의 상태 문구 (예: 웹 검색 중…) */
   status: string;
+  /** 요청할 때의 추가 요청 (기록에 남긴다) */
+  instruction: string;
+  /** 받은 글 그대로 (이어쓰기는 <continuation>, 퇴고는 <revised> 안만 output으로 보여 준다) */
+  raw: string;
+  /** 퇴고: 무엇을 왜 고쳤는지 */
+  notes: string[];
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "" };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [] };
 
 interface AiState {
   status: AiStatus | null;
   rules: string;
   rulesSaved: string;
+  /** 퇴고 룰 (비어 있으면 기본 퇴고 기준을 쓴다) */
+  reviseRules: string;
+  reviseRulesSaved: string;
   instruction: string;
   run: RunState;
+  /** 끝난 결과 기록 (최근 것이 앞, 작업 폴더마다 따로) */
+  history: AiHistoryItem[];
+  historyRoot: string | null;
 
+  /** 작업 폴더가 바뀌면 그 폴더의 기록을 읽는다. */
+  loadHistory: (root: string | null) => void;
+  removeHistory: (id: string) => void;
+  clearHistory: () => void;
+  /** 기록의 결과를 지금 글의 커서 아래에 넣는다. */
+  insertHistory: (id: string) => void;
   refreshStatus: () => Promise<void>;
   loadRules: () => Promise<void>;
   setRules: (rules: string) => void;
   saveRules: () => Promise<void>;
+  setReviseRules: (rules: string) => void;
+  saveReviseRules: () => Promise<void>;
   setInstruction: (instruction: string) => void;
   start: (task: AiTask) => Promise<void>;
   cancel: () => Promise<void>;
@@ -67,8 +91,33 @@ export const useAiStore = create<AiState>((set, get) => ({
   status: null,
   rules: "",
   rulesSaved: "",
+  reviseRules: "",
+  reviseRulesSaved: "",
   instruction: "",
   run: IDLE_RUN,
+  history: [],
+  historyRoot: null,
+
+  loadHistory: (root) => {
+    if (root === get().historyRoot && get().history.length) return;
+    set({ history: loadHistory(root), historyRoot: root });
+  },
+  removeHistory: (id) => {
+    const history = get().history.filter((i) => i.id !== id);
+    set({ history });
+    saveHistory(get().historyRoot, history);
+  },
+  clearHistory: () => {
+    set({ history: [] });
+    saveHistory(get().historyRoot, []);
+  },
+  insertHistory: (id) => {
+    const item = get().history.find((i) => i.id === id);
+    const bridge = useEditorBridge.getState().bridge;
+    if (!item) return;
+    if (!bridge) return void toast.error("먼저 글을 열어 주세요.");
+    bridge.insertBelowCursor(item.output);
+  },
 
   refreshStatus: async () => {
     try {
@@ -80,14 +129,25 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   loadRules: async () => {
     try {
-      const rules = await api.rules.get();
-      set({ rules, rulesSaved: rules });
+      const [rules, reviseRules] = await Promise.all([api.rules.get(), api.rules.getRevise()]);
+      set({ rules, rulesSaved: rules, reviseRules, reviseRulesSaved: reviseRules });
     } catch (error) {
       toast.error(`글쓰기 룰을 읽지 못했어요: ${errorText(error)}`);
     }
   },
 
   setRules: (rules) => set({ rules }),
+  setReviseRules: (reviseRules) => set({ reviseRules }),
+
+  saveReviseRules: async () => {
+    try {
+      await api.rules.setRevise(get().reviseRules);
+      set({ reviseRulesSaved: get().reviseRules });
+      toast.success("퇴고 룰을 저장했어요.");
+    } catch (error) {
+      toast.error(`퇴고 룰을 저장하지 못했어요: ${errorText(error)}`);
+    }
+  },
 
   saveRules: async () => {
     try {
@@ -109,11 +169,11 @@ export const useAiStore = create<AiState>((set, get) => ({
     const context = bridge.getContext();
 
     if (task === "custom" && !instruction.trim()) return void toast.error("어떻게 처리할지 지시를 입력해 주세요.");
-    if (task !== "continue" && !context.text.trim()) return void toast.error("다듬거나 교정할 글이 비어 있어요.");
+    if (task !== "continue" && !context.text.trim()) return void toast.error(task === "revise" ? "퇴고할 글이 비어 있어요." : "다듬거나 교정할 글이 비어 있어요.");
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "" },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [] },
     });
 
     try {
@@ -168,13 +228,26 @@ function handleEvent(event: AiEvent) {
   const { run } = useAiStore.getState();
   if (event.runId !== run.id) return;
   if (event.type === "delta") {
-    useAiStore.setState({ run: { ...run, output: run.output + event.text } });
+    // 이어쓰기는 받은 글 전체(raw)를 두고, 화면에는 <continuation> 안의 글만 보여 준다.
+    const raw = run.raw + event.text;
+    const output = run.task === "continue" ? extractContinuation(raw, { streaming: true }) : run.task === "revise" ? parseRevision(raw, { streaming: true }).revised : raw;
+    useAiStore.setState({ run: { ...run, raw, output } });
   } else if (event.type === "status") {
     useAiStore.setState({ run: { ...run, status: event.text } });
   } else if (event.type === "reset") {
-    useAiStore.setState({ run: { ...run, output: "" } });
+    useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [] } });
   } else if (event.type === "done") {
-    useAiStore.setState({ run: { ...run, phase: "done", output: tidyOutput(event.text) } });
+    const revision = run.task === "revise" ? parseRevision(event.text) : null;
+    const output = tidyOutput(run.task === "continue" ? extractContinuation(event.text) : revision ? revision.revised : event.text);
+    const notes = revision?.notes ?? [];
+    useAiStore.setState({ run: { ...run, phase: "done", output, notes } });
+    // 적용하거나 닫으면 결과가 사라지므로, 끝나는 대로 기록에 남긴다.
+    const { history, historyRoot } = useAiStore.getState();
+    const next = addHistory(history, {
+      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(), ...(notes.length ? { notes } : {}),
+    });
+    useAiStore.setState({ history: next });
+    saveHistory(historyRoot, next);
   } else {
     useAiStore.setState({ run: { ...run, phase: "error", error: event.message } });
   }

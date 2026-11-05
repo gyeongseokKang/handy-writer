@@ -1,4 +1,4 @@
-import { Download, FilePlus2, FolderOpen, Minimize2, PenLine, Sparkles, Star } from "lucide-react";
+import { Download, FilePlus2, FolderOpen, Minimize2, PanelLeft, PenLine, Sparkles, Star } from "lucide-react";
 import { useEffect } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { useLogStore } from "@/entities/log/model/use-log-store";
 import { api } from "@/shared/api/handy-api";
 import { flushAll, unsavedPaths } from "@/shared/lib/pending-saves";
+import { saveAndCommit } from "../model/save-commit";
 import { shortcutLabel } from "@/shared/lib/shortcut";
 import { DraftDialog } from "@/features/draft/ui/draft-dialog";
 import { LogPanel } from "@/features/log/ui/log-panel";
@@ -108,6 +109,7 @@ export function AppShell() {
   const manuscriptFolder = useUiStore((state) => state.manuscriptFolder);
   const helpOpen = useUiStore((state) => state.helpOpen);
   const focusMode = useUiStore((state) => state.focusMode && state.view === "editor");
+  const sidebarOpen = useUiStore((state) => state.sidebarOpen);
   const logOpen = useLogStore((state) => state.open);
   const activeName = useWorkspaceStore((state) => state.notes.find((note) => note.path === state.activePath)?.name);
 
@@ -139,8 +141,19 @@ export function AppShell() {
         void ws.cycleTab(event.shiftKey ? -1 : 1);
         return;
       }
+      // Cmd/Ctrl+Alt+[ 왼쪽 사이드바, Cmd/Ctrl+Alt+] 오른쪽 패널 접기·펴기 (Alt를 누르면 글자가 바뀌어서 키 자리로 본다)
+      if ((event.metaKey || event.ctrlKey) && event.altKey && !event.shiftKey && (event.code === "BracketLeft" || event.code === "BracketRight")) {
+        event.preventDefault();
+        if (event.code === "BracketLeft") useUiStore.getState().toggleSidebar();
+        else useUiStore.getState().toggleRightPanel();
+        return;
+      }
       if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return;
-      if (event.key === "\\") {
+      if (event.key.toLowerCase() === "s") {
+        // 저장은 늘 저절로 된다. Cmd/Ctrl+S는 지금 글을 커밋해 '여기까지'를 기록에 남긴다.
+        event.preventDefault();
+        void saveAndCommit();
+      } else if (event.key === "\\") {
         event.preventDefault();
         toggleSplit();
       } else if (/^[1-9]$/.test(event.key) && ws.tabs.length > 0) {
@@ -249,7 +262,7 @@ export function AppShell() {
 
   return (
     <div className="flex h-screen">
-      {!focusMode && <Sidebar />}
+      {!focusMode && (sidebarOpen ? <Sidebar /> : <SidebarRail />)}
       <main className="relative flex min-w-0 flex-1 flex-col">
         {focusMode && (
           <button
@@ -291,6 +304,23 @@ export function AppShell() {
       {helpOpen && <HelpDialog />}
       {manuscriptFolder !== null && <ManuscriptDialog key={manuscriptFolder} folder={manuscriptFolder} />}
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
+    </div>
+  );
+}
+
+/** 사이드바를 접었을 때 왼쪽에 남는 좁은 줄. 누르면 다시 펼친다. */
+function SidebarRail() {
+  return (
+    <div className="flex h-full w-10 shrink-0 flex-col items-center border-r bg-muted/40 pt-3">
+      <button
+        type="button"
+        aria-label="사이드바 열기"
+        title={`사이드바 열기 (${shortcutLabel("Mod+Alt+[")})`}
+        onClick={() => useUiStore.getState().toggleSidebar()}
+        className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+      >
+        <PanelLeft className="size-4" />
+      </button>
     </div>
   );
 }

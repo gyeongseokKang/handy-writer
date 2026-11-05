@@ -7,6 +7,7 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { toggleSplit } from "@/features/note-tabs/ui/tab-bar";
 import { createReviewNote, makeCurrentNoteReview } from "@/features/review/model/review-actions";
+import { saveAndCommit } from "./save-commit";
 
 const ui = () => useUiStore.getState();
 const ws = () => useWorkspaceStore.getState();
@@ -57,6 +58,7 @@ export function buildCommands(): Command[] {
         if (!useEditorBridge.getState().bridge?.splitImageRow()) toast.info("나란히 놓은 이미지 줄에 커서를 두고 실행해 주세요.");
       },
     },
+    { id: "note.commit", group: "글", title: "지금 글 커밋 (여기까지 기록에 남기기)", shortcut: "Mod+S", keywords: ["저장", "save", "commit", "git"], enabled: hasNote, run: () => void saveAndCommit() },
     { id: "note.copy-rich", group: "글", title: "서식 있는 글로 복사", shortcut: "Mod+Shift+C", keywords: ["copy", "블로그", "html"], enabled: hasNote, run: () => ui().requestEditor("copy-rich") },
     { id: "note.export-md", group: "글", title: "마크다운으로 내보내기", keywords: ["export", "md"], enabled: hasNote, run: () => ui().requestEditor("export-md") },
     { id: "note.export-html", group: "글", title: "HTML로 내보내기", keywords: ["export", "웹 문서"], enabled: hasNote, run: () => ui().requestEditor("export-html") },
@@ -87,7 +89,8 @@ export function buildCommands(): Command[] {
     { id: "view.focus", group: "보기", title: "집중 모드 켜기·끄기", shortcut: "Mod+Shift+D", keywords: ["focus", "zen", "타자기", "방해 금지", "전체 화면"], enabled: hasNote, run: () => (toEditor(), ui().toggleFocusMode()) },
     { id: "view.outline", group: "보기", title: "목차 보이기·숨기기", keywords: ["outline"], run: () => ui().toggleOutline() },
     { id: "view.outline-pin", group: "보기", title: "목차 펼친 채로 고정·해제", keywords: ["outline", "pin", "고정", "펼치기"], run: () => ui().setOutlinePinned(!ui().outlinePinned) },
-    { id: "view.right", group: "보기", title: "오른쪽 패널 보이기·숨기기", keywords: ["panel"], run: () => ui().toggleRightPanel() },
+    { id: "view.sidebar", group: "보기", title: "왼쪽 사이드바 보이기·숨기기", shortcut: "Mod+Alt+[", keywords: ["sidebar", "글 목록"], run: () => ui().toggleSidebar() },
+    { id: "view.right", group: "보기", title: "오른쪽 패널 보이기·숨기기", shortcut: "Mod+Alt+]", keywords: ["panel"], run: () => ui().toggleRightPanel() },
     { id: "view.graph", group: "보기", title: "그래프 보기", keywords: ["graph", "연결"], run: () => ui().setView(ui().view === "graph" ? "editor" : "graph") },
     { id: "view.links", group: "보기", title: "연결·태그 패널 열기", keywords: ["태그", "백링크", "tag"], run: () => ui().setRightTab("links") },
     { id: "view.files", group: "보기", title: "첨부 패널 열기", keywords: ["이미지", "attachment"], run: () => ui().setRightTab("files") },
