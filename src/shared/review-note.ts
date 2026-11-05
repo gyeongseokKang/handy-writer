@@ -8,7 +8,9 @@ import { isMap, parseDocument, type Document } from "yaml";
 import { isRemoteUrl, decodeMarkdownTarget, kindOfPath, parseEmbedParams } from "./attachments";
 import { isTitleHeading } from "./title-heading";
 import {
+  BOOK_TYPES, NOVEL_GENRES, NOVEL_LENGTHS, NOVEL_RESERVED_TAGS, NOVEL_STATUSES, lengthOf,
   REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL, REVIEWS_DIR, cleanFrontmatter, slugify, today,
+  type BookType, type NovelGenre, type NovelLength, type NovelStatus, type ReviewCover, type ReviewFaction,
   type ReviewCategory, type ReviewFrontmatter, type ReviewLink,
 } from "./review";
 
@@ -47,6 +49,19 @@ export interface ReviewMeta {
   updated?: string;
   /** 게시한 저장소 안 경로. 다시 게시하면 이 글을 고친다. */
   published?: string;
+  /** 한줄평 카피 (사이트 목록 카드의 인용구). 소설은 필수 */
+  oneLiner?: string;
+  /** 책: 하위 분류 (책은 필수) */
+  bookType?: BookType;
+  /** 소설 필수: 화수·분량·연재 상태·장르 */
+  episodes?: number;
+  length?: NovelLength;
+  status?: NovelStatus;
+  genre?: NovelGenre;
+  /** 소설: 세력 구도 (writer에서는 그대로 지니고 다닌다) */
+  factions?: ReviewFaction[];
+  /** 플랫폼별 표지: 첨부 이름 또는 https/사이트 경로 */
+  covers?: ReviewCover[];
 }
 
 export interface ReviewNotePreview {
@@ -147,6 +162,24 @@ export function readReviewMeta(frontmatter: string): ReviewMeta | null {
     if (raw[key] !== undefined && raw[key] !== null) meta[key] = str(raw[key]);
   }
   if (raw["featured"]) meta.featured = true;
+  if (str(raw["oneLiner"]).trim()) meta.oneLiner = str(raw["oneLiner"]).trim();
+  const pick = <T extends string>(list: readonly T[], v: unknown) => (list as readonly string[]).includes(str(v)) ? (str(v) as T) : undefined;
+  meta.bookType = pick(BOOK_TYPES, raw["bookType"]);
+  meta.length = pick(NOVEL_LENGTHS, raw["length"]);
+  meta.status = pick(NOVEL_STATUSES, raw["status"]);
+  meta.genre = pick(NOVEL_GENRES, raw["genre"]);
+  const episodes = Number(raw["episodes"]);
+  if (raw["episodes"] !== undefined && raw["episodes"] !== null && raw["episodes"] !== "" && Number.isInteger(episodes) && episodes > 0) meta.episodes = episodes;
+  for (const k of ["bookType", "length", "status", "genre"] as const) if (meta[k] === undefined) delete meta[k];
+  if (Array.isArray(raw["factions"])) {
+    meta.factions = raw["factions"].filter((f) => f && typeof f === "object").map((f: Record<string, unknown>) => ({
+      name: str(f["name"]), alignment: str(f["alignment"]), members: strList(f["members"]), description: str(f["description"]),
+    }));
+  }
+  if (Array.isArray(raw["covers"])) {
+    meta.covers = raw["covers"].filter((c) => c && typeof c === "object" && str((c as Record<string, unknown>)["src"]).trim())
+      .map((c: Record<string, unknown>) => ({ src: str(c["src"]).trim(), ...(str(c["platform"]).trim() ? { platform: str(c["platform"]).trim() } : {}) }));
+  }
   if (str(raw["series"]).trim()) meta.series = str(raw["series"]).trim();
   const order = Number(raw["seriesOrder"]);
   if (raw["seriesOrder"] !== undefined && raw["seriesOrder"] !== null && raw["seriesOrder"] !== "" && Number.isFinite(order)) meta.seriesOrder = order;
@@ -166,6 +199,7 @@ function compact(meta: ReviewMeta): Record<string, unknown> {
   for (const [k, v] of Object.entries(meta)) {
     if (v === undefined || v === false) continue;
     if (typeof v === "string" && v === "" && !["verdict", "target"].includes(k)) continue;
+    if ((k === "factions" || k === "covers") && Array.isArray(v) && v.length === 0) continue;
     out[k] = v;
   }
   return out;
@@ -220,9 +254,31 @@ export function reviewWarnings(meta: ReviewMeta): string[] {
   return warnings;
 }
 
+/** 글 frontmatter의 tags (게시할 때 사이트 태그가 된다) */
+export function frontmatterTagList(frontmatter: string): string[] {
+  const data = readDoc(frontmatter)?.toJS() as Record<string, unknown> | null | undefined;
+  const raw = data?.["tags"] ?? data?.["tag"];
+  const list = Array.isArray(raw) ? raw : typeof raw === "string" ? raw.split(/[,\s]+/) : [];
+  return list.map((t) => String(t).replace(/^#/, "").trim()).filter(Boolean);
+}
+
 /** 게시하기 전에 사이트 스키마에서 막히는 것을 미리 알려 준다. 문제가 없으면 빈 배열 */
-export function reviewProblems(meta: ReviewMeta): string[] {
+export function reviewProblems(meta: ReviewMeta, tags: string[] = []): string[] {
   const problems: string[] = [];
+  // 사이트 스키마(handy-review content.config.ts)와 같은 책·소설 규칙
+  if (meta.category === "book") {
+    if (!meta.bookType) problems.push("책 리뷰는 하위 분류(일반·소설·개발)를 골라 주세요.");
+    else if (meta.bookType === "소설") {
+      if (!meta.episodes) problems.push("소설은 화수를 적어 주세요.");
+      if (!meta.length) problems.push("소설은 분량(단편·중편·장편)을 골라 주세요.");
+      if (!meta.status) problems.push("소설은 연재 상태를 골라 주세요.");
+      if (!meta.genre) problems.push("소설은 장르를 골라 주세요.");
+      if (!meta.oneLiner?.trim()) problems.push("소설은 한줄평을 적어 주세요.");
+      if (meta.episodes && meta.length && lengthOf(meta.episodes) !== meta.length) problems.push(`${meta.episodes}화는 ${lengthOf(meta.episodes)}이에요. 분량을 고쳐 주세요.`);
+      const reserved = tags.filter((t) => NOVEL_RESERVED_TAGS.includes(t));
+      if (reserved.length) problems.push(`'${reserved.join("', '")}'는 태그 대신 고정 항목(분량·상태·장르)으로 적어요. 태그에서 빼 주세요.`);
+    }
+  }
   if (!meta.verdict.trim()) problems.push("한 줄 결론을 적어 주세요.");
   if (!meta.target.trim()) problems.push("추천 대상을 적어 주세요.");
   for (const link of meta.links) if (link.url.trim() && !/^https?:\/\/\S+$/i.test(link.url.trim())) problems.push(`링크 주소가 올바르지 않아요: ${link.url}`);
@@ -231,7 +287,9 @@ export function reviewProblems(meta: ReviewMeta): string[] {
   return problems;
 }
 
-export const reviewSlugOf = (meta: ReviewMeta, title: string) => slugify(meta.slug?.trim() || title);
+/** 사이트 주소. 정하지 않았으면 글 이름, 책은 사이트 규칙대로 '제목-작가' (예: 절대회귀-장영훈) */
+export const reviewSlugOf = (meta: ReviewMeta, title: string) =>
+  slugify(meta.slug?.trim() || (meta.category === "book" && meta.author?.trim() ? `${title}-${meta.author.trim()}` : title));
 
 /** 게시된 경로에서 사이트 주소용 slug를 꺼낸다 (handy-review의 slugOf와 같은 규칙). */
 export const slugOfReviewPath = (path: string) => (path.split("/").pop() ?? "").replace(/\.md$/, "").replace(/^\d{4}-\d{2}-\d{2}-/, "");
@@ -343,7 +401,8 @@ export function noteBodyToReview(body: string, ctx: ConvertContext): ConvertResu
 }
 
 /** 리뷰 글의 frontmatter 전체를 만든다. */
-export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: string[], date: string, cover: string | undefined): ReviewFrontmatter {
+/** covers: 사이트에서 쓸 주소로 바꾼 플랫폼별 표지 (게시할 때 첨부를 복사한 뒤 넘긴다) */
+export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: string[], date: string, cover: string | undefined, covers?: ReviewCover[]): ReviewFrontmatter {
   return {
     title, category: meta.category, rating: meta.rating, verdict: meta.verdict.trim(), target: meta.target.trim(),
     pros: meta.pros, cons: meta.cons, links: meta.links.map(withAffiliate), tags, date,
@@ -358,6 +417,16 @@ export function reviewFrontmatterOf(meta: ReviewMeta, title: string, tags: strin
     ...(meta.publisher?.trim() ? { publisher: meta.publisher.trim() } : {}),
     ...(meta.series?.trim() ? { series: meta.series.trim(), ...(meta.seriesOrder !== undefined ? { seriesOrder: meta.seriesOrder } : {}) } : {}),
     ...(meta.updated && meta.updated > date ? { updated: meta.updated } : {}),
+    ...(meta.oneLiner?.trim() ? { oneLiner: meta.oneLiner.trim() } : {}),
+    ...(meta.category === "book" && meta.bookType ? { bookType: meta.bookType } : {}),
+    ...(meta.category === "book" && meta.bookType === "소설" ? {
+      ...(meta.episodes ? { episodes: meta.episodes } : {}),
+      ...(meta.length ? { length: meta.length } : {}),
+      ...(meta.status ? { status: meta.status } : {}),
+      ...(meta.genre ? { genre: meta.genre } : {}),
+      ...(meta.factions?.length ? { factions: meta.factions.map((f) => ({ name: f.name, alignment: f.alignment, members: f.members.slice(0, 3), description: f.description })) } : {}),
+    } : {}),
+    ...(covers?.length ? { covers } : {}),
   };
 }
 
@@ -392,6 +461,7 @@ export function metaFromReview(fm: ReviewFrontmatter, path: string): ReviewMeta 
   for (const key of ["price", "cover", "address", "mapUrl", "visitedAt", "youtubeId"] as const) if (fm[key]) meta[key] = fm[key];
   if (fm.featured) meta.featured = true;
   if (fm.updated) meta.updated = fm.updated;
+  for (const k of ["oneLiner", "bookType", "episodes", "length", "status", "genre", "factions", "covers"] as const) if (fm[k] !== undefined) (meta as unknown as Record<string, unknown>)[k] = fm[k];
   if (fm.author) meta.author = fm.author;
   if (fm.publisher) meta.publisher = fm.publisher;
   if (fm.series) meta.series = fm.series;

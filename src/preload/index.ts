@@ -19,6 +19,7 @@ const api: HandyApi = {
     listSeries: () => ipcRenderer.invoke(IPC.reviewListSeries),
     deployStatus: () => ipcRenderer.invoke(IPC.reviewDeployStatus),
     repoStatus: () => ipcRenderer.invoke(IPC.reviewRepoStatus),
+    pull: () => ipcRenderer.invoke(IPC.reviewPull),
     reveal: (path) => ipcRenderer.invoke(IPC.reviewReveal, path),
   },
   workspace: {

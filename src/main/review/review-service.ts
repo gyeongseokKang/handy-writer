@@ -2,11 +2,11 @@ import { app } from "electron";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, sep } from "node:path";
-import { parse, stringify } from "yaml";
+import { Document, isSeq, parse, visit } from "yaml";
 
 import {
   DEFAULT_DEPLOY_KIND, DEFAULT_REVIEW_SITE_URL, REVIEW_CATEGORIES, REVIEWS_DIR, cleanFrontmatter, decideDeployState, reviewAssetDir, reviewTemplate,
-  type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewPost, type ReviewPostSummary,
+  type DeployProviderInfo, type DeployStatus, type ReviewCategory, type ReviewFrontmatter, type ReviewLink, type ReviewPost, type ReviewPostSummary,
 } from "../../shared/review";
 import { runGit } from "../git/runner";
 import { parseStatusV2 } from "../git/parse";
@@ -45,8 +45,33 @@ function inside(repo: string, rel: string) {
   return abs;
 }
 
+/** 사이트 글들이 쓰는 항목 순서. 여기 없는 항목은 뒤에 붙는다. */
+const FIELD_ORDER = [
+  "title", "author", "category", "bookType", "episodes", "length", "status", "genre", "rating", "verdict", "oneLiner", "factions",
+  "pros", "cons", "links", "cover", "covers", "target", "publisher", "price", "address", "mapUrl", "visitedAt", "youtubeId",
+  "series", "seriesOrder", "date", "updated", "tags", "featured",
+];
+/** 짧은 문자열 목록은 한 줄로 쓴다 (tags: [a, b], members: [a, b]) — 사이트에서 손으로 쓴 글과 모양을 맞춘다. */
+const FLOW_KEYS = new Set(["tags", "members"]);
+
 export function serializePost(fm: ReviewFrontmatter, body: string) {
-  return `---\n${stringify(cleanFrontmatter(fm), { lineWidth: 0 }).trimEnd()}\n---\n\n${body.trim()}\n`;
+  const clean = cleanFrontmatter(fm);
+  // 기본값과 같은 값은 빼서 사이트 글과 같은 모양으로 (affiliate: false, members: [])
+  if (Array.isArray(clean["links"])) clean["links"] = (clean["links"] as ReviewLink[]).map(({ affiliate, ...l }) => (affiliate ? { ...l, affiliate } : l));
+  if (Array.isArray(clean["factions"])) {
+    // 항목 순서(name, alignment, members, description)는 그대로 두고 빈 members만 뺀다.
+    clean["factions"] = (clean["factions"] as Record<string, unknown>[]).map((f) =>
+      Object.fromEntries(Object.entries(f).filter(([k, v]) => !(k === "members" && Array.isArray(v) && v.length === 0))));
+  }
+  const rank = (k: string) => { const i = FIELD_ORDER.indexOf(k); return i === -1 ? FIELD_ORDER.length : i; };
+  const ordered = Object.fromEntries(Object.entries(clean).sort(([a], [b]) => rank(a) - rank(b)));
+  const doc = new Document(ordered);
+  visit(doc, { Pair(_, pair) {
+    const key = String((pair.key as { value?: unknown })?.value ?? "");
+    if (FLOW_KEYS.has(key) && isSeq(pair.value)) pair.value.flow = true;
+    return undefined;
+  } });
+  return `---\n${doc.toString({ lineWidth: 0, flowCollectionPadding: false }).trimEnd()}\n---\n${body.trim()}\n`;
 }
 
 export function parsePost(path: string, text: string): ReviewPost {
@@ -137,7 +162,10 @@ export async function deployStatus(repo: string, info: DeployProviderInfo | null
     const n = await git(["rev-list", "--count", `${deployedSha}..${remoteSha}`]);
     behindBy = n === null ? null : Number(n);
   }
-  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, error }), checkedAt: new Date().toISOString() };
+  // 이 컴퓨터에만 있는 커밋 수 (받을 커밋만 있는 '뒤처짐'은 푸시 안 함이 아니다)
+  const ahead = await git(["rev-list", "--count", "@{upstream}..HEAD"]);
+  const localAhead = ahead === null ? null : Number(ahead);
+  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, localAhead, error }), checkedAt: new Date().toISOString() };
 }
 
 export const toRepoRelative = (repo: string, abs: string) => toPosix(relative(repo, abs));
@@ -151,4 +179,13 @@ export async function reviewRepoStatus(repo: string): Promise<ReviewRepoStatus> 
   } catch (error) {
     return { repo, name, branch: null, ahead: 0, behind: 0, changes: 0, error: (error as Error).message };
   }
+}
+
+/**
+ * 원격의 새 커밋을 받는다(빨리 감기만). 이 컴퓨터에 따로 만든 커밋이 있어 갈라졌으면 건드리지 않고 알린다.
+ * 커밋 안 한 변경은 잠깐 치웠다가 되돌린다(--autostash).
+ */
+export async function pullReviewRepo(repo: string) {
+  await runGit(repo, ["pull", "--ff-only", "--autostash"], { timeoutMs: 60_000 });
+  return reviewRepoStatus(repo);
 }

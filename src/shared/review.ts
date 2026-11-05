@@ -9,6 +9,25 @@ export const REVIEW_CATEGORY_LABEL: Record<ReviewCategory, string> = {
 
 export interface ReviewLink { label: string; url: string; affiliate: boolean }
 
+// ── 책·소설 고정 필드 (handy-review src/content.config.ts 와 같게 유지) ──
+export const BOOK_TYPES = ["일반", "소설", "개발"] as const;
+export type BookType = (typeof BOOK_TYPES)[number];
+export const NOVEL_LENGTHS = ["단편", "중편", "장편"] as const;
+export type NovelLength = (typeof NOVEL_LENGTHS)[number];
+export const NOVEL_STATUSES = ["완결", "연재중", "연재중단"] as const;
+export type NovelStatus = (typeof NOVEL_STATUSES)[number];
+export const NOVEL_GENRES = ["정통무협", "신무협", "선협", "판타지", "현대판타지", "로판", "대체역사", "SF", "로맨스", "기타"] as const;
+export type NovelGenre = (typeof NOVEL_GENRES)[number];
+/** 1화 ≈ 5,000자. 단편 <100 · 중편 100–299 · 장편 300+ */
+export const lengthOf = (episodes: number): NovelLength => (episodes < 100 ? "단편" : episodes < 300 ? "중편" : "장편");
+/** 소설 리뷰에서 태그로 쓰면 안 되는 말 (고정 필드로 쓴다) */
+export const NOVEL_RESERVED_TAGS: readonly string[] = [...NOVEL_LENGTHS, ...NOVEL_STATUSES, ...NOVEL_GENRES, "미완결", "무협"];
+
+/** 소설 세력 구도 (3~6개, 첫 세력이 주인공 쪽) */
+export interface ReviewFaction { name: string; alignment: string; members: string[]; description: string }
+/** 플랫폼별 표지 (2장 이상이면 사이트에서 겹친 스택) */
+export interface ReviewCover { src: string; platform?: string }
+
 export interface ReviewFrontmatter {
   title: string;
   category: ReviewCategory;
@@ -37,6 +56,17 @@ export interface ReviewFrontmatter {
   series?: string;
   /** 시리즈 안 순서 */
   seriesOrder?: number;
+  /** 한줄평 카피 (목록 카드 인용구). 소설은 필수 */
+  oneLiner?: string;
+  /** 책 필수: 하위 분류 */
+  bookType?: BookType;
+  /** 소설 필수: 화수·분량·연재 상태·장르 */
+  episodes?: number;
+  length?: NovelLength;
+  status?: NovelStatus;
+  genre?: NovelGenre;
+  factions?: ReviewFaction[];
+  covers?: ReviewCover[];
 }
 
 export interface ReviewPost { path: string; frontmatter: ReviewFrontmatter; body: string }
@@ -78,7 +108,12 @@ export function cleanFrontmatter(fm: ReviewFrontmatter): Record<string, unknown>
   for (const [k, v] of Object.entries(fm)) {
     if (v === undefined || v === "" || v === false) continue;
     if (Array.isArray(v)) {
-      const items = k === "links" ? (v as ReviewLink[]).filter((l) => l.url.trim()) : (v as string[]).map((s) => s.trim()).filter(Boolean);
+      const items = k === "links"
+        ? (v as ReviewLink[]).filter((l) => l.url.trim())
+        : v.some((x) => x && typeof x === "object")
+          ? v // 세력·표지처럼 객체 목록은 그대로 둔다
+          : (v as string[]).map((s) => String(s).trim()).filter(Boolean);
+      if (items.length === 0 && (k === "factions" || k === "covers")) continue;
       out[k] = items;
       continue;
     }
@@ -116,10 +151,15 @@ export interface DeployStatus {
 
 const same = (a: string | null, b: string | null) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
 
-export function decideDeployState(input: { deployedSha: string | null; remoteSha: string | null; localSha: string | null; behindBy?: number | null; error?: string }): Omit<DeployStatus, "checkedAt"> {
+/**
+ * localAhead: 이 컴퓨터에만 있는(원격에 안 올린) 커밋 수. 모르면(옛 호출) 로컬과 원격이 다르기만 해도 푸시 안 함으로 본다.
+ * 로컬이 원격보다 뒤처지기만 한 경우(받을 커밋만 있음)는 푸시할 게 없으니 원격과 배포본으로 판단한다.
+ */
+export function decideDeployState(input: { deployedSha: string | null; remoteSha: string | null; localSha: string | null; behindBy?: number | null; localAhead?: number | null; error?: string }): Omit<DeployStatus, "checkedAt"> {
   const { deployedSha, remoteSha, localSha } = input;
   const base = { deployedSha, remoteSha, localSha, behindBy: input.behindBy ?? null };
-  if (localSha && remoteSha && !same(localSha, remoteSha)) return { ...base, state: "unpushed", message: "아직 게시(푸시)하지 않은 커밋이 있어요." };
+  const unpushed = typeof input.localAhead === "number" ? input.localAhead > 0 : !!(localSha && remoteSha && !same(localSha, remoteSha));
+  if (unpushed) return { ...base, state: "unpushed", message: "아직 게시(푸시)하지 않은 커밋이 있어요." };
   if (!deployedSha) return { ...base, state: "unknown", message: input.error ?? "배포된 버전을 알 수 없어요." };
   if (same(deployedSha, remoteSha ?? localSha)) return { ...base, state: "up-to-date", message: "사이트가 최신 커밋으로 배포돼 있어요." };
   return { ...base, state: "deploy-needed", message: "사이트가 최신 커밋보다 뒤처져 있어요. 배포가 필요해요." };

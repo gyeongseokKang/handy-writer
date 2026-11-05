@@ -21,6 +21,8 @@ export const REVIEW_NOTE_FOLDER = "리뷰";
 
 interface Plan extends ReviewNotePreview {
   meta: ReviewMeta;
+  /** 글의 태그 (소설은 고정 항목과 겹치는 태그를 막는다) */
+  tags: string[];
   /** 원본 절대 경로 → 저장소 기준 상대 경로 */
   copies: { from: string; to: string }[];
 }
@@ -111,34 +113,41 @@ async function planPublish(root: string, repo: string, notePath: string): Promis
   const converted = noteBodyToReview(body, { title, asset, linkSlug, embedNote });
   const warnings = [...converted.warnings];
 
-  let cover: string | undefined;
-  if (meta.cover?.trim()) {
-    const c = meta.cover.trim();
-    if (isRemoteUrl(c) || c.startsWith("/")) cover = c;
-    else {
-      const found = resolveAttachment(attachments, c, noteFolder);
-      if (!found) warnings.push(`커버 이미지를 찾지 못했어요: ${c}`);
-      else {
-        const file = `cover${extname(found.name).toLowerCase() || ".png"}`;
-        copies.push({ from: resolveInside(root, found.path), to: `public/images/reviews/${slug}/${file}` });
-        cover = `/images/reviews/${slug}/${file}`;
-      }
+  // 커버·플랫폼별 표지: 첨부면 public/images/reviews/<slug>/ 로 복사하고 사이트 주소로 바꾼다.
+  const toPublic = (src: string, stem: string, what: string): string | undefined => {
+    const c = src.trim();
+    if (!c) return undefined;
+    if (isRemoteUrl(c) || c.startsWith("/")) return c;
+    const found = resolveAttachment(attachments, c, noteFolder);
+    if (!found) {
+      warnings.push(`${what}를 찾지 못했어요: ${c}`);
+      return undefined;
     }
-  }
+    const file = `${stem}${extname(found.name).toLowerCase() || ".png"}`;
+    copies.push({ from: resolveInside(root, found.path), to: `public/images/reviews/${slug}/${file}` });
+    return `/images/reviews/${slug}/${file}`;
+  };
+  const cover = meta.cover?.trim() ? toPublic(meta.cover, "cover", "커버 이미지") : undefined;
+  const covers = (meta.covers ?? []).flatMap((c, i) => {
+    const src = toPublic(c.src, `cover-${i + 1}`, `${c.platform ?? `${i + 1}번`} 표지`);
+    return src ? [{ src, ...(c.platform ? { platform: c.platform } : {}) }] : [];
+  });
 
   warnings.push(...reviewWarnings(meta));
-  const fm = reviewFrontmatterOf({ ...meta, updated: undefined }, title, frontmatterTags(frontmatter), date, cover);
+  const tags = frontmatterTags(frontmatter);
+  const fm = reviewFrontmatterOf({ ...meta, updated: undefined }, title, tags, date, cover, covers);
   // 사이트에 이미 있는 글(같은 경로나 옮기기 전 경로)과 견줘서, 내용이 바뀌었으면 업데이트 날짜를 오늘로 한다.
   const previousPath = meta.published && existsSync(resolveInside(repo, meta.published)) ? meta.published : null;
   const previous = previousPath ? await readPost(repo, previousPath).catch(() => null) : null;
   const updated = nextUpdated({ previous: previous && { frontmatter: previous.frontmatter, body: previous.body }, next: { frontmatter: fm, body: converted.body }, today: today() });
   if (updated) fm.updated = updated;
-  return { path, slug, date, markdown: serializePost(fm, converted.body), warnings, replaces, meta: { ...meta, links: meta.links.map(withAffiliate), slug, date, published: path, updated }, copies };
+  return { path, slug, date, markdown: serializePost(fm, converted.body), warnings, replaces, meta: { ...meta, links: meta.links.map(withAffiliate), slug, date, published: path, updated }, tags, copies };
 }
 
 export async function previewNoteReview(root: string, repo: string, notePath: string): Promise<ReviewNotePreview> {
-  const { path, slug, date, markdown, warnings, replaces } = await planPublish(root, repo, notePath);
-  return { path, slug, date, markdown, warnings, replaces };
+  const { path, slug, date, markdown, warnings, replaces, meta, tags } = await planPublish(root, repo, notePath);
+  // 게시를 막는 문제도 미리보기에서 함께 보여 준다.
+  return { path, slug, date, markdown, warnings: [...reviewProblems(meta, tags).map((p) => `게시 전에 고칠 것: ${p}`), ...warnings], replaces };
 }
 
 async function tracked(repo: string, path: string) {
@@ -151,7 +160,7 @@ async function tracked(repo: string, path: string) {
  */
 export async function publishNoteReview(root: string, repo: string, notePath: string): Promise<ReviewNotePublishResult> {
   const plan = await planPublish(root, repo, notePath);
-  const problems = reviewProblems(plan.meta);
+  const problems = reviewProblems(plan.meta, plan.tags);
   if (problems.length > 0) throw new Error(problems.join("\n"));
 
   const assetDir = reviewAssetDir(plan.path);
@@ -228,13 +237,7 @@ export async function importReviewToNote(root: string, repo: string, postPath: s
   };
   const meta = metaFromReview(post.frontmatter, postPath);
   // 커버가 저장소 public/ 안 파일이면 첨부로 가져온다.
-  if (meta.cover?.startsWith("/")) {
-    const src = join(repo, "public", meta.cover);
-    if (existsSync(src)) {
-      const { imported } = await importFiles(root, [src]);
-      if (imported[0]) meta.cover = imported[0].name;
-    }
-  }
+  // 커버·플랫폼별 표지는 사이트 경로(/images/…)를 그대로 둔다. 다시 게시해도 같은 파일을 가리켜서 저장소에 같은 그림이 두 번 생기지 않는다.
   const tags = post.frontmatter.tags.filter(Boolean);
   const frontmatter = writeReviewMeta(tags.length ? `---\n${stringifyYaml({ tags }, { flowCollectionPadding: false })}---\n` : "", meta);
   const body = reviewBodyToNote(post.body, { image: (rel) => imageNames.get(rel) ?? null, noteName });

@@ -53,7 +53,7 @@ describe("publish a note as a review", () => {
     expect(git(repo, "rev-parse", "origin/main")).toBe(r.sha);
     const text = readFileSync(join(repo, r.path), "utf8");
     expect(text).toContain("title: 유모차 리뷰");
-    expect(text).toContain("tags:\n  - 육아\n  - 유모차");
+    expect(text).toContain("tags: [육아, 유모차]");
     expect(text).toContain("cover: /images/reviews/light-stroller/cover.jpg");
     expect(text).toContain("![접은 모습](./2026-11-02-light-stroller/image.png)");
     expect(text).not.toContain("# 유모차 리뷰");
