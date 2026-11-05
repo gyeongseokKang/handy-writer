@@ -109,6 +109,18 @@ function EmbedCard({ item }: { item: EmbedItem }) {
   const bridge = useEditorBridge((s) => s.bridge);
   const source = useEmbedSource(item.target);
   const [open, setOpen] = useState(false);
+  const [flash, setFlash] = useState(false);
+  const rowRef = useRef<HTMLLIElement>(null);
+  // 글에서 이 첨부를 누르면 펼치고, 보이는 자리로 스크롤해 잠깐 강조한다.
+  const revealed = useEmbedStore((s) => (s.revealed?.uid === item.uid ? s.revealed.seq : null));
+  useEffect(() => {
+    if (revealed === null) return;
+    setOpen(true);
+    setFlash(true);
+    window.requestAnimationFrame(() => rowRef.current?.scrollIntoView({ block: "start", behavior: "smooth" }));
+    const timer = window.setTimeout(() => setFlash(false), 1200);
+    return () => window.clearTimeout(timer);
+  }, [revealed]);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [keepRatio, setKeepRatio] = useState(item.height === null);
   const [labelError, setLabelError] = useState(false);
@@ -148,7 +160,7 @@ function EmbedCard({ item }: { item: EmbedItem }) {
   const sizeSummary = item.width ? `너비 ${item.width}${item.height ? `×${item.height}` : ""}px` : "너비 100%";
 
   return (
-    <li data-embed-uid={item.uid} aria-label={fileName}>
+    <li ref={rowRef} data-embed-uid={item.uid} aria-label={fileName} className={cn("transition-colors", flash && "bg-primary/10")}>
       <button
         type="button"
         aria-expanded={open}
