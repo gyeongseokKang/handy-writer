@@ -98,6 +98,7 @@ export function createMockApi(): HandyApi {
         listSeries: async () => [],
         deployStatus: async () => ({ ...decideDeployState({ deployedSha: "aaaaaaa", remoteSha: "bbbbbbb", localSha: "bbbbbbb", behindBy: 1 }), checkedAt: new Date().toISOString() }),
         repoStatus: async () => (config.repo ? { repo: config.repo, name: "handy-review", branch: "main", ahead: 0, behind: 0, changes: 0 } : null),
+        pull: async () => ({ repo: "/mock/handy-review", name: "handy-review", branch: "main", ahead: 0, behind: 0, changes: 0 }),
         reveal: async () => {},
       };
     })(),

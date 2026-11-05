@@ -18,5 +18,9 @@ describe("review", () => {
     expect(decideDeployState({ deployedSha: "aaa", remoteSha: "bbb", localSha: "bbb" }).state).toBe("deploy-needed");
     expect(decideDeployState({ deployedSha: "aaa", remoteSha: "bbb", localSha: "ccc" }).state).toBe("unpushed");
     expect(decideDeployState({ deployedSha: null, remoteSha: "bbb", localSha: "bbb" }).state).toBe("unknown");
+    // 받을 커밋만 있고(뒤처짐) 올릴 커밋이 없으면 푸시 안 함이 아니라 원격·배포본으로 판단한다
+    expect(decideDeployState({ deployedSha: "bbb", remoteSha: "bbb", localSha: "old", localAhead: 0 }).state).toBe("up-to-date");
+    expect(decideDeployState({ deployedSha: "aaa", remoteSha: "bbb", localSha: "old", localAhead: 0 }).state).toBe("deploy-needed");
+    expect(decideDeployState({ deployedSha: "bbb", remoteSha: "bbb", localSha: "new", localAhead: 2 }).state).toBe("unpushed");
   });
 });

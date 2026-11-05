@@ -151,10 +151,15 @@ export interface DeployStatus {
 
 const same = (a: string | null, b: string | null) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
 
-export function decideDeployState(input: { deployedSha: string | null; remoteSha: string | null; localSha: string | null; behindBy?: number | null; error?: string }): Omit<DeployStatus, "checkedAt"> {
+/**
+ * localAhead: 이 컴퓨터에만 있는(원격에 안 올린) 커밋 수. 모르면(옛 호출) 로컬과 원격이 다르기만 해도 푸시 안 함으로 본다.
+ * 로컬이 원격보다 뒤처지기만 한 경우(받을 커밋만 있음)는 푸시할 게 없으니 원격과 배포본으로 판단한다.
+ */
+export function decideDeployState(input: { deployedSha: string | null; remoteSha: string | null; localSha: string | null; behindBy?: number | null; localAhead?: number | null; error?: string }): Omit<DeployStatus, "checkedAt"> {
   const { deployedSha, remoteSha, localSha } = input;
   const base = { deployedSha, remoteSha, localSha, behindBy: input.behindBy ?? null };
-  if (localSha && remoteSha && !same(localSha, remoteSha)) return { ...base, state: "unpushed", message: "아직 게시(푸시)하지 않은 커밋이 있어요." };
+  const unpushed = typeof input.localAhead === "number" ? input.localAhead > 0 : !!(localSha && remoteSha && !same(localSha, remoteSha));
+  if (unpushed) return { ...base, state: "unpushed", message: "아직 게시(푸시)하지 않은 커밋이 있어요." };
   if (!deployedSha) return { ...base, state: "unknown", message: input.error ?? "배포된 버전을 알 수 없어요." };
   if (same(deployedSha, remoteSha ?? localSha)) return { ...base, state: "up-to-date", message: "사이트가 최신 커밋으로 배포돼 있어요." };
   return { ...base, state: "deploy-needed", message: "사이트가 최신 커밋보다 뒤처져 있어요. 배포가 필요해요." };

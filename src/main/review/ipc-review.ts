@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { IPC } from "../../shared/types";
 import type { DeployProviderInfo } from "../../shared/review";
-import { checkReviewRepo, deployStatus, listPosts, loadReviewConfig, reviewRepoStatus, saveReviewConfig } from "./review-service";
+import { checkReviewRepo, deployStatus, listPosts, loadReviewConfig, pullReviewRepo, reviewRepoStatus, saveReviewConfig } from "./review-service";
 import { importReviewToNote, listReviewSeries, previewNoteReview, publishNoteReview } from "./review-note-service";
 
 async function repoOrThrow() {
@@ -38,5 +38,6 @@ export function registerReviewIpc(requireRoot: () => string) {
     const { repo } = await loadReviewConfig();
     return repo ? reviewRepoStatus(repo) : null;
   });
+  ipcMain.handle(IPC.reviewPull, async () => pullReviewRepo(await repoOrThrow()));
   ipcMain.handle(IPC.reviewReveal, async (_e, path: string) => shell.showItemInFolder(join(await repoOrThrow(), path)));
 }

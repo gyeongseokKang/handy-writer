@@ -75,6 +75,8 @@ export interface HandyApi {
     deployStatus: () => Promise<DeployStatus>;
     /** 리뷰 저장소의 브랜치와 올릴·받을 커밋 수. 저장소를 안 골랐으면 null */
     repoStatus: () => Promise<ReviewRepoStatus | null>;
+    /** 리뷰 저장소에서 원격의 새 커밋을 받는다(빨리 감기만) */
+    pull: () => Promise<ReviewRepoStatus>;
     reveal: (path: string) => Promise<void>;
   };
   workspace: {
@@ -242,6 +244,7 @@ export const IPC = {
   reviewListSeries: "review:list-series",
   reviewDeployStatus: "review:deploy-status",
   reviewRepoStatus: "review:repo-status",
+  reviewPull: "review:pull",
   reviewReveal: "review:reveal",
   workspaceGet: "workspace:get",
   workspaceChoose: "workspace:choose",

@@ -162,7 +162,10 @@ export async function deployStatus(repo: string, info: DeployProviderInfo | null
     const n = await git(["rev-list", "--count", `${deployedSha}..${remoteSha}`]);
     behindBy = n === null ? null : Number(n);
   }
-  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, error }), checkedAt: new Date().toISOString() };
+  // 이 컴퓨터에만 있는 커밋 수 (받을 커밋만 있는 '뒤처짐'은 푸시 안 함이 아니다)
+  const ahead = await git(["rev-list", "--count", "@{upstream}..HEAD"]);
+  const localAhead = ahead === null ? null : Number(ahead);
+  return { ...decideDeployState({ deployedSha, remoteSha, localSha, behindBy, localAhead, error }), checkedAt: new Date().toISOString() };
 }
 
 export const toRepoRelative = (repo: string, abs: string) => toPosix(relative(repo, abs));
@@ -176,4 +179,13 @@ export async function reviewRepoStatus(repo: string): Promise<ReviewRepoStatus> 
   } catch (error) {
     return { repo, name, branch: null, ahead: 0, behind: 0, changes: 0, error: (error as Error).message };
   }
+}
+
+/**
+ * 원격의 새 커밋을 받는다(빨리 감기만). 이 컴퓨터에 따로 만든 커밋이 있어 갈라졌으면 건드리지 않고 알린다.
+ * 커밋 안 한 변경은 잠깐 치웠다가 되돌린다(--autostash).
+ */
+export async function pullReviewRepo(repo: string) {
+  await runGit(repo, ["pull", "--ff-only", "--autostash"], { timeoutMs: 60_000 });
+  return reviewRepoStatus(repo);
 }

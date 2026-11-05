@@ -1,4 +1,4 @@
-import { CloudCheck, CloudOff, ExternalLink, FolderOpen, FolderSearch, RefreshCw, Star } from "lucide-react";
+import { ArrowDownToLine, CloudCheck, CloudOff, ExternalLink, FolderOpen, FolderSearch, RefreshCw, Star } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -46,6 +46,21 @@ export function ReviewRepoRow() {
   }, [open]);
 
   if (!repo) return null;
+  const [pulling, setPulling] = useState(false);
+  // 원격의 새 커밋을 받는다(빨리 감기만). 이 컴퓨터에만 있는 커밋과 갈라졌으면 git이 거절하고 그 이유를 보여 준다.
+  const pull = async () => {
+    setPulling(true);
+    try {
+      await api.review.pull();
+      toast.success("핸디 리뷰 저장소를 최신으로 받았어요.");
+      setOpen(false);
+    } catch (e) {
+      toast.error(`받지 못했어요: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setPulling(false);
+      void useReviewRepoStore.getState().refresh({ deploy: true });
+    }
+  };
   const choose = async () => {
     setOpen(false);
     try { useReviewRepoStore.getState().setConfig(await api.review.chooseRepo()); } catch (e) { toast.error(e instanceof Error ? e.message : String(e)); }
@@ -79,6 +94,11 @@ export function ReviewRepoRow() {
       {open && (
         <div role="menu" className="absolute right-2 bottom-full left-2 z-30 mb-1 rounded-lg border bg-card p-1 text-card-foreground shadow-lg">
           <p className="px-2 py-1 text-[11px] text-muted-foreground">{deploy ? `${DEPLOY_TEXT[deploy.state]} · ${deploy.message}` : "배포 상태를 확인하지 않았어요"}</p>
+          {repo.behind > 0 && (
+            <button role="menuitem" type="button" className={item} disabled={pulling} onClick={() => void pull()}>
+              <ArrowDownToLine className={cn("size-3.5", pulling && "animate-pulse")} /> {pulling ? "받는 중…" : `최신으로 받기 (${repo.behind}개)`}
+            </button>
+          )}
           <a role="menuitem" href={siteUrl} target="_blank" rel="noreferrer" className={item} onClick={() => setOpen(false)}><ExternalLink className="size-3.5" /> 사이트 열기</a>
           <button role="menuitem" type="button" className={item} onClick={() => void useReviewRepoStore.getState().refresh({ deploy: true })}>
             <RefreshCw className={cn("size-3.5", checking && "animate-spin")} /> 배포 상태 다시 확인
