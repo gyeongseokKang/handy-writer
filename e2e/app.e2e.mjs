@@ -241,7 +241,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click(".note-prose > p >> nth=0");
   await page.keyboard.press("Home");
   await page.keyboard.press("Shift+End");
-  await page.getByRole("button", { name: "맞춤법 교정" }).click();
+  await page.getByRole("button", { name: "맞춤법 교정", exact: true }).click();
   await page.waitForSelector("[aria-label='변경 내용'] ins", { timeout: 10000 });
   const added = await page.$$eval("[aria-label='변경 내용'] ins", (els) => els.map((e) => e.textContent?.trim()).join("|"));
   const removed = await page.$$eval("[aria-label='변경 내용'] del", (els) => els.map((e) => e.textContent?.trim()).join("|"));
@@ -264,7 +264,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // 이어쓰기 → 아래에 삽입 (위키링크 포함)
   await page.click(".note-prose > p >> nth=1");
-  await page.getByRole("button", { name: "이어쓰기" }).click();
+  await page.getByRole("button", { name: "이어쓰기", exact: true }).click();
   await page.waitForSelector("[aria-label='결과 글']:has-text('글쓰기 규칙')", { timeout: 10000 });
   await page.getByRole("button", { name: "아래에 삽입" }).click();
   await sleep(1500);
@@ -277,27 +277,52 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click(".note-prose > p >> nth=0");
   await page.keyboard.press("Home");
   for (let i = 0; i < 3; i++) await page.keyboard.press("ArrowRight");
-  await page.getByRole("button", { name: "이어쓰기" }).click();
+  await page.getByRole("button", { name: "이어쓰기", exact: true }).click();
   await page.waitForSelector("[aria-label='결과 글']:has-text('글쓰기 규칙')", { timeout: 10000 });
   const continueCall = fs.readFileSync(aiLog, "utf8").trim().split("\n").map((line) => JSON.parse(line)).at(-1);
   assert(continueCall.input.includes("문단을 자연스럽게 마무리하는 글만") && continueCall.input.includes("<after>\n어제 학교에 갔는데") && continueCall.input.includes("<before>\n나는\n</before>"), "이어쓰기는 문단을 마무리하라고 요청하고 커서 뒤에 남은 문단 글도 보낸다");
   assert(!continueCall.input.includes("둘째 문단입니다."), "다음 문단은 보내지 않는다");
-  await page.getByRole("button", { name: "이어 붙이기" }).click();
+  const continueCard = page.getByRole("dialog", { name: "이어쓰기 결과" });
+  assert(await continueCard.isVisible(), "이어쓰기 결과가 커서 아래 작은 창으로도 뜬다");
+  const cardText = await continueCard.getByLabel("이어쓸 글").innerText();
+  assert(cardText.startsWith("이어서 쓴 문장입니다") && !cardText.includes("after와 이어져야"), `창에는 이어 붙일 글만 보이고 AI의 생각은 빠진다 (${cardText.slice(0, 30)})`);
+  const caretBox = await page.locator(".note-prose > p >> nth=0").boundingBox();
+  const cardBox = await continueCard.boundingBox();
+  assert(cardBox.y > caretBox.y && cardBox.y < caretBox.y + caretBox.height + 80, "창은 커서가 있는 줄 바로 아래에 뜬다");
+  await page.screenshot({ path: path.join(OUT, "continue-card.png") });
+  await continueCard.getByRole("button", { name: "이어 붙이기" }).click();
   await sleep(1500);
   assert(
     fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8").startsWith("나는 이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요. 어제 학교에 갔는데"),
     "이어 붙이기는 새 문단이 아니라 커서가 있던 자리에 이어서 쓴다",
   );
 
+  // 적용하면 결과 칸은 닫히지만, 지난 결과에 남아서 다시 펼쳐 보고 넣을 수 있다
+  const historyList = page.getByRole("region", { name: "AI 도우미" }).getByLabel("지난 AI 결과");
+  assert((await page.locator("[aria-label='AI 결과']").count()) === 0, "적용하면 결과 칸은 닫힌다");
+  assert((await historyList.getByRole("tab", { name: /이 글 \d+/ }).innerText()).includes("이 글 3"), "끝난 결과 셋(교정·이어쓰기 둘)이 이 글의 지난 결과에 남는다");
+  await historyList.getByRole("button", { name: /이어쓰기/ }).first().click();
+  assert((await historyList.locator("[aria-label='지난 결과 글']").innerText()).includes("이어서 쓴 문장입니다"), "지난 결과를 펼치면 전체 글이 보인다");
+  await page.screenshot({ path: path.join(OUT, "ai-history.png") });
+  await page.click(".note-prose > p >> nth=1");
+  await historyList.getByRole("button", { name: "아래에 삽입" }).click();
+  await sleep(1500);
+  assert((fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8").match(/이어서 쓴 문장입니다/g) ?? []).length === 3, "지난 결과를 다시 아래에 넣을 수 있다");
+  await page.reload();
+  await page.waitForSelector("nav[aria-label='글 목록']");
+  await page.getByRole("tablist", { name: "패널 보기" }).getByRole("tab", { name: "AI" }).click();
+  await sleep(500);
+  assert((await page.getByLabel("지난 AI 결과").count()) === 1, "다시 열어도 지난 결과가 남아 있다");
+
   // 오류와 취소
   await page.fill("textarea[aria-label='추가 요청']", "FAIL");
-  await page.getByRole("button", { name: "지시대로 처리" }).click();
+  await page.getByRole("button", { name: "지시대로 처리", exact: true }).click();
   await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('로그인이 필요해요')", { timeout: 10000 });
   console.log("ok  : CLI 오류 메시지를 화면에 보여준다");
   await page.getByRole("button", { name: "닫기", exact: true }).click();
 
   await page.fill("textarea[aria-label='추가 요청']", "SLOW");
-  await page.getByRole("button", { name: "다듬기" }).click();
+  await page.getByRole("button", { name: "다듬기", exact: true }).click();
   await page.getByRole("button", { name: "중지" }).click();
   await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
   console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");

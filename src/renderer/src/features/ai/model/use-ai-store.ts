@@ -1,4 +1,5 @@
 import type { AiEvent, AiStatus, AiTask } from "@shared/ai";
+import { extractContinuation } from "@shared/ai-prompt";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -6,6 +7,8 @@ import { collectReferences } from "@/entities/note/model/use-reference-store";
 import { useEditorBridge, type EditorContext } from "@/entities/note/model/use-editor-bridge";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
+
+import { addHistory, loadHistory, saveHistory, type AiHistoryItem } from "./ai-history";
 
 export const TASK_LABEL: Record<AiTask, string> = {
   proofread: "맞춤법 교정",
@@ -31,9 +34,13 @@ interface RunState {
   notePath: string | null;
   /** 도구를 쓰는 동안의 상태 문구 (예: 웹 검색 중…) */
   status: string;
+  /** 요청할 때의 추가 요청 (기록에 남긴다) */
+  instruction: string;
+  /** 받은 글 그대로 (이어쓰기는 이 중 <continuation> 안만 output으로 보여 준다) */
+  raw: string;
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "" };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "" };
 
 interface AiState {
   status: AiStatus | null;
@@ -41,7 +48,16 @@ interface AiState {
   rulesSaved: string;
   instruction: string;
   run: RunState;
+  /** 끝난 결과 기록 (최근 것이 앞, 작업 폴더마다 따로) */
+  history: AiHistoryItem[];
+  historyRoot: string | null;
 
+  /** 작업 폴더가 바뀌면 그 폴더의 기록을 읽는다. */
+  loadHistory: (root: string | null) => void;
+  removeHistory: (id: string) => void;
+  clearHistory: () => void;
+  /** 기록의 결과를 지금 글의 커서 아래에 넣는다. */
+  insertHistory: (id: string) => void;
   refreshStatus: () => Promise<void>;
   loadRules: () => Promise<void>;
   setRules: (rules: string) => void;
@@ -69,6 +85,29 @@ export const useAiStore = create<AiState>((set, get) => ({
   rulesSaved: "",
   instruction: "",
   run: IDLE_RUN,
+  history: [],
+  historyRoot: null,
+
+  loadHistory: (root) => {
+    if (root === get().historyRoot && get().history.length) return;
+    set({ history: loadHistory(root), historyRoot: root });
+  },
+  removeHistory: (id) => {
+    const history = get().history.filter((i) => i.id !== id);
+    set({ history });
+    saveHistory(get().historyRoot, history);
+  },
+  clearHistory: () => {
+    set({ history: [] });
+    saveHistory(get().historyRoot, []);
+  },
+  insertHistory: (id) => {
+    const item = get().history.find((i) => i.id === id);
+    const bridge = useEditorBridge.getState().bridge;
+    if (!item) return;
+    if (!bridge) return void toast.error("먼저 글을 열어 주세요.");
+    bridge.insertBelowCursor(item.output);
+  },
 
   refreshStatus: async () => {
     try {
@@ -113,7 +152,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "" },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "" },
     });
 
     try {
@@ -168,13 +207,23 @@ function handleEvent(event: AiEvent) {
   const { run } = useAiStore.getState();
   if (event.runId !== run.id) return;
   if (event.type === "delta") {
-    useAiStore.setState({ run: { ...run, output: run.output + event.text } });
+    // 이어쓰기는 받은 글 전체(raw)를 두고, 화면에는 <continuation> 안의 글만 보여 준다.
+    const raw = run.raw + event.text;
+    useAiStore.setState({ run: { ...run, raw, output: run.task === "continue" ? extractContinuation(raw, { streaming: true }) : raw } });
   } else if (event.type === "status") {
     useAiStore.setState({ run: { ...run, status: event.text } });
   } else if (event.type === "reset") {
-    useAiStore.setState({ run: { ...run, output: "" } });
+    useAiStore.setState({ run: { ...run, output: "", raw: "" } });
   } else if (event.type === "done") {
-    useAiStore.setState({ run: { ...run, phase: "done", output: tidyOutput(event.text) } });
+    const output = tidyOutput(run.task === "continue" ? extractContinuation(event.text) : event.text);
+    useAiStore.setState({ run: { ...run, phase: "done", output } });
+    // 적용하거나 닫으면 결과가 사라지므로, 끝나는 대로 기록에 남긴다.
+    const { history, historyRoot } = useAiStore.getState();
+    const next = addHistory(history, {
+      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(),
+    });
+    useAiStore.setState({ history: next });
+    saveHistory(historyRoot, next);
   } else {
     useAiStore.setState({ run: { ...run, phase: "error", error: event.message } });
   }

@@ -41,7 +41,7 @@ const TASK_INSTRUCTIONS = {
   proofread:
     "<text>의 글에서 맞춤법, 띄어쓰기, 문장부호, 오탈자만 고치세요. 문체, 어휘, 문장 구조는 바꾸지 않습니다. 고친 전체 글만 출력하고, 고칠 곳이 없으면 원문을 그대로 출력하세요.",
   continue:
-    "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 마지막 글자 바로 뒤에 이어 붙일 글만 출력하세요.",
+    "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 어떻게 쓸지에 대한 생각, 설명, 분석은 쓰지 말고, 마지막 글자 바로 뒤에 이어 붙일 글만 <continuation>과 </continuation> 사이에 쓰세요. 태그 밖에는 아무것도 쓰지 마세요.",
   custom: "다음 지시에 따라 <text>의 글을 처리하세요. 결과 글만 출력하세요.",
 } as const;
 
@@ -122,4 +122,21 @@ export function buildUserPrompt(request: AiRequest, projectSections: string[] = 
   sections.push(task);
 
   return sections.join("\n\n");
+}
+
+const CONTINUATION_OPEN = "<continuation>";
+const CONTINUATION_CLOSE = "</continuation>";
+
+/**
+ * 이어쓰기 답에서 이어 붙일 글만 꺼낸다. 모델이 태그 밖에 생각이나 설명을 늘어놓아도 버린다.
+ * 아직 받는 중이면 여는 태그 뒤부터 지금까지, 끝났는데 태그를 안 썼으면 답 전체(옛 모델·가짜 CLI).
+ */
+export function extractContinuation(text: string, { streaming = false } = {}): string {
+  const open = text.lastIndexOf(CONTINUATION_OPEN);
+  // 받는 중에 여는 태그가 아직 없으면 모델이 생각을 쓰는 중일 수 있어 보여 주지 않는다 (끝나면 태그가 없을 때만 전체를 쓴다).
+  if (open === -1) return streaming ? "" : text;
+  const rest = text.slice(open + CONTINUATION_OPEN.length);
+  const close = rest.indexOf(CONTINUATION_CLOSE);
+  const body = close === -1 ? rest.replace(/<\/?[a-z]*$/i, "") : rest.slice(0, close);
+  return body.replace(/^\s*\n/, "");
 }

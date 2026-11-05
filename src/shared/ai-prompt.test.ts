@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
-import { buildUserPrompt, fitReferences } from "./ai-prompt";
+import { buildUserPrompt, extractContinuation, fitReferences } from "./ai-prompt";
 import { EMPTY_BRIEF } from "./draft";
 
 const base: AiRequest = {
@@ -152,5 +152,19 @@ describe("초안 자료", () => {
   it("자료가 없으면 <sources>를 넣지 않고, 다른 작업에는 자료를 넣지 않는다", () => {
     expect(buildUserPrompt({ ...draftRequest, sources: [] })).not.toContain("<sources>");
     expect(buildUserPrompt({ ...base, sources: [video] })).not.toContain("<sources>");
+  });
+});
+
+describe("extractContinuation", () => {
+  it("keeps only the text inside the tag, dropping thinking outside it", () => {
+    expect(extractContinuation("이 문단은 소제목 아래에 있고, after와 이어져야 한다.\n<continuation>\n처음에는 눈치가 보였는데</continuation>\n끝")).toBe("처음에는 눈치가 보였는데");
+  });
+  it("shows what has arrived so far while streaming", () => {
+    expect(extractContinuation("생각 중…<continuation>처음에는 눈", { streaming: true })).toBe("처음에는 눈");
+    expect(extractContinuation("<continuation>처음에는</contin", { streaming: true })).toBe("처음에는");
+    expect(extractContinuation("이 문단은 소제목 아래에", { streaming: true })).toBe("");
+  });
+  it("falls back to the whole answer when the model did not use the tag", () => {
+    expect(extractContinuation("이어서 쓴 문장입니다.")).toBe("이어서 쓴 문장입니다.");
   });
 });

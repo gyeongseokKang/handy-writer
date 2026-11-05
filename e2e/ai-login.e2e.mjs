@@ -13,7 +13,7 @@ await alert.waitFor();
 const text = await alert.innerText();
 assert(text.includes("/login") && text.includes("claude"), "로그인 안내(터미널에서 claude 실행 후 /login)가 나온다");
 assert((await alert.getByRole("button", { name: "다시 확인" }).count()) === 1, "다시 확인 버튼이 있다");
-assert(await page.getByRole("button", { name: "맞춤법 교정" }).isDisabled(), "로그인 전에는 AI 버튼이 꺼져 있다");
+assert(await page.getByRole("button", { name: "맞춤법 교정", exact: true }).isDisabled(), "로그인 전에는 AI 버튼이 꺼져 있다");
 ok("로그인 안내 확인");
 assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.join(" | ")}`);
 await env.close();

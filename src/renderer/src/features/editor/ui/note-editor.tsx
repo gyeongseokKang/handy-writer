@@ -21,6 +21,7 @@ import { issueKey } from "@shared/spellcheck";
 import { registerFlusher } from "@/shared/lib/pending-saves";
 import { cn } from "@/shared/lib/utils";
 import { WritingToday } from "@/features/writing-stats/ui/writing-today";
+import { ContinueCard } from "@/features/ai/ui/continue-card";
 
 import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
@@ -602,6 +603,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       )}
       {blockMenu && <BlockMenu editor={editor} target={blockMenu.target} x={blockMenu.x} y={blockMenu.y} onClose={() => setBlockMenu(null)} />}
       <TableMenu editor={editor} />
+      {isMain && editor && <ContinueCard editor={editor} path={path} />}
       {spellTarget && (
         <SpellPopover
           target={spellTarget}

@@ -1,4 +1,4 @@
-import { BookOpen, Check, CopyPlus, FileText, Loader2, PenLine, Plus, SpellCheck, Sparkles, Square, TextCursorInput, X } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Copy, CopyPlus, FileText, History, Loader2, PenLine, Plus, SpellCheck, Sparkles, Square, TextCursorInput, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -7,6 +7,7 @@ import { useNoteIndexStore } from "@/entities/note-index/model/use-note-index-st
 import { useReferenceStore } from "@/entities/note/model/use-reference-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 import { TASK_LABEL, useAiStore } from "../model/use-ai-store";
@@ -284,6 +285,100 @@ function Result() {
   );
 }
 
+function timeAgo(iso: string) {
+  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
+  if (Number.isNaN(minutes)) return "";
+  if (minutes < 1) return "방금";
+  if (minutes < 60) return `${minutes}분 전`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}시간 전`;
+  return new Date(iso).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+}
+
+/** 끝난 결과 기록: 적용하거나 닫아도 남아서 다시 펼쳐 보고 복사·삽입한다. 작업 폴더마다 따로 기억한다. */
+function HistoryList() {
+  const history = useAiStore((s) => s.history);
+  const activePath = useWorkspaceStore((s) => s.activePath);
+  const [scope, setScope] = useState<"note" | "all">("note");
+  const [openId, setOpenId] = useState<string | null>(null);
+  const mine = history.filter((i) => i.notePath === activePath);
+  const shown = scope === "note" ? mine : history;
+  if (history.length === 0) return null;
+  const { removeHistory, insertHistory, clearHistory } = useAiStore.getState();
+  const copy = (text: string) => void navigator.clipboard.writeText(text).then(() => toast.success("결과를 복사했어요."));
+
+  return (
+    <section aria-label="지난 AI 결과" className="space-y-2 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <h2 className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground"><History className="size-3.5" /> 지난 결과</h2>
+        <div role="tablist" aria-label="기록 범위" className="ml-auto flex rounded-md bg-muted p-0.5 text-[11px]">
+          {(["note", "all"] as const).map((key) => (
+            <button
+              key={key}
+              type="button"
+              role="tab"
+              aria-selected={scope === key}
+              onClick={() => setScope(key)}
+              className={cn("rounded px-2 py-0.5 text-muted-foreground", scope === key && "bg-background text-foreground shadow-sm")}
+            >
+              {key === "note" ? `이 글 ${mine.length}` : `전체 ${history.length}`}
+            </button>
+          ))}
+        </div>
+      </div>
+      {shown.length === 0 ? (
+        <p className="py-2 text-center text-xs text-muted-foreground">이 글에서 받은 결과가 아직 없어요.</p>
+      ) : (
+        <ul className="space-y-1">
+          {shown.map((item) => {
+            const open = openId === item.id;
+            return (
+              <li key={item.id} className="rounded-md border bg-background">
+                <button
+                  type="button"
+                  aria-expanded={open}
+                  onClick={() => setOpenId(open ? null : item.id)}
+                  className="flex w-full items-start gap-1.5 px-2 py-1.5 text-left hover:bg-accent/50"
+                >
+                  <ChevronRight className={cn("mt-0.5 size-3.5 shrink-0 text-muted-foreground transition-transform", open && "rotate-90")} />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5 text-xs">
+                      <span className="font-medium">{TASK_LABEL[item.task]}</span>
+                      <span className="text-muted-foreground">{timeAgo(item.at)}</span>
+                      {scope === "all" && item.noteName && <span className="truncate text-muted-foreground">· {item.noteName}</span>}
+                    </span>
+                    {!open && <span className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{item.output}</span>}
+                  </span>
+                </button>
+                {open && (
+                  <div className="space-y-2 border-t px-2 py-2">
+                    {item.instruction && <p className="text-[11px] text-muted-foreground">요청: {item.instruction}</p>}
+                    <p aria-label="지난 결과 글" className="max-h-72 overflow-y-auto text-sm leading-7 break-words whitespace-pre-wrap">{item.output}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => insertHistory(item.id)}><CopyPlus /> 아래에 삽입</Button>
+                      <Button size="sm" variant="outline" className="h-7" onClick={() => copy(item.output)}><Copy /> 복사</Button>
+                      <Button size="sm" variant="ghost" className="ml-auto h-7 text-muted-foreground" onClick={() => removeHistory(item.id)}><Trash2 /> 지우기</Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {scope === "all" && history.length > 1 && (
+        <button
+          type="button"
+          className="text-[11px] text-muted-foreground underline"
+          onClick={() => window.confirm("지난 AI 결과를 모두 지울까요?") && clearHistory()}
+        >
+          기록 모두 지우기
+        </button>
+      )}
+    </section>
+  );
+}
+
 export function AiPanel() {
   const status = useAiStore((s) => s.status);
   const running = useAiStore((s) => s.run.phase === "running");
@@ -296,6 +391,7 @@ export function AiPanel() {
 
   useEffect(() => void refreshStatus(), [refreshStatus]);
   useEffect(() => void loadRules(), [loadRules, root]);
+  useEffect(() => useAiStore.getState().loadHistory(root), [root]);
 
   const disabled = running || status?.available === false;
 
@@ -333,6 +429,7 @@ export function AiPanel() {
       </section>
 
       <Result />
+      <HistoryList />
       <References />
       <Rules />
     </div>

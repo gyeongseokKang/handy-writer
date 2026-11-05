@@ -71,8 +71,12 @@ process.stdin.on("end", async () => {
       ? text.replace(/않계/g, "안 계").replace(/되돌아 왔다/g, "되돌아왔다")
       : "이어서 쓴 문장입니다. 자세한 내용은 [[글쓰기 규칙]]을 참고하세요.";
 
-  const mid = Math.ceil(result.length / 2);
-  delta(result.slice(0, mid));
-  delta(result.slice(mid));
-  out({ type: "result", subtype: "success", is_error: false, result });
+  // 이어쓰기는 실제 모델처럼 태그 밖에 생각을 늘어놓고 <continuation> 안에 답을 쓴다 (앱이 태그 안만 쓰는지 시험).
+  const answer = text === undefined && input.includes("<continuation>")
+    ? `이 문단은 소제목 아래에 있고 after와 이어져야 한다.\n<continuation>\n${result}</continuation>\n그러니 이렇게 쓰면 된다.`
+    : result;
+  const mid = Math.ceil(answer.length / 2);
+  delta(answer.slice(0, mid));
+  delta(answer.slice(mid));
+  out({ type: "result", subtype: "success", is_error: false, result: answer });
 });
