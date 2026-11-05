@@ -1,12 +1,13 @@
-import { BadgeCheck, CloudCheck, CloudOff, TriangleAlert, Eye, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, BadgeCheck, CloudCheck, CloudOff, ImageOff, TriangleAlert, Eye, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   BOOK_TYPES, DEFAULT_REVIEW_SITE_URL, lengthOf, NOVEL_GENRES, NOVEL_LENGTHS, NOVEL_STATUSES, REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL,
   type BookType, type NovelGenre, type NovelLength, type NovelStatus,
-  type DeployStatus, type ReviewCategory, type ReviewLink, type ReviewPostSummary,
+  type DeployStatus, type ReviewCategory, type ReviewCover, type ReviewLink, type ReviewPostSummary,
 } from "@shared/review";
+import { assetUrl, isRemoteUrl, resolveAttachment } from "@shared/attachments";
 import {
   coupangLinkKind, frontmatterTagList, readReviewMeta, reviewProblems, reviewSlugOf, reviewWarnings, slugOfReviewPath, writeReviewMeta,
   sortSeries, type ReviewMeta, type ReviewNotePreview, type ReviewSeriesEntry,
@@ -131,6 +132,72 @@ function LinksInput({ links, onChange }: { links: ReviewLink[]; onChange: (v: Re
           <Plus /> 링크 추가
         </Button>
         {links.some((l) => l.affiliate) && <p className="text-xs text-muted-foreground">사이트에 쿠팡 파트너스 고지 문구와 rel="sponsored nofollow"가 저절로 붙어요.</p>}
+      </div>
+    </Field>
+  );
+}
+
+/** 표지 플랫폼 이름 제안 (사이트가 로고를 아는 이름) */
+const COVER_PLATFORMS = ["네이버 시리즈", "카카오페이지", "문피아", "리디", "노벨피아", "조아라", "미스터블루", "교보eBook", "밀리의 서재", "네이버 웹툰", "카카오웹툰"];
+
+/**
+ * 표지 미리보기: 첨부 이름이면 작업 폴더의 파일, https면 그 주소,
+ * 사이트 경로(/images/…, 가져온 리뷰)면 사이트에 올라간 그림을 보여 준다.
+ */
+function CoverThumb({ src, siteUrl, notePath, className }: { src: string; siteUrl: string; notePath: string | null; className?: string }) {
+  const attachments = useWorkspaceStore((s) => s.attachments);
+  const [failed, setFailed] = useState(false);
+  const c = src.trim();
+  useEffect(() => setFailed(false), [c]);
+  let url: string | null = null;
+  if (isRemoteUrl(c)) url = c;
+  else if (c.startsWith("/")) url = `${siteUrl}${c.split("/").map(encodeURIComponent).join("/")}`;
+  else if (c) {
+    const folder = notePath && notePath.includes("/") ? notePath.slice(0, notePath.lastIndexOf("/")) : "";
+    const found = resolveAttachment(attachments, c, folder);
+    if (found) url = assetUrl(found.path);
+  }
+  return (
+    <span className={cn("flex aspect-[3/4] shrink-0 items-center justify-center overflow-hidden rounded border bg-muted text-muted-foreground", className)}>
+      {url && !failed ? <img src={url} alt="" className="size-full object-cover" onError={() => setFailed(true)} /> : <ImageOff className="size-3.5" />}
+    </span>
+  );
+}
+
+/** 플랫폼별 표지 (사이트 frontmatter의 covers). 2장 이상이면 상세 페이지에 나란히, 1장이면 커버로도 쓰인다. */
+function CoversInput({ covers, links, images, siteUrl, notePath, onChange }: {
+  covers: ReviewCover[]; links: ReviewLink[]; images: string[]; siteUrl: string; notePath: string | null; onChange: (v: ReviewCover[]) => void;
+}) {
+  const set = (i: number, patch: Partial<ReviewCover>) => onChange(covers.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const move = (i: number, step: number) => {
+    const next = [...covers];
+    const [item] = next.splice(i, 1);
+    next.splice(i + step, 0, item!);
+    onChange(next);
+  };
+  // 링크 이름(문피아에서 보기)에서 플랫폼 이름도 제안한다.
+  const platforms = [...new Set([...links.map((l) => l.label.replace(/\s*에서\s*(보기|읽기|사기|구매)\s*$/, "").trim()).filter(Boolean), ...COVER_PLATFORMS])];
+  return (
+    <Field label="플랫폼별 표지" hint={covers.length >= 2 ? "상세 페이지에 나란히 보여요" : "1장이면 커버로 쓰여요"} group>
+      <div className="space-y-1.5">
+        {covers.map((c, i) => (
+          <div key={i} className="flex gap-2 rounded-md border p-1.5">
+            <CoverThumb src={c.src} siteUrl={siteUrl} notePath={notePath} className="w-11" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex gap-0.5">
+                <input className={input} list="review-cover-platforms" aria-label={`${i + 1}번 표지 플랫폼`} value={c.platform ?? ""} placeholder="네이버 시리즈" onChange={(e) => set(i, { platform: e.target.value || undefined })} />
+                <button type="button" aria-label="위로" title="위로" disabled={i === 0} className="rounded p-1 text-muted-foreground hover:bg-accent disabled:opacity-30" onClick={() => move(i, -1)}><ArrowUp className="size-3.5" /></button>
+                <button type="button" aria-label="아래로" title="아래로" disabled={i === covers.length - 1} className="rounded p-1 text-muted-foreground hover:bg-accent disabled:opacity-30" onClick={() => move(i, 1)}><ArrowDown className="size-3.5" /></button>
+                <button type="button" aria-label="표지 삭제" title="표지 삭제" className="rounded p-1 text-muted-foreground hover:bg-accent" onClick={() => onChange(covers.filter((_, j) => j !== i))}><Trash2 className="size-3.5" /></button>
+              </div>
+              <input className={input} list="review-cover-images" aria-label={`${i + 1}번 표지 그림`} value={c.src} placeholder="첨부 이름 또는 https 주소" onChange={(e) => set(i, { src: e.target.value })} />
+            </div>
+          </div>
+        ))}
+        <datalist id="review-cover-platforms">{platforms.map((p) => <option key={p} value={p} />)}</datalist>
+        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => onChange([...covers, { src: images.find((img) => !covers.some((c) => c.src === img)) ?? "" }])}>
+          <Plus /> 표지 추가
+        </Button>
       </div>
     </Field>
   );
@@ -420,9 +487,20 @@ export function ReviewSection() {
       <LinesInput label="아쉬운 점" items={fm.cons} placeholder="아쉬웠던 점" onChange={(cons) => patch({ cons })} />
       <LinksInput links={fm.links} onChange={(links) => patch({ links })} />
       <Field label="커버 이미지" hint="첨부 이름 또는 https 주소">
-        <input className={input} list="review-cover-images" value={fm.cover ?? ""} placeholder={images[0] ?? "없으면 비워 두기"} onChange={(e) => patch({ cover: e.target.value })} />
+        <div className="flex items-center gap-2">
+          {(fm.cover?.trim() || fm.covers?.[0]?.src) && <CoverThumb src={fm.cover?.trim() || fm.covers![0]!.src} siteUrl={siteUrl} notePath={activePath} className="w-8" />}
+          <input
+            className={input}
+            list="review-cover-images"
+            value={fm.cover ?? ""}
+            // 비워 두면 플랫폼별 표지 첫 장을 사이트가 커버로 쓴다.
+            placeholder={fm.covers?.length ? `비워 두면 플랫폼별 표지 1번(${fm.covers[0]!.platform ?? "표지"})을 써요` : images[0] ?? "없으면 비워 두기"}
+            onChange={(e) => patch({ cover: e.target.value })}
+          />
+        </div>
         <datalist id="review-cover-images">{images.map((i) => <option key={i} value={i} />)}</datalist>
       </Field>
+      <CoversInput covers={fm.covers ?? []} links={fm.links} images={images} siteUrl={siteUrl} notePath={activePath} onChange={(covers) => patch({ covers })} />
       {fm.category === "place" && (
         <>
           <Field label="주소"><input className={input} value={fm.address ?? ""} onChange={(e) => patch({ address: e.target.value })} /></Field>
@@ -483,10 +561,8 @@ export function ReviewSection() {
               <p className="text-xs text-muted-foreground">분량·상태·장르는 태그로 달지 않아요. 단편 100화 미만 · 중편 100~299화 · 장편 300화 이상.</p>
             </>
           )}
-          {(fm.factions?.length || fm.covers?.length) ? (
-            <p className="text-xs text-muted-foreground">
-              {fm.factions?.length ? `세력 구도 ${fm.factions.length}개` : ""}{fm.factions?.length && fm.covers?.length ? " · " : ""}{fm.covers?.length ? `플랫폼별 표지 ${fm.covers.length}장` : ""} — 속성(frontmatter)에서 고치고, 게시할 때 그대로 올라가요.
-            </p>
+          {fm.factions?.length ? (
+            <p className="text-xs text-muted-foreground">세력 구도 {fm.factions.length}개 — 속성(frontmatter)에서 고치고, 게시할 때 그대로 올라가요.</p>
           ) : null}
         </div>
       )}
