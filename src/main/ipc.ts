@@ -93,7 +93,10 @@ export async function registerIpc() {
   ipcMain.handle(IPC.notesList, () => listNotes(requireRoot()));
   ipcMain.handle(IPC.notesRead, (_e, path: string) => readNote(requireRoot(), path));
   const stats = new WritingStatsStore(join(app.getPath("userData"), "writing-stats.json"));
-  app.on("before-quit", () => void stats.flush());
+  // 업데이트 설치·종료 때 앱은 비동기 저장을 기다려 주지 않는다. 그 자리에서 끝까지 쓴다.
+  app.on("before-quit", () => {
+    try { stats.flushSync(); } catch { /* 다음 저장 때 다시 쓴다 */ }
+  });
   ipcMain.handle(IPC.notesWrite, async (_e, path: string, content: string, options?: { countWriting?: boolean }) => {
     const root = requireRoot();
     const before = await readNote(root, path).catch(() => null);

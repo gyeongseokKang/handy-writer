@@ -40,9 +40,39 @@ assert((await widthOf(sidebar)) === sideBefore + 60, "왼쪽 사이드바도 그
 await page.reload();
 await page.waitForSelector(right);
 assert((await widthOf(right)) === saved, `다시 열어도 오른쪽 패널 너비를 기억한다 (${saved})`);
-await page.getByRole("separator", { name: "오른쪽 패널 너비 조절" }).dblclick();
-await sleep(200);
-assert((await widthOf(right)) === 320, "두 번 누르면 기본 너비(320)로 돌아간다");
+// 가장자리에 올려 두면 '닫기 · 크기 조정' 안내가 뜨고, 그냥 누르면 접힌다
+const rightHandle = page.getByRole("separator", { name: "오른쪽 패널 너비 조절" });
+const hb = await rightHandle.boundingBox();
+await page.mouse.move(hb.x + hb.width / 2, hb.y + 300);
+await page.mouse.move(hb.x + hb.width / 2, hb.y + 305);
+await sleep(600);
+const hint = page.getByRole("tooltip").filter({ hasText: "크기 조정" });
+const hintText = (await hint.count()) ? await hint.innerText() : "";
+assert(hintText.includes("닫기") && hintText.includes("Ctrl+Alt+]") && hintText.includes("드래그"), `올려 두면 닫기·크기 조정 안내와 단축키가 보인다 (${hintText.replace(/\n/g, " / ")})`);
+await page.screenshot({ path: path.join(OUT, "panel-hint.png") });
+await page.mouse.down();
+await page.mouse.up();
+await sleep(300);
+assert((await page.locator(right).count()) === 0, "가장자리를 그냥 누르면 오른쪽 패널이 접힌다");
+await page.keyboard.press("Control+Alt+BracketRight");
+await sleep(300);
+assert((await widthOf(right)) === saved, "Ctrl/Cmd+Alt+]로 다시 펼치면 너비는 그대로다");
+
+const sideHandle = page.getByRole("separator", { name: "사이드바 너비 조절" });
+const sb = await sideHandle.boundingBox();
+await page.mouse.move(sb.x + sb.width / 2, sb.y + 300);
+await page.mouse.down();
+await page.mouse.up();
+await sleep(300);
+assert((await page.locator(sidebar).count()) === 0 && (await page.getByRole("button", { name: "사이드바 열기" }).isVisible()), "사이드바 가장자리를 누르면 접히고 여는 버튼만 남는다");
+await page.getByRole("button", { name: "사이드바 열기" }).click();
+await sleep(300);
+assert((await page.locator(sidebar).count()) === 1, "여는 버튼으로 다시 펼친다");
+await page.keyboard.press("Control+Alt+BracketLeft");
+await sleep(300);
+assert((await page.locator(sidebar).count()) === 0, "Ctrl/Cmd+Alt+[로 사이드바를 접는다");
+await page.keyboard.press("Control+Alt+BracketLeft");
+await sleep(300);
 await page.screenshot({ path: path.join(OUT, "panel-width.png") });
 
 // 접기 버튼은 탭 막대 오른쪽 끝(패널 바로 옆)에 있다

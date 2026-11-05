@@ -79,7 +79,7 @@ export function EditorWidthHandles({ columnRef }: { columnRef: React.RefObject<H
               dragging && "opacity-100 bg-ring",
             )}
           />
-          <ResizeGrip sticky active={dragging} className="group-hover/width:opacity-100 group-focus-visible/width:opacity-100" />
+          <ResizeGrip sticky active={dragging} className={dragging ? undefined : "opacity-15 group-hover/width:opacity-100 group-focus-visible/width:opacity-100"} />
         </div>
       ))}
     </>

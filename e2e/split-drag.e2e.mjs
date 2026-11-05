@@ -58,7 +58,7 @@ assert((await sides.count()) === 0, "Ctrl+\\는 분할을 모두 닫는다");
 
 // ── 너비 손잡이: ↔ 표시와 끄는 동안 눈금자 ──
 const handle = page.getByRole("separator", { name: "오른쪽 패널 너비 조절" });
-assert((await handle.locator("svg").count()) === 1, "손잡이에 좌우 화살표 표시가 있다");
+assert((await handle.locator("svg").count()) === 0, "사이드 패널 손잡이에는 아이콘 없이 선만 있다");
 const box = await handle.boundingBox();
 await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
 await page.mouse.down();

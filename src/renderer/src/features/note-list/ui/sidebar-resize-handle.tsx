@@ -6,6 +6,7 @@ export function SidebarResizeHandle() {
   const width = useUiStore((s) => s.sidebarWidth);
   const setWidth = useUiStore((s) => s.setSidebarWidth);
   return (
-    <PanelResizeHandle edge="right" width={width} setWidth={setWidth} min={MIN_SIDEBAR_WIDTH} max={MAX_SIDEBAR_WIDTH} fallback={DEFAULT_SIDEBAR_WIDTH} label="사이드바 너비 조절" />
+    <PanelResizeHandle edge="right" width={width} setWidth={setWidth} min={MIN_SIDEBAR_WIDTH} max={MAX_SIDEBAR_WIDTH} fallback={DEFAULT_SIDEBAR_WIDTH} label="사이드바 너비 조절"
+      onCollapse={() => useUiStore.getState().toggleSidebar()} collapseShortcut="Mod+Alt+[" />
   );
 }

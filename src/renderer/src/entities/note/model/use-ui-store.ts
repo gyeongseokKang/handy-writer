@@ -52,6 +52,7 @@ function readSidebarWidth() {
 }
 
 const OUTLINE_PINNED_KEY = "handy-writer:outline-pinned";
+const SIDEBAR_OPEN_KEY = "handy-writer:sidebar-open";
 const TAB_PER_CLICK_KEY = "handy-writer:tab-per-click";
 const FOCUS_DIM_KEY = "handy-writer:focus-dim";
 const TYPEWRITER_KEY = "handy-writer:typewriter";
@@ -86,6 +87,8 @@ interface UiState {
   sidebarView: SidebarView;
   selectedTag: string | null;
   rightPanelOpen: boolean;
+  /** 왼쪽 사이드바를 펼쳤는지 (이 컴퓨터에 기억) */
+  sidebarOpen: boolean;
   /** 창이 좁아서 오른쪽 패널을 저절로 접었는지. 다시 넓어지면 펼친다. 손으로 열고 닫으면 풀린다. */
   rightPanelAutoClosed: boolean;
   /** 지금 에디터에 보내는 요청 (명령 팔레트 등에서). seq가 바뀌면 단축키 대상 에디터가 처리한다. */
@@ -143,6 +146,7 @@ interface UiState {
   /** 태그 목록에서 해당 태그를 펼쳐 보여준다. */
   showTag: (tag: string) => void;
   toggleRightPanel: () => void;
+  toggleSidebar: () => void;
   /** 창 너비가 바뀔 때 부른다. 좁으면 오른쪽 패널을 접고, 다시 넓어지면 저절로 접었던 것만 펼친다. */
   setNarrow: (narrow: boolean) => void;
   requestEditor: (kind: EditorRequestKind) => void;
@@ -181,6 +185,7 @@ export const useUiStore = create<UiState>((set) => ({
   sidebarView: "notes",
   selectedTag: null,
   rightPanelOpen: true,
+  sidebarOpen: readFlag(SIDEBAR_OPEN_KEY),
   rightPanelAutoClosed: false,
   editorRequest: null,
   settingsOpen: false,
@@ -219,6 +224,10 @@ export const useUiStore = create<UiState>((set) => ({
   selectTag: (selectedTag) => set({ selectedTag }),
   showTag: (tag) => set({ sidebarView: "tags", selectedTag: tag, view: "editor" }),
   toggleRightPanel: () => set((state) => ({ rightPanelOpen: !state.rightPanelOpen, rightPanelAutoClosed: false })),
+  toggleSidebar: () => set((state) => {
+    saveFlag(SIDEBAR_OPEN_KEY, !state.sidebarOpen);
+    return { sidebarOpen: !state.sidebarOpen };
+  }),
   setNarrow: (narrow) =>
     set((state) => {
       if (narrow && state.rightPanelOpen) return { rightPanelOpen: false, rightPanelAutoClosed: true };
