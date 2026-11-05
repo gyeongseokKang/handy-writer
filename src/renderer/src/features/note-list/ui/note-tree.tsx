@@ -292,7 +292,7 @@ export function NoteTree() {
   return (
     // 빈 곳을 우클릭하면 맨 위에 새 글·새 폴더를 만드는 메뉴가 뜬다.
     <div
-      className={cn("min-h-full pb-4", rootDropping && "bg-accent/40")}
+      className={cn("pt-1 pb-3", rootDropping && "bg-accent/40")}
       data-drop-target={rootDropping || undefined}
       onContextMenu={onContextMenu({ kind: "root" })}
       // 폴더가 아닌 빈 곳에 놓으면 맨 위(작업 폴더)로 옮긴다.

@@ -1,24 +1,20 @@
-import { CircleHelp, Download, FolderOpen, GitBranch, Network, PanelRight, PenLine, Plus, RefreshCw, Search } from "lucide-react";
+import { CircleHelp, Download, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
 
 import { UpdateRow } from "./update-row";
-import { useGitStore } from "@/entities/git/model/use-git-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { TagList } from "@/features/tag-browser/ui/tag-list";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
-import { NoteTree } from "./note-tree";
 import { SidebarResizeHandle } from "./sidebar-resize-handle";
-import { useReviewRepoStore } from "@/features/review/model/use-review-repo-store";
-import { ReviewRepoRow } from "@/features/review/ui/review-repo-row";
+import { WorkspaceSection } from "./workspace-section";
+import { ReviewSection } from "@/features/review/ui/review-section";
 
 export function Sidebar() {
-  const root = useWorkspaceStore((state) => state.root);
   const query = useWorkspaceStore((state) => state.query);
   const setQuery = useWorkspaceStore((state) => state.setQuery);
   const createNote = useWorkspaceStore((state) => state.createNote);
-  const chooseFolder = useWorkspaceStore((state) => state.chooseFolder);
 
   const view = useUiStore((state) => state.view);
   const setView = useUiStore((state) => state.setView);
@@ -27,23 +23,7 @@ export function Sidebar() {
   const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
   const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
 
-  const gitStatus = useGitStore((state) => state.status);
-  const toggleGit = useUiStore((state) => state.toggleGit);
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
-  // 핸디 리뷰처럼 다른 Git이 연결돼 있으면 줄마다 어느 저장소인지 이름을 붙인다.
-  const reviewConnected = useReviewRepoStore((state) => state.repo !== null);
-  const gitOpen = useUiStore((state) => state.gitOpen && state.rightPanelOpen);
-  const gitBusy = useGitStore((state) => state.busy);
-  const syncGit = useGitStore((state) => state.sync);
-  // 원격이 있고 올리거나 받을 것이 있을 때만 동기화 버튼을 보여 준다 (병합 중이면 Git 화면에서 풀어야 한다).
-  const syncing = gitBusy === "sync";
-  const needsSync =
-    !!gitStatus && gitStatus.isRepo && gitStatus.hasRemote && !gitStatus.merging && (gitStatus.changes.length > 0 || gitStatus.ahead > 0 || gitStatus.behind > 0);
-  const syncTitle = gitStatus
-    ? `동기화: 커밋 → 가져오기 → 푸시 (${[gitStatus.changes.length > 0 && `변경 ${gitStatus.changes.length}개`, gitStatus.ahead > 0 && `올릴 것 ${gitStatus.ahead}`, gitStatus.behind > 0 && `받을 것 ${gitStatus.behind}`].filter(Boolean).join(", ")})`
-    : "동기화";
-
-  const folderName = root?.split(/[\\/]/).filter(Boolean).pop() ?? "";
 
   return (
     <aside style={{ width: sidebarWidth }} className="relative flex h-full shrink-0 flex-col border-r bg-muted/40">
@@ -127,57 +107,18 @@ export function Sidebar() {
         </Button>
       </div>
 
+      {/* 저장소마다 머리줄(Git) + 파일 트리. 길어지면 이 칸 전체가 스크롤되고 머리줄은 위에 붙는다. */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {sidebarView === "notes" ? <NoteTree /> : <TagList />}
+        {sidebarView === "notes" ? (
+          <>
+            <WorkspaceSection />
+            <ReviewSection />
+          </>
+        ) : <TagList />}
       </div>
-
-      {gitStatus && (
-        <div className={cn("flex items-center border-t text-xs text-muted-foreground", gitOpen && "bg-accent text-foreground")}>
-          <button
-            type="button"
-            onClick={toggleGit}
-            title={gitOpen ? "Git 닫기" : "Git 열기"}
-            aria-label="Git 상태"
-            aria-expanded={gitOpen}
-            className="flex min-w-0 flex-1 items-center gap-2 px-4 py-2 text-left hover:bg-accent/70"
-          >
-            <GitBranch className="size-3.5 shrink-0" />
-            {reviewConnected && <span className="max-w-24 shrink-0 truncate font-medium text-foreground/80">{folderName || "작업 폴더"}</span>}
-            <span className="truncate">{gitStatus.isRepo ? (gitStatus.branch ?? "HEAD") : gitStatus.installed ? "Git 시작하기" : "Git 설치 필요"}</span>
-            <span className="ml-auto flex shrink-0 items-center gap-2">
-              {gitStatus.changes.length > 0 && <span className="text-amber-600">● {gitStatus.changes.length}</span>}
-              {gitStatus.ahead > 0 && <span>↑{gitStatus.ahead}</span>}
-              {gitStatus.behind > 0 && <span>↓{gitStatus.behind}</span>}
-            </span>
-          </button>
-          {(needsSync || syncing) && (
-            <button
-              type="button"
-              aria-label="동기화"
-              title={syncing ? "동기화하는 중…" : syncTitle}
-              disabled={gitBusy !== null}
-              onClick={() => void syncGit()}
-              className="mr-2 flex size-6 shrink-0 items-center justify-center rounded text-foreground hover:bg-accent disabled:opacity-60"
-            >
-              <RefreshCw className={cn("size-3.5", syncing && "animate-spin")} />
-            </button>
-          )}
-        </div>
-      )}
-
-      <ReviewRepoRow />
 
       <UpdateRow />
 
-      <button
-        type="button"
-        onClick={() => void chooseFolder()}
-        title={root ?? undefined}
-        className="flex items-center gap-2 border-t px-4 py-2.5 text-left text-xs text-muted-foreground hover:bg-accent/70"
-      >
-        <FolderOpen className="size-4 shrink-0" />
-        <span className="truncate">{folderName || "작업 폴더 선택"}</span>
-      </button>
     </aside>
   );
 }
