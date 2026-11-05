@@ -1,12 +1,13 @@
-import { BadgeCheck, CloudCheck, CloudOff, TriangleAlert, Eye, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown, ArrowUp, BadgeCheck, ImageOff, TriangleAlert, ExternalLink, FolderOpen, Plus, RefreshCw, Send, Star, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import {
   BOOK_TYPES, DEFAULT_REVIEW_SITE_URL, lengthOf, NOVEL_GENRES, NOVEL_LENGTHS, NOVEL_STATUSES, REVIEW_CATEGORIES, REVIEW_CATEGORY_LABEL,
   type BookType, type NovelGenre, type NovelLength, type NovelStatus,
-  type DeployStatus, type ReviewCategory, type ReviewLink, type ReviewPostSummary,
+  type ReviewCategory, type ReviewCover, type ReviewLink, type ReviewPostSummary,
 } from "@shared/review";
+import { assetUrl, isRemoteUrl, resolveAttachment } from "@shared/attachments";
 import {
   coupangLinkKind, frontmatterTagList, readReviewMeta, reviewProblems, reviewSlugOf, reviewWarnings, slugOfReviewPath, writeReviewMeta,
   sortSeries, type ReviewMeta, type ReviewNotePreview, type ReviewSeriesEntry,
@@ -18,6 +19,7 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+import { DiffBody } from "@/shared/ui/diff-body";
 
 const input = "w-full rounded-md border bg-background px-2 py-1 text-sm outline-none focus:ring-2 focus:ring-ring/40";
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -136,45 +138,114 @@ function LinksInput({ links, onChange }: { links: ReviewLink[]; onChange: (v: Re
   );
 }
 
-const DEPLOY_BADGE: Record<DeployStatus["state"], { text: string; cls: string }> = {
-  "up-to-date": { text: "사이트에 반영됨", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
-  "deploy-needed": { text: "사이트 빌드 중", cls: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" },
-  unpushed: { text: "푸시 안 한 커밋 있음", cls: "bg-sky-100 text-sky-900 dark:bg-sky-950 dark:text-sky-300" },
-  unknown: { text: "배포 상태 모름", cls: "bg-muted text-muted-foreground" },
-};
+/** 표지 플랫폼 이름 제안 (사이트가 로고를 아는 이름) */
+const COVER_PLATFORMS = ["네이버 시리즈", "카카오페이지", "문피아", "리디", "노벨피아", "조아라", "미스터블루", "교보eBook", "밀리의 서재", "네이버 웹툰", "카카오웹툰"];
 
-/** 배포 상태. 게시 직후에는 사이트에 반영될 때까지 잠깐씩 다시 확인한다. */
-function useDeployStatus(enabled: boolean) {
-  const status = useReviewRepoStore((s) => s.deploy);
-  const checking = useReviewRepoStore((s) => s.checking);
-  const watchUntil = useRef(0);
-  const check = useCallback(() => useReviewRepoStore.getState().refresh({ deploy: true }), []);
-  useEffect(() => { if (enabled) void check(); }, [enabled, check]);
-  useEffect(() => {
-    if (!status || status.state === "up-to-date" || Date.now() > watchUntil.current) return;
-    const timer = window.setTimeout(() => void check(), 15_000);
-    return () => window.clearTimeout(timer);
-  }, [status, check]);
-  const watch = () => { watchUntil.current = Date.now() + 10 * 60_000; void check(); };
-  return { status, checking, check, watch };
+/**
+ * 표지 미리보기: 첨부 이름이면 작업 폴더의 파일, https면 그 주소,
+ * 사이트 경로(/images/…, 가져온 리뷰)면 사이트에 올라간 그림을 보여 준다.
+ */
+function CoverThumb({ src, siteUrl, notePath, className }: { src: string; siteUrl: string; notePath: string | null; className?: string }) {
+  const attachments = useWorkspaceStore((s) => s.attachments);
+  const [failed, setFailed] = useState(false);
+  const c = src.trim();
+  useEffect(() => setFailed(false), [c]);
+  let url: string | null = null;
+  if (isRemoteUrl(c)) url = c;
+  else if (c.startsWith("/")) url = `${siteUrl}${c.split("/").map(encodeURIComponent).join("/")}`;
+  else if (c) {
+    const folder = notePath && notePath.includes("/") ? notePath.slice(0, notePath.lastIndexOf("/")) : "";
+    const found = resolveAttachment(attachments, c, folder);
+    if (found) url = assetUrl(found.path);
+  }
+  return (
+    <span className={cn("flex aspect-[3/4] shrink-0 items-center justify-center overflow-hidden rounded border bg-muted text-muted-foreground", className)}>
+      {url && !failed ? <img src={url} alt="" className="size-full object-cover" onError={() => setFailed(true)} /> : <ImageOff className="size-3.5" />}
+    </span>
+  );
 }
 
-function PreviewDialog({ preview, onClose }: { preview: ReviewNotePreview; onClose: () => void }) {
+/** 플랫폼별 표지 (사이트 frontmatter의 covers). 2장 이상이면 상세 페이지에 나란히, 1장이면 커버로도 쓰인다. */
+function CoversInput({ covers, links, images, siteUrl, notePath, onChange }: {
+  covers: ReviewCover[]; links: ReviewLink[]; images: string[]; siteUrl: string; notePath: string | null; onChange: (v: ReviewCover[]) => void;
+}) {
+  const set = (i: number, patch: Partial<ReviewCover>) => onChange(covers.map((c, j) => (j === i ? { ...c, ...patch } : c)));
+  const move = (i: number, step: number) => {
+    const next = [...covers];
+    const [item] = next.splice(i, 1);
+    next.splice(i + step, 0, item!);
+    onChange(next);
+  };
+  // 링크 이름(문피아에서 보기)에서 플랫폼 이름도 제안한다.
+  const platforms = [...new Set([...links.map((l) => l.label.replace(/\s*에서\s*(보기|읽기|사기|구매)\s*$/, "").trim()).filter(Boolean), ...COVER_PLATFORMS])];
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onClick={onClose} onKeyDown={(e) => e.key === "Escape" && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label="게시 미리보기" className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <Field label="플랫폼별 표지" hint={covers.length >= 2 ? "상세 페이지에 나란히 보여요" : "1장이면 커버로 쓰여요"} group>
+      <div className="space-y-1.5">
+        {covers.map((c, i) => (
+          <div key={i} className="flex gap-2 rounded-md border p-1.5">
+            <CoverThumb src={c.src} siteUrl={siteUrl} notePath={notePath} className="w-11" />
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex gap-0.5">
+                <input className={input} list="review-cover-platforms" aria-label={`${i + 1}번 표지 플랫폼`} value={c.platform ?? ""} placeholder="네이버 시리즈" onChange={(e) => set(i, { platform: e.target.value || undefined })} />
+                <button type="button" aria-label="위로" title="위로" disabled={i === 0} className="rounded p-1 text-muted-foreground hover:bg-accent disabled:opacity-30" onClick={() => move(i, -1)}><ArrowUp className="size-3.5" /></button>
+                <button type="button" aria-label="아래로" title="아래로" disabled={i === covers.length - 1} className="rounded p-1 text-muted-foreground hover:bg-accent disabled:opacity-30" onClick={() => move(i, 1)}><ArrowDown className="size-3.5" /></button>
+                <button type="button" aria-label="표지 삭제" title="표지 삭제" className="rounded p-1 text-muted-foreground hover:bg-accent" onClick={() => onChange(covers.filter((_, j) => j !== i))}><Trash2 className="size-3.5" /></button>
+              </div>
+              <input className={input} list="review-cover-images" aria-label={`${i + 1}번 표지 그림`} value={c.src} placeholder="첨부 이름 또는 https 주소" onChange={(e) => set(i, { src: e.target.value })} />
+            </div>
+          </div>
+        ))}
+        <datalist id="review-cover-platforms">{platforms.map((p) => <option key={p} value={p} />)}</datalist>
+        <Button type="button" size="sm" variant="ghost" className="h-7" onClick={() => onChange([...covers, { src: images.find((img) => !covers.some((c) => c.src === img)) ?? "" }])}>
+          <Plus /> 표지 추가
+        </Button>
+      </div>
+    </Field>
+  );
+}
+
+/**
+ * 다시 게시 확인 창: 저장소에 있는 지금 글과 새로 올라갈 글의 차이를 변경 기록과 같은 모양으로 보여 주고,
+ * 게시하면 작업 폴더의 사본은 휴지통으로 옮긴다고 알린다.
+ */
+function PublishDialog({ preview, blocked, busy, onConfirm, onClose }: { preview: ReviewNotePreview; blocked: string[]; busy: boolean; onConfirm: () => void; onClose: () => void }) {
+  const first = preview.current === null || preview.current === undefined;
+  const nothing = !first && !preview.changed;
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape" && !busy) onClose(); };
+    window.addEventListener("keydown", esc);
+    return () => window.removeEventListener("keydown", esc);
+  }, [busy, onClose]);
+  const notes = [...(preview.replaces ? [`예전 주소의 리뷰(${preview.replaces})는 지우고 새 주소로 옮겨요.`] : []), ...preview.warnings];
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-6" onMouseDown={() => !busy && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label={first ? "게시 확인" : "다시 게시 확인"} className="flex max-h-full w-full max-w-3xl flex-col overflow-hidden rounded-xl border bg-card shadow-2xl" onMouseDown={(e) => e.stopPropagation()}>
         <header className="flex items-center gap-2 border-b px-4 py-2.5">
-          <h2 className="font-semibold">게시 미리보기</h2>
+          <h2 className="font-semibold">{first ? "게시할 내용" : "이전과 바뀐 점"}</h2>
           <span className="truncate font-mono text-xs text-muted-foreground">{preview.path}</span>
-          <button type="button" autoFocus aria-label="닫기" onClick={onClose} className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent"><X className="size-4" /></button>
+          <button type="button" aria-label="닫기" disabled={busy} onClick={onClose} className="ml-auto rounded p-1 text-muted-foreground hover:bg-accent"><X className="size-4" /></button>
         </header>
-        {(preview.warnings.length > 0 || preview.replaces) && (
+        {notes.length > 0 && (
           <ul className="space-y-0.5 border-b bg-amber-50 px-4 py-2 text-xs text-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            {preview.replaces && <li>예전 주소의 리뷰({preview.replaces})는 지우고 새 주소로 옮겨요.</li>}
-            {preview.warnings.map((w) => <li key={w}>{w}</li>)}
+            {notes.map((w) => <li key={w}>{w}</li>)}
           </ul>
         )}
-        <pre className="min-h-0 flex-1 overflow-auto p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap">{preview.markdown}</pre>
+        <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
+          {nothing ? (
+            <p className="py-10 text-center text-sm text-muted-foreground">사이트에 있는 글과 같아요. 다시 게시할 것이 없어요.</p>
+          ) : (
+            <DiffBody before={preview.current ?? ""} after={preview.markdown} collapse={!first} active />
+          )}
+        </div>
+        <footer className="flex items-center gap-2 border-t px-4 py-2.5">
+          <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+            {blocked.length > 0 ? <span className="text-red-700 dark:text-red-400">게시 전에 고칠 것: {blocked[0]}</span> : "게시하면 저장소에 커밋·푸시하고, 작업 폴더의 이 글(사본)은 휴지통으로 옮겨요. 다시 고칠 때는 사이드바 핸디 리뷰에서 열어요."}
+          </p>
+          <Button size="sm" variant="outline" disabled={busy} onClick={onClose}>취소</Button>
+          <Button size="sm" autoFocus disabled={busy || nothing || blocked.length > 0} onClick={onConfirm}>
+            <Send /> {busy ? "게시 중…" : first ? "게시" : "다시 게시"}
+          </Button>
+        </footer>
       </div>
     </div>
   );
@@ -279,8 +350,10 @@ export function ReviewSection() {
   const embeds = useEmbedStore((s) => s.items);
   const images = useMemo(() => embeds.filter((i) => /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(i.target)).map((i) => i.target), [embeds]);
   const config = useReviewRepoStore((s) => s.config);
-  const [busy, setBusy] = useState<"preview" | "publish" | null>(null);
+  const [busy, setBusy] = useState<"check" | "publish" | null>(null);
   const [preview, setPreview] = useState<ReviewNotePreview | null>(null);
+  /** 저장소의 원본과 견준 결과: 같음·다름·처음 게시. 모르면 null */
+  const [sync, setSync] = useState<"same" | "changed" | "new" | null>(null);
 
   useEffect(() => { if (!useReviewRepoStore.getState().config) void useReviewRepoStore.getState().refresh(); }, []);
   const chooseRepo = async () => { try { useReviewRepoStore.getState().setConfig(await api.review.chooseRepo()); } catch (e) { toast.error(errText(e)); } };
@@ -322,7 +395,23 @@ export function ReviewSection() {
     await useEditorBridge.getState().bridge?.flush();
   };
 
-  const deploy = useDeployStatus(!!config?.repo);
+  // 저장소의 원본과 견줘서 다시 게시가 필요한지만 알린다 (고친 뒤 잠깐 있다가, 그리고 몇 초마다).
+  const repo = config?.repo ?? null;
+  const checkSeq = useRef(0);
+  useEffect(() => {
+    if (!repo || !activePath || !draft) return void setSync(null);
+    let cancelled = false;
+    const run = () => {
+      const seq = ++checkSeq.current;
+      api.review.previewNote(activePath).then(
+        (p) => { if (!cancelled && seq === checkSeq.current) setSync(p.current == null ? "new" : p.changed ? "changed" : "same"); },
+        () => { if (!cancelled && seq === checkSeq.current) setSync(null); },
+      );
+    };
+    const first = window.setTimeout(run, 700);
+    const every = window.setInterval(run, 5000);
+    return () => { cancelled = true; window.clearTimeout(first); window.clearInterval(every); };
+  }, [repo, activePath, frontmatter, !!draft]);
   const siteUrl = (config?.deploy?.siteUrl || DEFAULT_REVIEW_SITE_URL).replace(/\/+$/, "");
 
   if (!activePath || !hasBridge) return null;
@@ -335,22 +424,30 @@ export function ReviewSection() {
   const problems = reviewProblems(fm, frontmatterTagList(frontmatter));
   const warnings = reviewWarnings(fm);
 
-  const runPreview = async () => {
-    setBusy("preview");
-    try { await flushDraft(); setPreview(await api.review.previewNote(activePath)); } catch (e) { toast.error(errText(e)); } finally { setBusy(null); }
+  /** 다시 게시: 먼저 바뀐 점을 보여 주고 확인을 받는다. */
+  const openPublish = async () => {
+    setBusy("check");
+    try {
+      await flushDraft();
+      setPreview(await api.review.previewNote(activePath));
+    } catch (e) {
+      toast.error(errText(e));
+    } finally {
+      setBusy(null);
+    }
   };
   const publish = async () => {
     if (problems.length > 0) return toast.error(problems.join("\n"));
-    if (warnings.length > 0 && !window.confirm(`${warnings.join("\n\n")}\n\n그래도 게시할까요?`)) return;
     setBusy("publish");
     try {
       await flushDraft();
+      window.clearTimeout(timer.current);
       const r = await api.review.publishNote(activePath);
-      commit(r.meta);
-      setDraft(r.meta);
-      await useEditorBridge.getState().bridge?.flush();
-      deploy.watch();
-      toast.success(r.committed ? `게시했어요 (${r.sha.slice(0, 7)}). 사이트가 다시 빌드되면 반영돼요.` : "바뀐 내용이 없어서 푸시만 했어요.");
+      setPreview(null);
+      // 원본은 핸디 리뷰 저장소. 작업 폴더의 사본은 휴지통으로 옮기고, 다시 고칠 때 사이드바에서 새로 가져온다.
+      await useWorkspaceStore.getState().removeNote(activePath);
+      void useReviewRepoStore.getState().refresh({ deploy: true });
+      toast.success(`${r.committed ? `게시했어요 (${r.sha.slice(0, 7)})` : "바뀐 내용이 없어서 푸시만 했어요"}. 작업 폴더의 사본은 휴지통으로 옮겼어요. 다시 고치려면 사이드바 핸디 리뷰에서 여세요.`);
       for (const w of r.warnings) toast.warning(w);
     } catch (e) {
       toast.error(`게시하지 못했어요: ${errText(e)}`);
@@ -359,7 +456,6 @@ export function ReviewSection() {
     }
   };
 
-  const badge = deploy.status ? DEPLOY_BADGE[deploy.status.state] : null;
   return (
     <section id="review-settings" aria-label="핸디 리뷰" className="space-y-3 border-t px-4 py-3">
       <h2 className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"><Star className="size-3.5" /> 핸디 리뷰</h2>
@@ -370,12 +466,9 @@ export function ReviewSection() {
         </div>
       ) : (
         <div className="space-y-1.5 rounded-md border bg-card p-2.5">
-          <div className="flex items-center gap-1.5">
-            <Button size="sm" variant="outline" className="h-7 flex-1" disabled={busy !== null} onClick={() => void runPreview()}><Eye /> 미리보기</Button>
-            <Button size="sm" className="h-7 flex-1" disabled={busy !== null} onClick={() => void publish()}>
-              <Send /> {busy === "publish" ? "게시 중…" : fm.published ? "다시 게시" : "게시"}
-            </Button>
-          </div>
+          <Button size="sm" className="h-7 w-full" disabled={busy !== null || sync === "same"} onClick={() => void openPublish()}>
+            <Send /> {busy === "check" ? "바뀐 점 확인 중…" : fm.published ? "다시 게시" : "게시"}
+          </Button>
           {problems.length > 0 ? (
             <p className="text-xs text-amber-700 dark:text-amber-400">{problems[0]}</p>
           ) : warnings.length > 0 ? (
@@ -390,14 +483,15 @@ export function ReviewSection() {
               <span className="text-muted-foreground">아직 게시 안 함</span>
             )}
             {fm.updated && <span className="shrink-0 text-muted-foreground" title="내용을 바꿔 다시 게시한 날 (게시할 때 저절로 정해요)">· 업데이트 {fm.updated.slice(5).replace("-", ".")}</span>}
-            {badge && (
-              <span title={deploy.status!.message} className={cn("ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5", badge.cls)}>
-                {deploy.status!.state === "up-to-date" ? <CloudCheck className="size-3" /> : <CloudOff className="size-3" />}{badge.text}
+            {sync && sync !== "new" && (
+              <span
+                data-testid="review-sync"
+                title={sync === "same" ? "핸디 리뷰 저장소의 원본과 같아요" : "핸디 리뷰 저장소의 원본과 달라요"}
+                className={cn("ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 py-0.5", sync === "same" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300")}
+              >
+                {sync === "same" ? <><BadgeCheck className="size-3" />원본과 같음</> : <><RefreshCw className="size-3" />다시 게시 필요</>}
               </span>
             )}
-            <button type="button" aria-label="배포 상태 다시 확인" title="배포 상태 다시 확인" className={cn("rounded p-0.5 hover:bg-accent", !badge && "ml-auto")} onClick={() => void deploy.check()}>
-              <RefreshCw className={cn("size-3", deploy.checking && "animate-spin")} />
-            </button>
           </div>
         </div>
       )}
@@ -420,9 +514,20 @@ export function ReviewSection() {
       <LinesInput label="아쉬운 점" items={fm.cons} placeholder="아쉬웠던 점" onChange={(cons) => patch({ cons })} />
       <LinksInput links={fm.links} onChange={(links) => patch({ links })} />
       <Field label="커버 이미지" hint="첨부 이름 또는 https 주소">
-        <input className={input} list="review-cover-images" value={fm.cover ?? ""} placeholder={images[0] ?? "없으면 비워 두기"} onChange={(e) => patch({ cover: e.target.value })} />
+        <div className="flex items-center gap-2">
+          {(fm.cover?.trim() || fm.covers?.[0]?.src) && <CoverThumb src={fm.cover?.trim() || fm.covers![0]!.src} siteUrl={siteUrl} notePath={activePath} className="w-8" />}
+          <input
+            className={input}
+            list="review-cover-images"
+            value={fm.cover ?? ""}
+            // 비워 두면 플랫폼별 표지 첫 장을 사이트가 커버로 쓴다.
+            placeholder={fm.covers?.length ? `비워 두면 플랫폼별 표지 1번(${fm.covers[0]!.platform ?? "표지"})을 써요` : images[0] ?? "없으면 비워 두기"}
+            onChange={(e) => patch({ cover: e.target.value })}
+          />
+        </div>
         <datalist id="review-cover-images">{images.map((i) => <option key={i} value={i} />)}</datalist>
       </Field>
+      <CoversInput covers={fm.covers ?? []} links={fm.links} images={images} siteUrl={siteUrl} notePath={activePath} onChange={(covers) => patch({ covers })} />
       {fm.category === "place" && (
         <>
           <Field label="주소"><input className={input} value={fm.address ?? ""} onChange={(e) => patch({ address: e.target.value })} /></Field>
@@ -483,10 +588,8 @@ export function ReviewSection() {
               <p className="text-xs text-muted-foreground">분량·상태·장르는 태그로 달지 않아요. 단편 100화 미만 · 중편 100~299화 · 장편 300화 이상.</p>
             </>
           )}
-          {(fm.factions?.length || fm.covers?.length) ? (
-            <p className="text-xs text-muted-foreground">
-              {fm.factions?.length ? `세력 구도 ${fm.factions.length}개` : ""}{fm.factions?.length && fm.covers?.length ? " · " : ""}{fm.covers?.length ? `플랫폼별 표지 ${fm.covers.length}장` : ""} — 속성(frontmatter)에서 고치고, 게시할 때 그대로 올라가요.
-            </p>
+          {fm.factions?.length ? (
+            <p className="text-xs text-muted-foreground">세력 구도 {fm.factions.length}개 — 속성(frontmatter)에서 고치고, 게시할 때 그대로 올라가요.</p>
           ) : null}
         </div>
       )}
@@ -517,7 +620,7 @@ export function ReviewSection() {
         리뷰 정보 지우기
       </button>
       {config?.repo && <RepoReviews />}
-      {preview && <PreviewDialog preview={preview} onClose={() => setPreview(null)} />}
+      {preview && <PublishDialog preview={preview} blocked={problems} busy={busy === "publish"} onConfirm={() => void publish()} onClose={() => setPreview(null)} />}
     </section>
   );
 }

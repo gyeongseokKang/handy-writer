@@ -1,6 +1,7 @@
 import { GitBranch, X } from "lucide-react";
 
-import { useUiStore, type RightTab } from "@/entities/note/model/use-ui-store";
+import { DEFAULT_RIGHT_PANEL_WIDTH, MAX_RIGHT_PANEL_WIDTH, MIN_RIGHT_PANEL_WIDTH, useUiStore, type RightTab } from "@/entities/note/model/use-ui-store";
+import { PanelResizeHandle } from "@/shared/ui/panel-resize-handle";
 import { useEmbedStore } from "@/entities/note/model/use-embed-store";
 import { useSpellStore } from "@/entities/note/model/use-spell-store";
 import { AiPanel } from "@/features/ai/ui/ai-panel";
@@ -11,6 +12,15 @@ import { TemplateList } from "@/features/templates/ui/template-list";
 import { LinksPanel } from "@/features/note-links/ui/links-panel";
 import { ReviewSection } from "@/features/review/ui/review-panel";
 import { cn } from "@/shared/lib/utils";
+
+/** 오른쪽 패널 왼쪽 가장자리 손잡이 (Git 화면과 탭 화면이 같은 너비를 쓴다) */
+function RightPanelResizeHandle() {
+  const width = useUiStore((s) => s.rightPanelWidth);
+  const setWidth = useUiStore((s) => s.setRightPanelWidth);
+  return (
+    <PanelResizeHandle edge="left" width={width} setWidth={setWidth} min={MIN_RIGHT_PANEL_WIDTH} max={MAX_RIGHT_PANEL_WIDTH} fallback={DEFAULT_RIGHT_PANEL_WIDTH} label="오른쪽 패널 너비 조절" />
+  );
+}
 
 const TABS: { id: RightTab; label: string }[] = [
   { id: "links", label: "연결" },
@@ -25,8 +35,10 @@ function Badge({ count }: { count: number }) {
 
 /** 왼쪽 아래 브랜치를 누르면 탭 대신 보이는 Git 화면. X를 누르면 보던 탭으로 돌아간다. */
 function GitView() {
+  const width = useUiStore((s) => s.rightPanelWidth);
   return (
-    <aside aria-label="Git" className="flex h-full w-80 shrink-0 flex-col border-l bg-muted/20">
+    <aside aria-label="Git" style={{ width }} className="relative flex h-full shrink-0 flex-col border-l bg-muted/20">
+      <RightPanelResizeHandle />
       <div className="flex h-10.5 shrink-0 items-center gap-2 border-b pr-1.5 pl-4 text-sm font-medium">
         <GitBranch className="size-4 text-muted-foreground" />
         Git
@@ -53,11 +65,13 @@ export function RightPanel() {
   const setTab = useUiStore((s) => s.setRightTab);
   const embedCount = useEmbedStore((s) => s.items.length);
   const spellCount = useSpellStore((s) => (s.enabled ? s.items.length : 0));
+  const width = useUiStore((s) => s.rightPanelWidth);
 
   if (gitOpen) return <GitView />;
 
   return (
-    <aside aria-label="사이드 패널" className="flex h-full w-80 shrink-0 flex-col border-l bg-muted/20">
+    <aside aria-label="사이드 패널" style={{ width }} className="relative flex h-full shrink-0 flex-col border-l bg-muted/20">
+      <RightPanelResizeHandle />
       <div role="tablist" aria-label="패널 보기" className="grid shrink-0 grid-cols-4 border-b text-sm">
         {TABS.map(({ id, label }) => (
           <button

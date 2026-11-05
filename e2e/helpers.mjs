@@ -50,7 +50,7 @@ export async function launchApp({ files = {}, open, env: extraEnv = {}, onboardi
   }
 
   // 앱을 띄우기 전에 작업 폴더를 더 손봐야 할 때 (git 기록 만들기 등)
-  setup?.(ws);
+  setup?.(ws, ud);
 
   const aiLog = path.join(ud, "fake-claude.log");
   const app = await electron.launch({

@@ -322,14 +322,14 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
   // 분할 화면에서 단축키가 마지막으로 만진 에디터로 가게 한다.
   useEffect(() => {
     if (!editor) return;
-    const onFocus = () => useUiStore.getState().setFocusedPane(pane);
+    const onFocus = () => useUiStore.getState().setFocusedPane(isMain ? "main" : path);
     editor.on("focus", onFocus);
     return () => {
       editor.off("focus", onFocus);
     };
-  }, [editor, pane]);
+  }, [editor, pane, path]);
   // 분할 화면이 없으면 가운데 에디터가 언제나 단축키를 받는다.
-  const isShortcutTarget = () => (isMain && !useWorkspaceStore.getState().splitPath) || useUiStore.getState().focusedPane === pane;
+  const isShortcutTarget = () => (isMain && useWorkspaceStore.getState().splitPaths.length === 0) || useUiStore.getState().focusedPane === (isMain ? "main" : path);
 
   // 오른쪽 패널의 태그 추가: frontmatter의 tags에 더하고 바로 저장한다.
   const addTagsRef = useRef<(tags: string[]) => void>(() => {});

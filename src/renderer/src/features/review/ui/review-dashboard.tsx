@@ -143,14 +143,16 @@ export function ReviewDashboardDialog({ onClose }: { onClose: () => void }) {
       await useEditorBridge.getState().bridge?.flush();
       for (const p of targets) {
         try {
-          const r = await api.review.publishNoteAndRecord(p.notePath!);
+          const r = await api.review.publishNote(p.notePath!);
+          // 원본은 핸디 리뷰 저장소: 게시한 사본은 휴지통으로 옮긴다 (다시 고칠 때 사이드바에서 새로 가져온다).
+          await useWorkspaceStore.getState().removeNote(p.notePath!);
           done++;
           for (const w of r.warnings) toast.warning(`${p.title}: ${w}`);
         } catch (e) {
           toast.error(`${p.title} 게시 실패: ${errText(e)}`);
         }
       }
-      if (done > 0) toast.success(`${done}개 글을 게시했어요. 사이트가 다시 빌드되면 반영돼요.`);
+      if (done > 0) toast.success(`${done}개 글을 게시하고 작업 폴더의 사본은 휴지통으로 옮겼어요. 사이트가 다시 빌드되면 반영돼요.`);
     } finally {
       setBusy(null);
       void useReviewRepoStore.getState().refresh({ deploy: true });

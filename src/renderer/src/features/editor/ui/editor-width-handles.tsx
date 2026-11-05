@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import { DEFAULT_EDITOR_WIDTH, MAX_EDITOR_WIDTH, MIN_EDITOR_WIDTH, useUiStore } from "@/entities/note/model/use-ui-store";
 import { cn } from "@/shared/lib/utils";
+import { ResizeGrip, WidthRuler } from "@/shared/ui/resize-grip";
 
 const KEY_STEP = 32;
 
@@ -39,8 +40,17 @@ export function EditorWidthHandles({ columnRef }: { columnRef: React.RefObject<H
     setEditorWidth(editorWidth + delta * 2 * side);
   };
 
+  // 끄는 동안 글 칸 위(스크롤 칸 맨 위)에 눈금자와 지금 너비를 띄운다.
+  let ruler: { left: number; top: number; width: number } | null = null;
+  if (dragging && columnRef.current) {
+    const column = columnRef.current.getBoundingClientRect();
+    const top = scrollParentTop(columnRef.current);
+    ruler = { left: column.left, top: Math.max(column.top, top), width: column.width };
+  }
+
   return (
     <>
+      {ruler && <WidthRuler rect={ruler} width={ruler.width} />}
       {([-1, 1] as const).map((side) => (
         <div
           key={side}
@@ -59,18 +69,28 @@ export function EditorWidthHandles({ columnRef }: { columnRef: React.RefObject<H
           onDoubleClick={() => setEditorWidth(DEFAULT_EDITOR_WIDTH)}
           onKeyDown={onKeyDown(side)}
           className={cn(
-            "group/width absolute top-0 bottom-0 z-10 flex w-3 cursor-col-resize justify-center outline-none",
+            "group/width absolute top-0 bottom-0 z-10 flex w-3 cursor-col-resize flex-col items-center outline-none",
             side === -1 ? "-left-1.5" : "-right-1.5",
           )}
         >
           <span
             className={cn(
-              "w-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/width:opacity-100 group-focus-visible/width:opacity-100",
+              "absolute inset-y-0 w-0.5 rounded-full bg-border opacity-0 transition-opacity group-hover/width:opacity-100 group-focus-visible/width:opacity-100",
               dragging && "opacity-100 bg-ring",
             )}
           />
+          <ResizeGrip sticky active={dragging} className="group-hover/width:opacity-100 group-focus-visible/width:opacity-100" />
         </div>
       ))}
     </>
   );
+}
+
+/** 글 칸을 담은 스크롤 칸의 화면 위쪽 끝 */
+function scrollParentTop(el: HTMLElement) {
+  for (let node = el.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node.getBoundingClientRect().top;
+  }
+  return 0;
 }

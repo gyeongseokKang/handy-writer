@@ -79,11 +79,11 @@ await ime.type("시");
 await sleep(1500);
 
 // 6) 제목 입력창: 조합 중 Enter는 이름을 바꾸지 않고, 확정 뒤 Enter로 바꾼다
-const title = page.locator("input[aria-label='글 제목']");
+const title = page.locator("[aria-label='글 제목']");
 await title.click();
 await title.press("Control+a");
 await ime.compose("새목", { commitLast: false }); // 새는 확정, 목은 조합 중
-await composingEnter("input[aria-label='글 제목']");
+await composingEnter("[aria-label='글 제목']");
 await sleep(500);
 assert(fs.existsSync(path.join(ws, "초안.md")), "제목 입력 중 조합 Enter는 파일 이름을 바꾸지 않는다");
 await ime.type("목");

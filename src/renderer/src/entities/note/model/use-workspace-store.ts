@@ -9,6 +9,7 @@ import { flushPath } from "@/shared/lib/pending-saves";
 
 import { useFavoritesStore } from "./use-favorites-store";
 import { useUiStore } from "./use-ui-store";
+import { placeSplit } from "../lib/split";
 
 const LAST_NOTE_KEY = "handy-writer:last-note";
 const TABS_KEY = "handy-writer:tabs";
@@ -69,8 +70,8 @@ interface WorkspaceState {
   activePath: string | null;
   /** 열어 둔 탭 (글 경로, 왼쪽부터). activePath는 항상 이 안에 있다. */
   tabs: string[];
-  /** 오른쪽에 나란히 띄운 글 (분할 화면). 가운데 글과 같은 글은 띄우지 않는다. */
-  splitPath: string | null;
+  /** 가운데 글 오른쪽에 나란히 띄운 글들 (분할 화면, 왼쪽부터 최대 2개 = 최대 3분할). 가운데 글과 같은 글은 띄우지 않는다. */
+  splitPaths: string[];
   query: string;
   collapsedFolders: Record<string, boolean>;
   /** 디스크에서 바뀐 글을 에디터가 알아챌 수 있게 하는 신호 */
@@ -91,10 +92,15 @@ interface WorkspaceState {
   /** 탭을 순서대로 옮긴다 (1: 다음, -1: 이전). */
   cycleTab: (step: 1 | -1) => Promise<void>;
   moveTab: (from: number, to: number) => void;
-  /** 오른쪽 분할 화면에 글을 띄운다. null이면 분할을 닫는다. */
-  openSplit: (path: string | null) => Promise<void>;
-  /** 분할 화면의 글을 가운데로 옮기고, 가운데 글을 분할 화면으로 보낸다. */
-  swapSplit: () => Promise<void>;
+  /**
+   * 분할 화면에 글을 띄운다. null이면 분할을 모두 닫는다.
+   * at: 띄울 자리(0 = 가운데 글 바로 오른쪽). 없으면 맨 오른쪽. 이미 3분할이면 그 자리(없으면 맨 오른쪽) 글을 바꾼다.
+   */
+  openSplit: (path: string | null, at?: number) => Promise<void>;
+  /** 분할 화면 하나를 닫는다. */
+  closeSplit: (path: string) => Promise<void>;
+  /** 분할 화면의 글을 가운데로 옮기고, 가운데 글을 그 자리로 보낸다. 경로가 없으면 첫 분할 화면. */
+  swapSplit: (path?: string) => Promise<void>;
   openLink: (target: string) => Promise<void>;
   /** content가 있으면 그 내용으로 채운 글을 만든다. */
   createNote: (folder?: string, title?: string, content?: string) => Promise<void>;
@@ -113,10 +119,12 @@ interface WorkspaceState {
   toggleFolder: (folder: string) => void;
 }
 
+export { MAX_SPLITS, placeSplit } from "../lib/split";
+
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /** 활성 글을 바꾸고 탭 목록을 맞춘다. replaceTab이면 지금 탭 자리에 넣는다. */
   function activate(path: string | null, { replaceTab = true }: { replaceTab?: boolean } = {}) {
-    const { tabs, activePath, splitPath } = get();
+    const { tabs, activePath, splitPaths } = get();
     let next = tabs;
     if (path && !tabs.includes(path)) {
       const index = activePath ? tabs.indexOf(activePath) : -1;
@@ -128,7 +136,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     rememberNote(path);
     rememberTabs(next);
     // 분할 화면에 띄운 글을 가운데에서 열면 서로 자리를 바꾼다.
-    set({ activePath: path, tabs: next, splitPath: splitPath && splitPath === path ? activePath : splitPath });
+    set({ activePath: path, tabs: next, splitPaths: splitPaths.flatMap((p) => (p === path ? (activePath ? [activePath] : []) : [p])) });
   }
 
   /** 글 경로가 바뀌거나(이동·이름 바꾸기) 사라졌을 때 활성 글, 탭, 분할 화면을 함께 고친다. */
@@ -144,15 +152,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         const survivors = state.tabs.slice(index + 1).concat(state.tabs.slice(0, index).reverse()).map(map);
         nextActive = survivors.find((p): p is string => p !== null) ?? null;
       }
-      const splitPath = state.splitPath ? map(state.splitPath) : null;
+      const splitPaths = [...new Set(state.splitPaths.map(map))].filter((p): p is string => p !== null && p !== nextActive);
       rememberNote(nextActive);
       rememberTabs(tabs);
-      return { activePath: nextActive, tabs, splitPath: splitPath === nextActive ? null : splitPath };
+      return { activePath: nextActive, tabs, splitPaths };
     });
   }
 
   async function loadWorkspace(root: string | null) {
-    set({ root, notes: [], folders: [], attachments: [], activePath: null, tabs: [], splitPath: null });
+    set({ root, notes: [], folders: [], attachments: [], activePath: null, tabs: [], splitPaths: [] });
     useFavoritesStore.getState().load(root);
     if (!root) return;
     await get().refresh();
@@ -173,7 +181,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     activePath: null,
     tabs: [],
     closedTabs: [],
-    splitPath: null,
+    splitPaths: [],
     query: "",
     collapsedFolders: {},
     externalChange: null,
@@ -222,9 +230,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
         }));
         // 밖에서 지워진 글은 탭과 분할 화면에서도 닫는다. 활성 글을 푼 경우는 위에서 이미 처리했다.
         const alive = new Set(notes.map((note) => note.path));
-        const { tabs, splitPath, activePath } = get();
-        if (tabs.some((tab) => !alive.has(tab) && tab !== activePath) || (splitPath && !alive.has(splitPath))) {
-          set({ tabs: tabs.filter((tab) => alive.has(tab) || tab === activePath), splitPath: splitPath && alive.has(splitPath) ? splitPath : null });
+        const { tabs, splitPaths, activePath } = get();
+        if (tabs.some((tab) => !alive.has(tab) && tab !== activePath) || splitPaths.some((p) => !alive.has(p))) {
+          set({ tabs: tabs.filter((tab) => alive.has(tab) || tab === activePath), splitPaths: splitPaths.filter((p) => alive.has(p)) });
         }
       } catch (error) {
         toast.error(errorMessage(error));
@@ -236,7 +244,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const current = get().activePath;
       if (path === current) return;
       await flushPath(current);
-      if (path === get().splitPath) await flushPath(path);
+      if (get().splitPaths.includes(path ?? "")) await flushPath(path);
       activate(path, { replaceTab: !newTab });
     },
 
@@ -271,23 +279,31 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       set({ tabs });
     },
 
-    openSplit: async (path) => {
-      const { splitPath, activePath } = get();
-      if (path === splitPath) return;
-      await flushPath(splitPath);
-      if (path && path === activePath) {
+    openSplit: async (path, at) => {
+      const { splitPaths, activePath } = get();
+      if (path === null) {
+        await Promise.all(splitPaths.map(flushPath));
+        return set({ splitPaths: [] });
+      }
+      if (path === activePath) {
         toast.info("가운데에 열린 글이라 옆에 같이 띄울 수 없어요. 다른 글을 골라 주세요.");
         return;
       }
-      set({ splitPath: path });
+      await flushPath(path);
+      set({ splitPaths: placeSplit(splitPaths, path, at) });
     },
 
-    swapSplit: async () => {
-      const { splitPath, activePath } = get();
-      if (!splitPath) return;
-      await Promise.all([flushPath(splitPath), flushPath(activePath)]);
-      activate(splitPath);
-      set({ splitPath: activePath });
+    closeSplit: async (path) => {
+      await flushPath(path);
+      set((state) => ({ splitPaths: state.splitPaths.filter((p) => p !== path) }));
+    },
+
+    swapSplit: async (path) => {
+      const { splitPaths, activePath } = get();
+      const target = path ?? splitPaths[0];
+      if (!target || !splitPaths.includes(target)) return;
+      await Promise.all([flushPath(target), flushPath(activePath)]);
+      activate(target);
     },
 
     openLink: async (target) => {
@@ -384,9 +400,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     renameFolder: async (path, newName) => {
       try {
-        const { activePath, splitPath } = get();
+        const { activePath, splitPaths } = get();
         const inside = (p: string) => p === path || p.startsWith(`${path}/`);
-        await Promise.all([activePath, splitPath].filter((p): p is string => p !== null && inside(p)).map(flushPath));
+        await Promise.all([activePath, ...splitPaths].filter((p): p is string => p !== null && inside(p)).map(flushPath));
         const next = await api.notes.renameFolder(path, newName);
         const moved = (p: string) => (inside(p) ? next + p.slice(path.length) : p);
         remap(moved);
@@ -402,9 +418,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     moveFolder: async (path, folder) => {
       try {
-        const { activePath, splitPath } = get();
+        const { activePath, splitPaths } = get();
         const inside = (p: string) => p === path || p.startsWith(`${path}/`);
-        await Promise.all([activePath, splitPath].filter((p): p is string => p !== null && inside(p)).map(flushPath));
+        await Promise.all([activePath, ...splitPaths].filter((p): p is string => p !== null && inside(p)).map(flushPath));
         const next = await api.notes.moveFolder(path, folder);
         const moved = (p: string) => (inside(p) ? next + p.slice(path.length) : p);
         remap(moved);
@@ -426,8 +442,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     removeFolder: async (path) => {
       try {
         const inside = (p: string) => p.startsWith(`${path}/`);
-        const { activePath, splitPath } = get();
-        await Promise.all([activePath, splitPath].filter((p): p is string => p !== null && inside(p)).map(flushPath));
+        const { activePath, splitPaths } = get();
+        await Promise.all([activePath, ...splitPaths].filter((p): p is string => p !== null && inside(p)).map(flushPath));
         await api.notes.removeFolder(path);
         remap((p) => (inside(p) ? null : p));
         await get().refresh();

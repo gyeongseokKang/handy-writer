@@ -1,8 +1,10 @@
-import { Columns2, X } from "lucide-react";
+import { Columns2, PanelRight, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { NOTE_DRAG_TYPE } from "@/shared/lib/note-drag";
 import { cn } from "@/shared/lib/utils";
 import { ContextMenu, type MenuItem } from "@/shared/ui/context-menu";
 
@@ -13,10 +15,10 @@ function neighborTab() {
   return tabs[index - 1] ?? tabs[index + 1] ?? null;
 }
 
-/** Ctrl/Cmd+\ 와 막대의 분할 버튼: 분할 화면을 열고 닫는다. */
+/** Ctrl/Cmd+\: 분할 화면을 모두 닫거나, 없으면 옆 탭을 나란히 띄운다. (탭·글을 에디터 쪽으로 끌어 놓아도 띄운다) */
 export function toggleSplit() {
-  const { splitPath, openSplit } = useWorkspaceStore.getState();
-  if (splitPath) return void openSplit(null);
+  const { splitPaths, openSplit } = useWorkspaceStore.getState();
+  if (splitPaths.length > 0) return void openSplit(null);
   const target = neighborTab();
   if (target) return void openSplit(target);
   toast.info("옆에 띄울 글이 없어요. 글 목록에서 우클릭 → ‘옆에 열기’나 Alt+클릭으로 띄워 보세요.");
@@ -26,7 +28,7 @@ export function toggleSplit() {
 export function TabBar() {
   const tabs = useWorkspaceStore((s) => s.tabs);
   const activePath = useWorkspaceStore((s) => s.activePath);
-  const splitPath = useWorkspaceStore((s) => s.splitPath);
+  const splitPaths = useWorkspaceStore((s) => s.splitPaths);
   const notes = useWorkspaceStore((s) => s.notes);
   const [menu, setMenu] = useState<{ x: number; y: number; path: string } | null>(null);
   const [dragging, setDragging] = useState<number | null>(null);
@@ -68,6 +70,8 @@ export function TabBar() {
               onDragStart={(event) => {
                 setDragging(index);
                 event.dataTransfer.effectAllowed = "move";
+                // 에디터 쪽에 끌어 놓으면 나란히 띄운다.
+                event.dataTransfer.setData(NOTE_DRAG_TYPE, path);
               }}
               onDragEnd={() => setDragging(null)}
               onDragOver={(event) => dragging !== null && event.preventDefault()}
@@ -93,7 +97,7 @@ export function TabBar() {
             >
               {active && <span aria-hidden className="absolute inset-x-0 top-0 h-0.5 bg-primary" />}
               <span className="min-w-0 flex-1 truncate">{nameOf(path)}</span>
-              {path === splitPath && <Columns2 aria-label="옆에 열림" className="size-3 shrink-0 text-muted-foreground" />}
+              {splitPaths.includes(path) && <Columns2 aria-label="옆에 열림" className="size-3 shrink-0 text-muted-foreground" />}
               <button
                 type="button"
                 aria-label={`${nameOf(path)} 탭 닫기`}
@@ -110,17 +114,25 @@ export function TabBar() {
           );
         })}
       </div>
-      <button
-        type="button"
-        aria-label={splitPath ? "분할 화면 닫기" : "옆에 열기"}
-        aria-pressed={splitPath !== null}
-        title={splitPath ? "분할 화면 닫기 (Ctrl/Cmd+\\)" : "옆 탭을 오른쪽에 나란히 띄우기 (Ctrl/Cmd+\\)"}
-        onClick={toggleSplit}
-        className={cn("flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-accent", splitPath && "bg-accent text-foreground")}
-      >
-        <Columns2 className="size-4" />
-      </button>
+      <RightPanelToggle />
       {menu && <ContextMenu x={menu.x} y={menu.y} label="탭 메뉴" items={menuItems(menu.path)} onClose={() => setMenu(null)} />}
     </div>
+  );
+}
+
+/** 탭 막대 오른쪽 끝(오른쪽 패널 바로 옆)의 패널 접기·펼치기 버튼 */
+function RightPanelToggle() {
+  const open = useUiStore((s) => s.rightPanelOpen);
+  return (
+    <button
+      type="button"
+      aria-label="오른쪽 패널"
+      aria-pressed={open}
+      title={open ? "오른쪽 패널 접기" : "오른쪽 패널 펼치기"}
+      onClick={() => useUiStore.getState().toggleRightPanel()}
+      className={cn("flex w-9 shrink-0 items-center justify-center border-l text-muted-foreground hover:bg-accent hover:text-foreground", open && "text-foreground")}
+    >
+      <PanelRight className="size-4" />
+    </button>
   );
 }

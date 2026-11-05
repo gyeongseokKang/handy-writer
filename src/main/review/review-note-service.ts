@@ -6,13 +6,13 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { listAttachments, importFiles } from "../attachments";
 import { listNotes, readNote, resolveInside, writeNote, createNote } from "../notes-fs";
 import { runGit } from "../git/runner";
-import { readPost, serializePost } from "./review-service";
+import { parsePost, readPost, serializePost } from "./review-service";
 import { resolveAttachment, isRemoteUrl } from "../../shared/attachments";
 import { serializeNote, splitFrontmatter } from "../../shared/frontmatter";
 import { extractSection, splitEmbedTarget } from "../../shared/note-section";
 import { reviewAssetDir, today } from "../../shared/review";
 import {
-  metaFromReview, nextUpdated, noteBodyToReview, readReviewMeta, reviewWarnings, withAffiliate, reviewBodyToNote, reviewFrontmatterOf, reviewPathFor, reviewProblems,
+  metaFromReview, nextUpdated, sameReviewContent, noteBodyToReview, readReviewMeta, reviewWarnings, withAffiliate, reviewBodyToNote, reviewFrontmatterOf, reviewPathFor, reviewProblems,
   reviewSlugOf, slugOfReviewPath, writeReviewMeta, type ReviewMeta, type ReviewNotePreview, type ReviewNotePublishResult, type ReviewSeriesEntry,
 } from "../../shared/review-note";
 import type { NoteMeta } from "../../shared/types";
@@ -146,8 +146,15 @@ async function planPublish(root: string, repo: string, notePath: string): Promis
 
 export async function previewNoteReview(root: string, repo: string, notePath: string): Promise<ReviewNotePreview> {
   const { path, slug, date, markdown, warnings, replaces, meta, tags } = await planPublish(root, repo, notePath);
+  // 저장소에 있는 지금 글 (주소를 바꿨으면 옮기기 전 글)과 견준다.
+  const existing = [replaces, path].find((p) => p && existsSync(resolveInside(repo, p)));
+  const raw = existing ? await readFile(resolveInside(repo, existing), "utf8") : null;
+  // 사람이 손으로 쓴 원본은 줄 모양이 조금 달라서, 같은 형식으로 다시 써서 견준다 (내용이 바뀐 곳만 diff에 보이게).
+  const before = raw !== null && existing ? parsePost(existing, raw) : null;
+  const current = before ? serializePost(before.frontmatter, before.body) : null;
+  const changed = !before || !!replaces || !sameReviewContent(before, parsePost(path, markdown));
   // 게시를 막는 문제도 미리보기에서 함께 보여 준다.
-  return { path, slug, date, markdown, warnings: [...reviewProblems(meta, tags).map((p) => `게시 전에 고칠 것: ${p}`), ...warnings], replaces };
+  return { path, slug, date, markdown, warnings: [...reviewProblems(meta, tags).map((p) => `게시 전에 고칠 것: ${p}`), ...warnings], replaces, current, changed };
 }
 
 async function tracked(repo: string, path: string) {
@@ -270,7 +277,8 @@ export async function checkReviewNotes(root: string, repo: string): Promise<Revi
     try {
       const plan = await planPublish(root, repo, n.path);
       const current = existsSync(resolveInside(repo, plan.path)) ? await readFile(resolveInside(repo, plan.path), "utf8") : null;
-      out.push({ notePath: n.path, title, meta, path: plan.path, problems: reviewProblems(plan.meta, plan.tags), differs: plan.path !== meta.published || current !== plan.markdown });
+      const differs = plan.path !== meta.published || current === null || !sameReviewContent(parsePost(plan.path, current), parsePost(plan.path, plan.markdown));
+      out.push({ notePath: n.path, title, meta, path: plan.path, problems: reviewProblems(plan.meta, plan.tags), differs });
     } catch (e) {
       out.push({ notePath: n.path, title, meta, path: null, problems: [(e as Error).message], differs: true });
     }

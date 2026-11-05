@@ -121,7 +121,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.click("button[aria-label='새 글']");
   await sleep(600);
   assert(fs.existsSync(path.join(ws, "제목 없음.md")), "새 글 버튼이 제목 없음.md를 만든다");
-  const title = page.locator("input[aria-label='글 제목']");
+  const title = page.locator("[aria-label='글 제목']");
   await title.fill("나의 첫 글");
   await title.press("Enter");
   await sleep(800);
@@ -195,7 +195,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   await page.click("nav[aria-label='글 목록'] >> text=글쓰기 규칙");
   await page.waitForFunction(() => document.querySelector(".note-prose")?.textContent?.includes("다시 밖에서 바꾼 내용"));
-  const renameTitle = page.locator("input[aria-label='글 제목']");
+  const renameTitle = page.locator("[aria-label='글 제목']");
   await renameTitle.fill("글쓰기 원칙");
   await renameTitle.press("Enter");
   await sleep(1200);
