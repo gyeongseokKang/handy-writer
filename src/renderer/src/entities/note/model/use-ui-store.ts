@@ -25,6 +25,23 @@ export const MAX_SIDEBAR_WIDTH = 480;
 
 const clampSidebarWidth = (width: number) => Math.round(Math.min(MAX_SIDEBAR_WIDTH, Math.max(MIN_SIDEBAR_WIDTH, width)));
 
+const RIGHT_PANEL_WIDTH_KEY = "handy-writer:right-panel-width";
+/** 오른쪽 패널(연결·첨부·AI·맞춤법·Git) 너비(px). 왼쪽 가장자리를 끌어 바꾸고 이 컴퓨터에 기억한다. */
+export const DEFAULT_RIGHT_PANEL_WIDTH = 320;
+export const MIN_RIGHT_PANEL_WIDTH = 260;
+export const MAX_RIGHT_PANEL_WIDTH = 640;
+
+const clampRightPanelWidth = (width: number) => Math.round(Math.min(MAX_RIGHT_PANEL_WIDTH, Math.max(MIN_RIGHT_PANEL_WIDTH, width)));
+
+function readRightPanelWidth() {
+  try {
+    const value = Number(localStorage.getItem(RIGHT_PANEL_WIDTH_KEY));
+    return value > 0 ? clampRightPanelWidth(value) : DEFAULT_RIGHT_PANEL_WIDTH;
+  } catch {
+    return DEFAULT_RIGHT_PANEL_WIDTH;
+  }
+}
+
 function readSidebarWidth() {
   try {
     const value = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
@@ -112,12 +129,13 @@ interface UiState {
   editorWidth: number;
   /** 왼쪽 사이드바 너비(px). 오른쪽 가장자리 손잡이로 조절하고 이 컴퓨터에 기억한다. */
   sidebarWidth: number;
+  rightPanelWidth: number;
   /** 변경 기록 화면에서 보고 있는 글 */
   historyTarget: { path: string; name: string } | null;
   /** 링크에서 글 가져오기 창. new: 새 글로, insert: 지금 글의 커서 아래에 넣는 것을 먼저 권한다. */
   extract: { mode: "new" | "insert" } | null;
-  /** 단축키(찾기, 복사 등)가 향할 에디터. 분할 화면이면 마지막으로 포커스한 쪽 */
-  focusedPane: "main" | "side";
+  /** 단축키(찾기, 복사 등)가 향할 에디터: "main" 또는 분할 화면 글의 경로 (마지막으로 포커스한 쪽) */
+  focusedPane: string;
 
   setView: (view: MainView) => void;
   setSidebarView: (view: SidebarView) => void;
@@ -151,8 +169,10 @@ interface UiState {
   setEditorWidth: (width: number) => void;
   /** persist가 false면 화면에만 반영한다(끄는 동안). 끝날 때 한 번 저장한다. */
   setSidebarWidth: (width: number, persist?: boolean) => void;
+  /** persist가 false면 화면에만 반영한다(끄는 동안). 끝날 때 한 번 저장한다. */
+  setRightPanelWidth: (width: number, persist?: boolean) => void;
   setHistoryTarget: (target: { path: string; name: string } | null) => void;
-  setFocusedPane: (pane: "main" | "side") => void;
+  setFocusedPane: (pane: string) => void;
   setExtract: (extract: { mode: "new" | "insert" } | null) => void;
 }
 
@@ -189,6 +209,7 @@ export const useUiStore = create<UiState>((set) => ({
   pendingFind: null,
   editorWidth: readEditorWidth(),
   sidebarWidth: readSidebarWidth(),
+  rightPanelWidth: readRightPanelWidth(),
   historyTarget: null,
   focusedPane: "main",
   extract: null,
@@ -248,6 +269,16 @@ export const useUiStore = create<UiState>((set) => ({
     if (!persist) return;
     try {
       localStorage.setItem(SIDEBAR_WIDTH_KEY, String(sidebarWidth));
+    } catch {
+      // 저장소를 못 써도 이번 실행에서는 적용된다.
+    }
+  },
+  setRightPanelWidth: (width, persist = true) => {
+    const rightPanelWidth = clampRightPanelWidth(width);
+    set({ rightPanelWidth });
+    if (!persist) return;
+    try {
+      localStorage.setItem(RIGHT_PANEL_WIDTH_KEY, String(rightPanelWidth));
     } catch {
       // 저장소를 못 써도 이번 실행에서는 적용된다.
     }

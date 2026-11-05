@@ -115,9 +115,10 @@ export function AppShell() {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || !event.shiftKey || event.altKey || event.key.toLowerCase() !== "h") return;
-      const { activePath, splitPath, notes } = useWorkspaceStore.getState();
+      const { activePath, splitPaths, notes } = useWorkspaceStore.getState();
       // 분할 화면이면 마지막으로 만진 쪽 글의 기록을 연다.
-      const target = splitPath && useUiStore.getState().focusedPane === "side" ? splitPath : activePath;
+      const focused = useUiStore.getState().focusedPane;
+      const target = splitPaths.includes(focused) ? focused : activePath;
       const note = notes.find((n) => n.path === target);
       if (!note) return;
       event.preventDefault();

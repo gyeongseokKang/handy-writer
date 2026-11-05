@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 
@@ -16,6 +16,23 @@ export function NoteTitle({ path, name, onEnter }: NoteTitleProps) {
 
   useEffect(() => setValue(name), [name, path]);
 
+  // 긴 제목은 줄을 넘겨 다 보이게 한다 (줄바꿈은 넣지 않고 높이만 맞춘다).
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const fit = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  };
+  useLayoutEffect(fit, [value]);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const commit = async () => {
     const next = value.trim();
     if (!next || next === name) {
@@ -26,9 +43,12 @@ export function NoteTitle({ path, name, onEnter }: NoteTitleProps) {
   };
 
   return (
-    <input
+    <textarea
+      ref={ref}
+      rows={1}
       value={value}
-      onChange={(event) => setValue(event.target.value)}
+      // 붙여 넣은 줄바꿈은 빈칸으로 (파일 이름이라 한 줄)
+      onChange={(event) => setValue(event.target.value.replace(/\r?\n/g, " "))}
       onBlur={() => void commit()}
       onKeyDown={(event) => {
         if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -38,7 +58,7 @@ export function NoteTitle({ path, name, onEnter }: NoteTitleProps) {
       }}
       placeholder="제목 없음"
       aria-label="글 제목"
-      className="w-full bg-transparent text-4xl font-bold tracking-tight outline-none placeholder:text-muted-foreground/50"
+      className="block w-full resize-none overflow-hidden bg-transparent text-4xl leading-tight font-bold tracking-tight [overflow-wrap:anywhere] outline-none placeholder:text-muted-foreground/50"
     />
   );
 }

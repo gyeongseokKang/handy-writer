@@ -1,4 +1,4 @@
-import { CircleHelp, Download, Network, PanelRight, PenLine, Plus, Search } from "lucide-react";
+import { CircleHelp, Download, Network, PenLine, Plus, Search } from "lucide-react";
 
 import { UpdateRow } from "./update-row";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
@@ -20,8 +20,6 @@ export function Sidebar() {
   const setView = useUiStore((state) => state.setView);
   const sidebarView = useUiStore((state) => state.sidebarView);
   const setSidebarView = useUiStore((state) => state.setSidebarView);
-  const rightPanelOpen = useUiStore((state) => state.rightPanelOpen);
-  const toggleRightPanel = useUiStore((state) => state.toggleRightPanel);
 
   const sidebarWidth = useUiStore((state) => state.sidebarWidth);
 
@@ -52,17 +50,6 @@ export function Sidebar() {
             onClick={() => useUiStore.getState().setHelpOpen(true)}
           >
             <CircleHelp />
-          </Button>
-          <Button
-            size="icon"
-            variant="ghost"
-            className={cn("size-7", rightPanelOpen && "bg-accent")}
-            title="연결 정보 패널"
-            aria-label="연결 정보 패널"
-            aria-pressed={rightPanelOpen}
-            onClick={toggleRightPanel}
-          >
-            <PanelRight />
           </Button>
         </div>
       </div>

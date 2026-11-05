@@ -7,6 +7,7 @@ import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { cn } from "@/shared/lib/utils";
 
+import { NOTE_DRAG_TYPE } from "@/shared/lib/note-drag";
 import { canDrop, type DragItem } from "../lib/tree-dnd";
 import { useTreeUi, type TreeTarget } from "../model/use-tree-ui";
 import { Favorites } from "./favorites";
@@ -66,6 +67,8 @@ function dragSource(item: DragItem) {
       event.dataTransfer.effectAllowed = "move";
       // 에디터나 다른 곳에 글자로 떨어지지 않게 전용 형식으로만 싣는다.
       event.dataTransfer.setData("application/x-handy-tree", item.path);
+      // 글이면 에디터 쪽에 끌어 놓아 나란히 띄울 수 있다.
+      if (item.kind === "note") event.dataTransfer.setData(NOTE_DRAG_TYPE, item.path);
       useTreeUi.getState().setDrag(item);
     },
     onDragEnd: () => useTreeUi.getState().setDrag(null),
