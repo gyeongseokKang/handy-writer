@@ -88,3 +88,27 @@ describe("분량을 직접 정하기", () => {
     expect(parseBrief({ length: "custom", customGoal: { unit: "sheets", value: 9999 } }).customGoal).toEqual({ unit: "sheets", value: 250 });
   });
 });
+
+describe("draft structure", () => {
+  const brief = { ...EMPTY_BRIEF, topic: "달리기" };
+  it("leaves the outline free by default", () => {
+    expect(outlineInstruction(brief)).not.toContain("기승전결");
+    expect(parseBrief({ topic: "x" }).structure).toBe("free");
+    expect(parseBrief({ topic: "x", structure: "아무거나" }).structure).toBe("free");
+  });
+  it("builds the outline and draft in 기승전결 order with part tags", () => {
+    const b = parseBrief({ ...brief, structure: "kiseungjeongyeol" });
+    const outline = outlineInstruction(b);
+    expect(outline).toContain("- 구성: 기승전결");
+    expect(outline).toContain("기→승→전→결");
+    expect(outline).toContain("`[기]`");
+    expect(outline).toContain("4~5개");
+    const draft = draftInstruction(b, "## 처음\n- [기] 도입");
+    expect(draft).toContain("[기]·[승]·[전]·[결]");
+    expect(draft).toContain("[전]에서는");
+    expect(draft).toContain("부분 표시는 본문에 쓰지 않습니다");
+  });
+  it("supports 서론·본론·결론 too", () => {
+    expect(outlineInstruction(parseBrief({ ...brief, structure: "intro-body-conclusion" }))).toContain("서론→본론→결론");
+  });
+});
