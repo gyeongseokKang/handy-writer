@@ -31,15 +31,19 @@ assert((await panel.getByText("문장은 40자 안으로 줄인다 외 1줄").co
 // 퇴고
 await page.locator(".note-prose p").first().click();
 await panel.getByRole("button", { name: "퇴고", exact: true }).click();
-const result = page.getByRole("region", { name: "AI 결과" });
-await result.getByText("완료").waitFor({ timeout: 10000 });
+// 결과는 사이드 패널이 아니라 본문 자리에 변경 기록처럼 크게 뜬다
+const view = page.getByRole("dialog", { name: "퇴고 결과" });
+await view.getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
 assert(aiLog().input.includes("<revise_rules>\n- 문장은 40자 안으로 줄인다"), "저장한 퇴고 룰을 AI에 함께 보낸다");
-const notes = result.getByLabel("퇴고에서 고친 점");
+const notes = view.getByLabel("퇴고에서 고친 점");
 assert((await notes.innerText()).includes("군더더기 삭제") && (await notes.innerText()).includes("문장은 40자 안으로"), "고친 점 목록이 보인다");
-assert((await result.locator("del").count()) > 0, "바뀐 점이 diff로 보인다");
+assert((await view.locator("del").count()) > 0, "본문 자리에 바뀐 점이 diff로 보인다");
+assert(/\+\d+자/.test(await view.locator("header").innerText()) && /−\d+자/.test(await view.locator("header").innerText()), "늘고 준 글자 수가 보인다");
+assert((await panel.getByRole("region", { name: "AI 결과", exact: true }).innerText()).includes("본문 화면에서"), "사이드 패널에는 본문 화면에서 보라는 안내만 남는다");
 await page.screenshot({ path: path.join(OUT, "revise.png") });
-await result.getByRole("button", { name: "본문 전체에 적용" }).click();
+await view.getByRole("button", { name: "본문 전체에 적용" }).click();
 await sleep(1500);
+assert((await view.count()) === 0, "적용하면 퇴고 화면이 닫힌다");
 const after = read("초고.md");
 assert(after === "나는 글쓰기가 좋다.\n\n매일 쓴다.\n", `적용하면 고친 글만 들어간다 (${JSON.stringify(after)})`);
 assert((await panel.getByLabel("지난 AI 결과").getByRole("button", { name: /퇴고/ }).count()) === 1, "퇴고 결과도 지난 결과에 남는다");
