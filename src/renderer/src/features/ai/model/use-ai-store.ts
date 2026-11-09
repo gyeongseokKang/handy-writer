@@ -39,11 +39,13 @@ interface RunState {
   instruction: string;
   /** 받은 글 그대로 (이어쓰기는 <continuation>, 퇴고는 <revised> 안만 output으로 보여 준다) */
   raw: string;
-  /** 퇴고: 무엇을 왜 고쳤는지 */
+  /** 퇴고: 무엇을 왜 고쳤는지 (`원문 → 수정 / 이유`) */
   notes: string[];
+  /** 퇴고: 고치지 않고 제안만 한 것 */
+  suggestions: string[];
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [] };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [], suggestions: [] };
 
 interface AiState {
   status: AiStatus | null;
@@ -173,7 +175,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [] },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [], suggestions: [] },
     });
 
     try {
@@ -235,16 +237,17 @@ function handleEvent(event: AiEvent) {
   } else if (event.type === "status") {
     useAiStore.setState({ run: { ...run, status: event.text } });
   } else if (event.type === "reset") {
-    useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [] } });
+    useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [], suggestions: [] } });
   } else if (event.type === "done") {
     const revision = run.task === "revise" ? parseRevision(event.text) : null;
     const output = tidyOutput(run.task === "continue" ? extractContinuation(event.text) : revision ? revision.revised : event.text);
     const notes = revision?.notes ?? [];
-    useAiStore.setState({ run: { ...run, phase: "done", output, notes } });
+    const suggestions = revision?.suggestions ?? [];
+    useAiStore.setState({ run: { ...run, phase: "done", output, notes, suggestions } });
     // 적용하거나 닫으면 결과가 사라지므로, 끝나는 대로 기록에 남긴다.
     const { history, historyRoot } = useAiStore.getState();
     const next = addHistory(history, {
-      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(), ...(notes.length ? { notes } : {}),
+      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(), ...(notes.length ? { notes } : {}), ...(suggestions.length ? { suggestions } : {}),
     });
     useAiStore.setState({ history: next });
     saveHistory(historyRoot, next);

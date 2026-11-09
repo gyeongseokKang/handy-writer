@@ -14,6 +14,8 @@ export interface AiHistoryItem {
   at: string;
   /** 퇴고: 무엇을 왜 고쳤는지 */
   notes?: string[];
+  /** 퇴고: 제안만 한 것 */
+  suggestions?: string[];
 }
 
 export const MAX_HISTORY = 50;

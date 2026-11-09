@@ -41,7 +41,13 @@ const TASK_INSTRUCTIONS = {
   proofread:
     "<text>의 글에서 맞춤법, 띄어쓰기, 문장부호, 오탈자만 고치세요. 문체, 어휘, 문장 구조는 바꾸지 않습니다. 고친 전체 글만 출력하고, 고칠 곳이 없으면 원문을 그대로 출력하세요.",
   revise:
-    "<text>의 글을 퇴고하세요. 퇴고는 맞춤법 교정이나 표현 다듬기보다 넓게, 글 전체를 다시 읽고 무엇을 빼고 무엇을 고칠지 판단하는 일입니다. 아래 퇴고 기준을 따라 고치되, 글쓴이의 주장·사실·목소리는 바꾸지 마세요. 새 내용이나 사실을 지어내지 말고, 필요하면 빼거나 줄이거나 순서를 바꾸세요. 마크다운 서식(제목, 목록, 인용, [[위키링크]])은 그대로 두세요. 고친 전체 글을 <revised>와 </revised> 사이에, 무엇을 왜 고쳤는지 중요한 것부터 다섯 개 안팎을 <notes>와 </notes> 사이에 `- 고친 점: 까닭` 한 줄씩 쓰세요. 생각이나 설명은 태그 밖에 쓰지 마세요.",
+    "<text>의 글을 퇴고하세요. 퇴고는 맞춤법 교정이나 표현 다듬기보다 넓게, 글 전체를 다시 읽고 무엇을 빼고 무엇을 고칠지 판단하는 일입니다. 아래 퇴고 기준을 따라 고치되, 글쓴이의 주장·사실·목소리는 바꾸지 마세요. 새 내용이나 사실을 지어내지 마세요. 마크다운 서식(제목, 목록, 인용, [[위키링크]], 이미지, 코드 블록)은 그대로 두세요.\n" +
+    "출력 형식:\n" +
+    "- 고친 전체 글을 <revised>와 </revised> 사이에 씁니다.\n" +
+    "- 고친 곳마다 한 줄씩 `- 원문 → 수정 / 이유` 형식으로 <notes>와 </notes> 사이에 씁니다. 원문과 수정은 바뀐 부분과 그 앞뒤 몇 낱말만 짧게 옮기고, 많으면 중요한 것부터 30개까지 씁니다.\n" +
+    "- 직접 고치지 않고 제안만 해야 하는 것(퇴고 기준이 제안만 하라고 한 것, 문단 전체를 다시 쓰기, 절을 합치거나 옮기기, 제목 후보, 앞뒤를 잇는 다리 문단 등)은 <revised>에 반영하지 말고 `- 제안 / 이유` 형식으로 <suggestions>와 </suggestions> 사이에 씁니다. 없으면 비워 둡니다.\n" +
+    "- 수정 전·후 목차는 앱이 제목을 뽑아 직접 견주므로 따로 쓰지 않습니다.\n" +
+    "- 생각이나 설명은 태그 밖에 쓰지 않습니다.",
   continue:
     "<before>는 지금 쓰고 있는 글의 앞부분이고, 그 마지막 문단이 커서가 있는 문단입니다. 그 문단을 자연스럽게 마무리하는 글만 쓰세요. 분량은 다섯 문장 안팎(네 문장에서 여섯 문장 사이)으로 하고, 여섯 문장을 넘기지 마세요. 새 문단, 소제목, 목록을 시작하지 말고, 글 전체를 맺는 말(‘결론적으로’, ‘마지막으로’ 등)도 쓰지 마세요. 마지막 문단이 이미 마무리된 느낌이어도 그 문단 안에서 내용을 더 풀어 같은 분량으로 쓰고, 비어 있으면 앞 내용에 이어지는 문단 하나를 같은 분량으로 쓰세요. 글의 흐름, 문체, 글쓰기 룰을 따르고 이미 쓴 내용을 반복하지 마세요. 어떻게 쓸지에 대한 생각, 설명, 분석은 쓰지 말고, 마지막 글자 바로 뒤에 이어 붙일 글만 <continuation>과 </continuation> 사이에 쓰세요. 태그 밖에는 아무것도 쓰지 마세요.",
   custom: "다음 지시에 따라 <text>의 글을 처리하세요. 결과 글만 출력하세요.",
@@ -171,12 +177,41 @@ function tagged(text: string, tag: string): string | null {
  * 퇴고 답을 고친 글과 고친 점으로 나눈다. 태그 밖의 생각은 버린다.
  * 끝났는데 <revised>가 없으면(태그를 안 쓴 답) 답 전체를 고친 글로 본다. 받는 중에 아직 없으면 빈 글.
  */
-export function parseRevision(text: string, { streaming = false } = {}): { revised: string; notes: string[] } {
-  const revised = tagged(text, "revised");
-  const notes = (tagged(text, "notes") ?? "")
+export interface RevisionNote {
+  /** `원문 → 수정 / 이유`로 쓴 줄이면 나눈 값, 아니면 text만 */
+  text: string;
+  before?: string;
+  after?: string;
+  reason?: string;
+}
+
+/** `원문 → 수정 / 이유` 한 줄을 나눈다. 형식이 아니면 그대로 둔다. */
+export function parseRevisionNote(line: string): RevisionNote {
+  const arrow = /^(.*?)\s*(?:→|->|=>)\s*(.*)$/s.exec(line);
+  if (!arrow) return { text: line };
+  const rest = arrow[2] ?? "";
+  // 이유는 마지막 ' / ' 뒤 (수정한 글에 '/'가 들어 있어도 되게)
+  const slash = rest.lastIndexOf(" / ");
+  const after = (slash === -1 ? rest : rest.slice(0, slash)).trim();
+  const reason = slash === -1 ? undefined : rest.slice(slash + 3).trim();
+  const unquote = (x: string) => x.replace(/^["“'‘`]+|["”'’`]+$/g, "").trim();
+  return { text: line, before: unquote(arrow[1] ?? ""), after: unquote(after), ...(reason ? { reason } : {}) };
+}
+
+const listLines = (block: string | null) =>
+  (block ?? "")
     .split("\n")
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
     .filter(Boolean);
-  if (revised === null) return { revised: streaming ? "" : text.trim(), notes };
-  return { revised, notes };
+
+/**
+ * 퇴고 답을 고친 글, 고친 점, 제안(적용 안 함)으로 나눈다. 태그 밖의 생각은 버린다.
+ * 끝났는데 <revised>가 없으면(태그를 안 쓴 답) 답 전체를 고친 글로 본다. 받는 중에 아직 없으면 빈 글.
+ */
+export function parseRevision(text: string, { streaming = false } = {}): { revised: string; notes: string[]; suggestions: string[] } {
+  const revised = tagged(text, "revised");
+  const notes = listLines(tagged(text, "notes"));
+  const suggestions = listLines(tagged(text, "suggestions"));
+  if (revised === null) return { revised: streaming ? "" : text.trim(), notes, suggestions };
+  return { revised, notes, suggestions };
 }

@@ -1,12 +1,16 @@
-import { Check, Copy, CopyPlus, ListChecks, Loader2, ScanText, Square, X } from "lucide-react";
+import { ArrowRight, Check, Copy, CopyPlus, Lightbulb, ListChecks, ListTree, Loader2, ScanText, Square, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { diffVersions } from "@/shared/lib/text-diff";
+import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { DiffBody } from "@/shared/ui/diff-body";
 
+import { parseRevisionNote } from "@shared/ai-prompt";
+
+import { compareToc } from "../model/revision-toc";
 import { useAiStore } from "../model/use-ai-store";
 
 /**
@@ -83,19 +87,12 @@ export function RevisionView() {
             )}
           </div>
         </article>
-        {done && run.notes.length > 0 && (
-          <aside aria-label="퇴고에서 고친 점" className="hidden w-72 shrink-0 self-start rounded-xl border bg-card p-4 shadow-sm lg:block">
-            <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold"><ListChecks className="size-4" /> 고친 점</p>
-            <ol className="list-decimal space-y-1.5 pl-5 text-sm leading-6">
-              {run.notes.map((note, i) => <li key={i}>{note}</li>)}
-            </ol>
-          </aside>
-        )}
+        {done && <RevisionSide notes={run.notes} suggestions={run.suggestions} before={run.context.text} after={run.output} />}
       </div>
 
       <footer className="flex flex-wrap items-center gap-2 border-t px-5 py-3">
-        {done && run.notes.length > 0 && (
-          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground lg:hidden">고친 점: {run.notes.join(" · ")}</p>
+        {done && (run.notes.length > 0 || run.suggestions.length > 0) && (
+          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground lg:hidden">고친 점 {run.notes.length} · 제안 {run.suggestions.length} — 창을 넓히면 오른쪽에 보여요</p>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
           {run.phase === "running" && <Button size="sm" variant="outline" onClick={() => void cancel()}><Square /> 중지</Button>}
@@ -110,5 +107,94 @@ export function RevisionView() {
         </div>
       </footer>
     </div>
+  );
+}
+
+function Section({ icon, title, count, children, label }: { icon: React.ReactNode; title: string; count?: number; children: React.ReactNode; label: string }) {
+  return (
+    <section aria-label={label} className="space-y-2">
+      <p className="flex items-center gap-1.5 text-sm font-semibold">
+        {icon} {title}
+        {count !== undefined && <span className="font-normal text-muted-foreground tabular-nums">{count}</span>}
+      </p>
+      {children}
+    </section>
+  );
+}
+
+/** 오른쪽 칸: 고친 점(원문 → 수정 / 이유), 제안(적용 안 함), 수정 전·후 목차 */
+function RevisionSide({ notes, suggestions, before, after }: { notes: string[]; suggestions: string[]; before: string; after: string }) {
+  const toc = useMemo(() => compareToc(before, after), [before, after]);
+  const tocChanged = toc.some((row) => row.kind !== "same");
+  return (
+    <aside aria-label="퇴고 보고" className="hidden w-96 shrink-0 space-y-5 overflow-y-auto rounded-xl border bg-card p-4 shadow-sm lg:block">
+      {notes.length > 0 && (
+        <Section label="퇴고에서 고친 점" icon={<ListChecks className="size-4" />} title="고친 점" count={notes.length}>
+          <ol className="space-y-2">
+            {notes.map((line, i) => {
+              const note = parseRevisionNote(line);
+              return (
+                <li key={i} className="rounded-md border bg-background px-2.5 py-2 text-[13px] leading-5">
+                  {note.before !== undefined ? (
+                    <>
+                      <p className="flex flex-wrap items-baseline gap-x-1.5">
+                        <del className="text-red-700 decoration-red-400/70 dark:text-red-400">{note.before || "(없음)"}</del>
+                        <ArrowRight className="size-3 shrink-0 self-center text-muted-foreground" />
+                        <ins className="text-emerald-700 no-underline dark:text-emerald-400">{note.after || "(삭제)"}</ins>
+                      </p>
+                      {note.reason && <p className="mt-0.5 text-xs text-muted-foreground">{note.reason}</p>}
+                    </>
+                  ) : (
+                    <p>{note.text}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </Section>
+      )}
+      {suggestions.length > 0 && (
+        <Section label="퇴고 제안" icon={<Lightbulb className="size-4 text-amber-500" />} title="제안 · 적용 안 함" count={suggestions.length}>
+          <ul className="space-y-2">
+            {suggestions.map((line, i) => {
+              const slash = line.lastIndexOf(" / ");
+              return (
+                <li key={i} className="rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 text-[13px] leading-5">
+                  <p>{slash === -1 ? line : line.slice(0, slash)}</p>
+                  {slash !== -1 && <p className="mt-0.5 text-xs text-muted-foreground">{line.slice(slash + 3)}</p>}
+                </li>
+              );
+            })}
+          </ul>
+        </Section>
+      )}
+      {toc.length > 0 && (
+        <Section label="수정 전·후 목차" icon={<ListTree className="size-4" />} title={tocChanged ? "목차 · 수정 전 → 후" : "목차 · 바뀌지 않음"}>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+            <p className="text-[11px] font-medium text-muted-foreground">수정 전</p>
+            <p className="text-[11px] font-medium text-muted-foreground">수정 후</p>
+            {toc.map((row, i) => (
+              <div key={i} className="contents">
+                {[row.before, row.after].map((h, side) => (
+                  <p
+                    key={side}
+                    style={{ paddingLeft: h ? (h.level - 2) * 10 : 0 }}
+                    className={cn(
+                      "truncate rounded px-1 py-0.5",
+                      !h && "text-muted-foreground/50",
+                      row.kind !== "same" && h && (side === 0 ? "bg-red-500/10 text-red-700 dark:text-red-400" : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"),
+                    )}
+                    title={h?.text}
+                  >
+                    {h ? h.text : "—"}
+                  </p>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Section>
+      )}
+      {notes.length === 0 && suggestions.length === 0 && toc.length === 0 && <p className="text-sm text-muted-foreground">AI가 고친 점을 따로 적지 않았어요.</p>}
+    </aside>
   );
 }
