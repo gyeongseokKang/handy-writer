@@ -75,7 +75,8 @@ interface AiState {
   setInstruction: (instruction: string) => void;
   start: (task: AiTask) => Promise<void>;
   cancel: () => Promise<void>;
-  apply: (mode: "replace" | "below" | "cursor") => void;
+  /** text를 주면 결과 대신 그 글을 넣는다 (퇴고에서 고른 수정만 넣을 때) */
+  apply: (mode: "replace" | "below" | "cursor", text?: string) => void;
   dismiss: () => void;
 }
 
@@ -204,20 +205,21 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (id && phase === "running") await api.ai.cancel(id);
   },
 
-  apply: (mode) => {
+  apply: (mode, text) => {
     const { run } = get();
     const bridge = useEditorBridge.getState().bridge;
+    const output = text ?? run.output;
     if (run.phase !== "done" || !run.context || !bridge) return;
     if (run.notePath !== useWorkspaceStore.getState().activePath) {
       return void toast.error("다른 글로 옮겨가서 적용할 수 없어요. 결과를 복사해서 붙여넣어 주세요.");
     }
     if (mode === "cursor") {
-      if (bridge.appendAtCursor(run.context, run.output) === "changed") {
+      if (bridge.appendAtCursor(run.context, output) === "changed") {
         return void toast.error("요청한 뒤에 커서 앞의 글이 바뀌어서 붙이지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");
       }
     } else if (mode === "below") {
-      bridge.insertBelowCursor(run.output);
-    } else if (bridge.replace(run.context, run.output) === "changed") {
+      bridge.insertBelowCursor(output);
+    } else if (bridge.replace(run.context, output) === "changed") {
       return void toast.error("요청한 뒤에 그 부분이 바뀌어서 적용하지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");
     }
     set({ run: IDLE_RUN });

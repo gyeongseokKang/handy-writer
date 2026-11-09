@@ -46,11 +46,18 @@ assert((await view.locator("del").count()) > 0, "본문 자리에 바뀐 점이 
 assert(/\+\d+자/.test(await view.locator("header").innerText()) && /−\d+자/.test(await view.locator("header").innerText()), "늘고 준 글자 수가 보인다");
 assert((await panel.getByRole("region", { name: "AI 결과", exact: true }).innerText()).includes("본문 화면에서"), "사이드 패널에는 본문 화면에서 보라는 안내만 남는다");
 await page.screenshot({ path: path.join(OUT, "revise.png") });
-await view.getByRole("button", { name: "본문 전체에 적용" }).click();
+// 수정마다 적용·빼기를 고른다: 첫 수정('정말' 빼기)을 빼고 나머지만 적용
+const changes = view.getByLabel("고를 수 있는 바뀐 점").getByRole("checkbox");
+const total = await changes.count();
+assert(total >= 3 && (await view.getByLabel("적용할 수정").innerText()) === `수정 ${total}/${total}개 적용`, `수정마다 고를 수 있고 처음엔 모두 적용 (${total}개)`);
+await changes.first().click();
+assert((await changes.first().getAttribute("aria-checked")) === "false" && (await view.getByLabel("적용할 수정").innerText()) === `수정 ${total - 1}/${total}개 적용`, "누르면 그 수정을 뺀다");
+await page.screenshot({ path: path.join(OUT, "revise-pick.png") });
+await view.getByRole("button", { name: /고른 \d+개만 본문 전체에 적용/ }).click();
 await sleep(1500);
 assert((await view.count()) === 0, "적용하면 퇴고 화면이 닫힌다");
 const after = read("초고.md");
-assert(after === "## 첫째\n\n나는 글쓰기가 좋다.\n\n## 둘째: 매일 쓰는 이유\n\n매일 쓴다.\n", `적용하면 고친 글만 들어간다 (${JSON.stringify(after)})`);
+assert(after === "## 첫째\n\n나는 정말 글쓰기가 좋다.\n\n## 둘째: 매일 쓰는 이유\n\n매일 쓴다.\n", `고른 수정만 들어가고 뺀 곳은 원문 그대로다 (${JSON.stringify(after)})`);
 assert((await panel.getByLabel("지난 AI 결과").getByRole("button", { name: /퇴고/ }).count()) === 1, "퇴고 결과도 지난 결과에 남는다");
 
 assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.join(" | ")}`);

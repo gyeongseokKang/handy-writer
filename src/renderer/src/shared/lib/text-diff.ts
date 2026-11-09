@@ -50,8 +50,8 @@ function toLines(segments: Segment[]): DiffLine[] {
   return lines;
 }
 
-/** 앞뒤 버전을 비교한다. 줄 단위로 먼저 맞춘 뒤, 바뀐 줄 안에서는 낱말 단위로 다시 비교한다. */
-export function diffVersions(before: string, after: string, collapse = true): VersionDiff {
+/** 앞뒤 글의 차이 조각. 줄 단위로 먼저 맞춘 뒤, 바뀐 줄 안에서는 낱말 단위로 다시 비교한다. */
+export function diffSegments(before: string, after: string): Segment[] {
   const segments: Segment[] = [];
   const parts = diffLines(before, after);
   for (let i = 0; i < parts.length; i++) {
@@ -67,6 +67,12 @@ export function diffVersions(before: string, after: string, collapse = true): Ve
       segments.push({ text: part.value, type: part.added ? "added" : part.removed ? "removed" : "same" });
     }
   }
+  return segments;
+}
+
+/** 앞뒤 버전을 비교한다. 줄 단위로 먼저 맞춘 뒤, 바뀐 줄 안에서는 낱말 단위로 다시 비교한다. */
+export function diffVersions(before: string, after: string, collapse = true): VersionDiff {
+  const segments = diffSegments(before, after);
 
   const added = segments.filter((s) => s.type === "added").reduce((sum, s) => sum + charCount(s.text), 0);
   const removed = segments.filter((s) => s.type === "removed").reduce((sum, s) => sum + charCount(s.text), 0);

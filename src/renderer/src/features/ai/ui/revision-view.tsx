@@ -6,10 +6,10 @@ import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { diffVersions } from "@/shared/lib/text-diff";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
-import { DiffBody } from "@/shared/ui/diff-body";
 
 import { parseRevisionNote } from "@shared/ai-prompt";
 
+import { changeCount, composeRevision, revisionPieces, type RevisionPiece } from "../model/revision-chunks";
 import { compareToc } from "../model/revision-toc";
 import { useAiStore } from "../model/use-ai-store";
 
@@ -23,7 +23,19 @@ export function RevisionView() {
   const [collapse, setCollapse] = useState(false);
   const shown = run.task === "revise" && run.phase !== "idle" && !!run.context && run.notePath === activePath;
   const done = run.phase === "done";
-  const stats = useMemo(() => (shown && done && run.context ? diffVersions(run.context.text, run.output, false) : null), [shown, done, run.context, run.output]);
+  // 수정마다 적용할지 고른다 (처음엔 모두 적용). 고른 것만 넣은 글을 만든다.
+  const pieces = useMemo(() => (shown && done && run.context ? revisionPieces(run.context.text, run.output) : []), [shown, done, run.context, run.output]);
+  const [rejected, setRejected] = useState<Set<number>>(new Set());
+  useEffect(() => setRejected(new Set()), [run.id]);
+  const total = changeCount(pieces);
+  const chosen = useMemo(() => composeRevision(pieces, (id) => !rejected.has(id)), [pieces, rejected]);
+  const toggle = (id: number) => setRejected((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    return next;
+  });
+  const stats = useMemo(() => (shown && done && run.context ? diffVersions(run.context.text, chosen, false) : null), [shown, done, run.context, chosen]);
 
   useEffect(() => {
     if (!shown) return;
@@ -42,7 +54,8 @@ export function RevisionView() {
   if (!shown || !run.context) return null;
   const { apply, cancel, dismiss } = useAiStore.getState();
   const scope = run.context.hasSelection ? "선택 부분" : "본문 전체";
-  const copy = () => void navigator.clipboard.writeText(run.output).then(() => toast.success("고친 글을 복사했어요."));
+  const copy = () => void navigator.clipboard.writeText(chosen).then(() => toast.success("고른 수정을 넣은 글을 복사했어요."));
+  const applied = total - rejected.size;
 
   return (
     <div role="dialog" aria-modal="true" aria-label="퇴고 결과" className="history-view fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm">
@@ -63,6 +76,13 @@ export function RevisionView() {
           </span>
         )}
         <div className="ml-auto flex items-center gap-1.5">
+          {done && total > 0 && (
+            <span className="flex items-center gap-1.5 text-sm">
+              <span aria-label="적용할 수정" className="text-muted-foreground tabular-nums">수정 {applied}/{total}개 적용</span>
+              <button type="button" className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40" disabled={rejected.size === 0} onClick={() => setRejected(new Set())}>모두 적용</button>
+              <button type="button" className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-40" disabled={applied === 0} onClick={() => setRejected(new Set(pieces.flatMap((p) => (p.kind === "change" ? [p.id] : []))))}>모두 빼기</button>
+            </span>
+          )}
           {done && (
             <label className="flex items-center gap-1.5 text-sm">
               <input type="checkbox" checked={collapse} onChange={(e) => setCollapse(e.target.checked)} />
@@ -81,7 +101,7 @@ export function RevisionView() {
             {run.phase === "error" ? (
               <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm whitespace-pre-wrap">{run.error}</p>
             ) : done ? (
-              <DiffBody before={run.context.text} after={run.output} collapse={collapse} active />
+              <ChoosableDiff pieces={pieces} rejected={rejected} onToggle={toggle} collapse={collapse} />
             ) : (
               <p className="text-sm leading-7 whitespace-pre-wrap text-muted-foreground">{run.output || "글 전체를 다시 읽고 있어요…"}</p>
             )}
@@ -99,8 +119,10 @@ export function RevisionView() {
           {done && (
             <>
               <Button size="sm" variant="outline" onClick={copy}><Copy /> 복사</Button>
-              <Button size="sm" variant="outline" onClick={() => apply("below")}><CopyPlus /> 아래에 삽입</Button>
-              <Button size="sm" onClick={() => apply("replace")}><Check /> {scope}에 적용</Button>
+              <Button size="sm" variant="outline" onClick={() => apply("below", chosen)}><CopyPlus /> 아래에 삽입</Button>
+              <Button size="sm" disabled={total > 0 && applied === 0} onClick={() => apply("replace", chosen)}>
+                <Check /> {total > 0 && applied < total ? `고른 ${applied}개만 ${scope}에 적용` : `${scope}에 적용`}
+              </Button>
             </>
           )}
           {run.phase === "error" && <Button size="sm" variant="outline" onClick={dismiss}>닫기</Button>}
@@ -196,5 +218,72 @@ function RevisionSide({ notes, suggestions, before, after }: { notes: string[]; 
       )}
       {notes.length === 0 && suggestions.length === 0 && toc.length === 0 && <p className="text-sm text-muted-foreground">AI가 고친 점을 따로 적지 않았어요.</p>}
     </aside>
+  );
+}
+
+/** 바뀐 부분만 볼 때 수정에서 멀리 떨어진 같은 글은 앞뒤 몇 줄만 남긴다. */
+const KEEP_LINES = 2;
+
+function SameText({ text, collapse, first, last }: { text: string; collapse: boolean; first: boolean; last: boolean }) {
+  if (!collapse) return <>{text}</>;
+  const lines = text.split("\n");
+  const head = first ? 0 : KEEP_LINES;
+  const tail = last ? 0 : KEEP_LINES;
+  if (lines.length <= head + tail + 1) return <>{text}</>;
+  return (
+    <>
+      {lines.slice(0, head).join("\n")}
+      {head > 0 && "\n"}
+      <span className="my-1 block border-y border-dashed py-0.5 text-xs text-muted-foreground select-none">⋯ {lines.length - head - tail}줄 같음</span>
+      {lines.slice(lines.length - tail).join("\n")}
+    </>
+  );
+}
+
+/**
+ * 고를 수 있는 diff: 수정 하나하나를 눌러 적용·빼기를 바꾼다.
+ * 적용한 수정은 지운 글(빨강 취소선)과 넣은 글(초록), 뺀 수정은 원문 그대로 두고 고친 글을 흐리게 보여 준다.
+ */
+function ChoosableDiff({ pieces, rejected, onToggle, collapse }: { pieces: RevisionPiece[]; rejected: Set<number>; onToggle: (id: number) => void; collapse: boolean }) {
+  return (
+    <div aria-label="고를 수 있는 바뀐 점" className="text-[15px] leading-7 break-words whitespace-pre-wrap">
+      {pieces.map((piece, index) => {
+        if (piece.kind === "same") return <SameText key={index} text={piece.text} collapse={collapse} first={index === 0} last={index === pieces.length - 1} />;
+        const on = !rejected.has(piece.id);
+        return (
+          <span
+            key={index}
+            role="checkbox"
+            aria-checked={on}
+            aria-label={`수정 ${piece.id + 1}: ${piece.removed.trim() || "(없음)"} → ${piece.added.trim() || "(삭제)"}`}
+            tabIndex={0}
+            title={on ? "누르면 이 수정을 빼요 (원문 그대로)" : "누르면 이 수정을 다시 적용해요"}
+            onClick={() => onToggle(piece.id)}
+            onKeyDown={(event) => {
+              if (event.key === " " || event.key === "Enter") {
+                event.preventDefault();
+                onToggle(piece.id);
+              }
+            }}
+            className={cn(
+              "cursor-pointer rounded-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+              on ? "hover:ring-1 hover:ring-primary/40" : "border border-dashed border-muted-foreground/50 bg-muted hover:border-primary/50",
+            )}
+          >
+            {on ? (
+              <>
+                {piece.removed && <del className="bg-red-500/15 text-red-700 decoration-red-500/70 dark:text-red-400">{piece.removed}</del>}
+                {piece.added && <ins className="bg-emerald-500/15 text-emerald-800 no-underline dark:text-emerald-300">{piece.added}</ins>}
+              </>
+            ) : (
+              <>
+                {piece.removed}
+                {piece.added && <span className="text-muted-foreground/60 line-through decoration-muted-foreground/40">{piece.added}</span>}
+              </>
+            )}
+          </span>
+        );
+      })}
+    </div>
   );
 }
