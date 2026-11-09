@@ -10,6 +10,14 @@ export const DRAFT_LENGTHS = [
   { id: "long", label: "길게", chars: 5000 },
 ] as const;
 
+/** 글의 짜임. 기승전결·서론-본론-결론을 고르면 목차와 초안이 그 흐름을 따른다. */
+export const DRAFT_STRUCTURES = [
+  { id: "free", label: "자유롭게" },
+  { id: "kiseungjeongyeol", label: "기승전결" },
+  { id: "intro-body-conclusion", label: "서론·본론·결론" },
+] as const;
+export type DraftStructure = (typeof DRAFT_STRUCTURES)[number]["id"];
+
 /** `custom`이면 brief.customGoal(글자 수 또는 원고지 매수)을 쓴다. */
 export type DraftLength = (typeof DRAFT_LENGTHS)[number]["id"] | "custom";
 
@@ -27,6 +35,8 @@ export interface DraftBrief {
   genre: string;
   tone: string;
   length: DraftLength;
+  /** 글의 짜임 (기본 자유롭게) */
+  structure: DraftStructure;
   /** 분량을 직접 정했을 때의 목표 */
   customGoal: WritingGoal;
   /** 꼭 넣을 내용, 핵심 주장, 자료 */
@@ -42,6 +52,7 @@ export const EMPTY_BRIEF: DraftBrief = {
   genre: "블로그 글",
   tone: "해요체",
   length: "medium",
+  structure: "free",
   customGoal: { unit: "chars", value: 3000 },
   keyPoints: "",
   extra: "",
@@ -65,6 +76,7 @@ export function parseBrief(value: unknown): DraftBrief {
     genre: str(v.genre),
     tone: str(v.tone),
     length,
+    structure: DRAFT_STRUCTURES.find((x) => x.id === v.structure)?.id ?? "free",
     customGoal: { unit: goalUnit, value: Math.min(goalValue, goalUnit === "sheets" ? MAX_CUSTOM_CHARS / CHARS_PER_SHEET : MAX_CUSTOM_CHARS) },
     keyPoints: str(v.keyPoints),
     extra: str(v.extra),
@@ -101,6 +113,7 @@ function briefSection(brief: DraftBrief) {
     brief.genre.trim() && `- 글 종류: ${brief.genre.trim()}`,
     brief.tone.trim() && `- 문체: ${brief.tone.trim()}`,
     `- 분량: ${lengthLabel(brief)}`,
+    brief.structure !== "free" && `- 구성: ${DRAFT_STRUCTURES.find((x) => x.id === brief.structure)?.label}`,
   ].filter(Boolean);
   const blocks = [`<brief>\n${lines.join("\n")}`];
   if (brief.keyPoints.trim()) blocks.push(`꼭 넣을 내용:\n${brief.keyPoints.trim()}`);
@@ -116,13 +129,55 @@ function sectionCount(chars: number) {
 const NO_INTERNAL_IDS =
   "- 커밋 해시(예: 8dfebef8), 이슈·PR 번호, 브랜치 이름, 내부 파일 경로, 에러 코드, 사내 도구·시스템 이름 같은 개발 내부 식별자는 독자에게 의미가 없으므로 글에 쓰지 않습니다. 그런 기록에서 얻은 사례는 무슨 일이 있었는지를 말로 풀어 씁니다. 다만 꼭 넣을 내용이나 요청에 직접 적혀 있으면 그대로 씁니다.";
 
+/** 구성별로 각 부분이 맡는 일 */
+const STRUCTURE_PARTS: Record<Exclude<DraftStructure, "free">, { tag: string; role: string }[]> = {
+  kiseungjeongyeol: [
+    { tag: "기", role: "도입. 화제를 꺼내고 독자가 읽고 싶어지게 문제나 장면을 연다" },
+    { tag: "승", role: "전개. 화제를 구체적으로 풀고 사례·근거로 이야기를 키운다" },
+    { tag: "전", role: "전환. 관점을 뒤집거나 새 국면·반전·핵심 깨달음을 보여 주는, 글에서 가장 힘을 주는 부분" },
+    { tag: "결", role: "마무리. 앞의 이야기를 거두어 독자에게 남길 메시지로 맺는다" },
+  ],
+  "intro-body-conclusion": [
+    { tag: "서론", role: "글의 주제와 문제의식, 무엇을 말할지 밝힌다" },
+    { tag: "본론", role: "주장과 근거, 사례를 차례로 펼친다" },
+    { tag: "결론", role: "핵심을 요약하고 제안이나 전망으로 맺는다" },
+  ],
+};
+
+function structureRules(brief: DraftBrief, step: "outline" | "draft"): string[] {
+  if (brief.structure === "free") return [];
+  const parts = STRUCTURE_PARTS[brief.structure];
+  const name = DRAFT_STRUCTURES.find((x) => x.id === brief.structure)?.label ?? "";
+  const roles = parts.map((p) => `${p.tag}(${p.role})`).join(", ");
+  if (step === "outline") {
+    return [
+      `- 글 전체를 ${name} 순서로 짭니다: ${roles}.`,
+      `- 장 제목(\`## \`)은 ${parts.map((p) => p.tag).join("→")} 순서로 각 부분의 내용이 드러나게 짓되, 제목에 '${parts[0]!.tag}', '${parts[1]!.tag}' 같은 이름을 붙이지 않습니다.`,
+      `- 각 장 설명 줄 맨 앞에 그 장이 맡는 부분을 \`[${parts[0]!.tag}]\`처럼 표시합니다. 분량이 길면 가운데 부분(${parts.slice(1, -1).map((p) => p.tag).join("·")})을 두 장 이상으로 나눠도 됩니다.`,
+    ];
+  }
+  return [
+    `- 목차의 ${parts.map((p) => `[${p.tag}]`).join("·")} 표시를 따라 ${name}의 흐름이 살아 있게 씁니다: ${roles}.`,
+    ...(brief.structure === "kiseungjeongyeol" ? ["- [전]에서는 앞의 흐름과 분명히 다른 전환이 느껴지게 쓰고, [결]은 [전]에서 얻은 것을 바탕으로 맺습니다."] : []),
+    "- `[기]` 같은 부분 표시는 본문에 쓰지 않습니다.",
+  ];
+}
+
+/** 구성에 맞는 장 개수 */
+function structuredCount(brief: DraftBrief) {
+  if (brief.structure === "kiseungjeongyeol") return draftTargetChars(brief) >= 4500 ? "5~6개" : "4~5개";
+  if (brief.structure === "intro-body-conclusion") return draftTargetChars(brief) >= 4500 ? "5~7개" : "3~5개";
+  return sectionCount(draftTargetChars(brief));
+}
+
 export function outlineInstruction(brief: DraftBrief) {
   return [
     briefSection(brief),
     "<brief>의 기본정보로 글의 목차를 만드세요.",
     "출력 규칙:",
-    `- 장 제목은 \`## \`로 시작하는 줄로 ${sectionCount(draftTargetChars(brief))} 씁니다. 필요하면 장 아래에 \`### \` 소제목을 둡니다.`,
+    `- 장 제목은 \`## \`로 시작하는 줄로 ${structuredCount(brief)} 씁니다. 필요하면 장 아래에 \`### \` 소제목을 둡니다.`,
     "- 각 제목 바로 아래에 그 부분에서 다룰 내용을 `- `로 시작하는 한 줄로 적습니다.",
+    ...structureRules(brief, "outline"),
     "- 글 전체 제목(`# `), 머리말, 설명은 쓰지 말고 목차만 출력합니다.",
     "- 꼭 넣을 내용이 있으면 어느 장에서 다룰지 목차에 반영합니다.",
     NO_INTERNAL_IDS,
@@ -137,6 +192,7 @@ export function draftInstruction(brief: DraftBrief, outline: string) {
     "출력 규칙:",
     "- 목차의 `##`, `###` 제목을 순서와 문구 그대로 쓰고, 그 아래에 본문을 씁니다. 제목 아래의 `- ` 설명 줄은 본문으로 풀어 쓰고 그대로 남기지 않습니다.",
     `- 본문은 약 ${draftTargetChars(brief).toLocaleString("ko-KR")}자(공백 포함)로, 지정한 문체로 씁니다.`,
+    ...structureRules(brief, "draft"),
     "- 글 전체 제목(`# `), 머리말, 설명은 쓰지 말고 본문만 마크다운으로 출력합니다.",
     "- 확실하지 않은 수치, 날짜, 인용은 지어내지 말고 그 자리에 `(확인 필요)`라고 표시합니다.",
     NO_INTERNAL_IDS,

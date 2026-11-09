@@ -3,7 +3,6 @@ import { createPortal } from "react-dom";
 
 import { shortcutLabel } from "@/shared/lib/shortcut";
 import { cn } from "@/shared/lib/utils";
-import { WidthRuler } from "@/shared/ui/resize-grip";
 
 const KEY_STEP = 16;
 /** 이만큼 움직이기 전까지는 '누르기'로 본다 */
@@ -89,8 +88,6 @@ export function PanelResizeHandle({
     }
   };
 
-  // 끄는 동안 패널 위에 눈금자와 지금 너비를 띄운다.
-  const panel = dragging ? ref.current?.parentElement?.getBoundingClientRect() : null;
   return (
     <div
       ref={ref}
@@ -120,7 +117,6 @@ export function PanelResizeHandle({
           dragging && "opacity-80",
         )}
       />
-      {panel && <WidthRuler rect={{ left: panel.left, top: panel.top, width: panel.width }} width={panel.width} anchor={edge === "right" ? "left" : "right"} />}
       {hint && !dragging && createPortal(
         <div
           role="tooltip"

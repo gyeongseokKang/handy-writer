@@ -39,11 +39,13 @@ interface RunState {
   instruction: string;
   /** 받은 글 그대로 (이어쓰기는 <continuation>, 퇴고는 <revised> 안만 output으로 보여 준다) */
   raw: string;
-  /** 퇴고: 무엇을 왜 고쳤는지 */
+  /** 퇴고: 무엇을 왜 고쳤는지 (`원문 → 수정 / 이유`) */
   notes: string[];
+  /** 퇴고: 고치지 않고 제안만 한 것 */
+  suggestions: string[];
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [] };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [], suggestions: [] };
 
 interface AiState {
   status: AiStatus | null;
@@ -73,7 +75,8 @@ interface AiState {
   setInstruction: (instruction: string) => void;
   start: (task: AiTask) => Promise<void>;
   cancel: () => Promise<void>;
-  apply: (mode: "replace" | "below" | "cursor") => void;
+  /** text를 주면 결과 대신 그 글을 넣는다 (퇴고에서 고른 수정만 넣을 때) */
+  apply: (mode: "replace" | "below" | "cursor", text?: string) => void;
   dismiss: () => void;
 }
 
@@ -173,7 +176,7 @@ export const useAiStore = create<AiState>((set, get) => ({
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [] },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [], suggestions: [] },
     });
 
     try {
@@ -202,20 +205,21 @@ export const useAiStore = create<AiState>((set, get) => ({
     if (id && phase === "running") await api.ai.cancel(id);
   },
 
-  apply: (mode) => {
+  apply: (mode, text) => {
     const { run } = get();
     const bridge = useEditorBridge.getState().bridge;
+    const output = text ?? run.output;
     if (run.phase !== "done" || !run.context || !bridge) return;
     if (run.notePath !== useWorkspaceStore.getState().activePath) {
       return void toast.error("다른 글로 옮겨가서 적용할 수 없어요. 결과를 복사해서 붙여넣어 주세요.");
     }
     if (mode === "cursor") {
-      if (bridge.appendAtCursor(run.context, run.output) === "changed") {
+      if (bridge.appendAtCursor(run.context, output) === "changed") {
         return void toast.error("요청한 뒤에 커서 앞의 글이 바뀌어서 붙이지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");
       }
     } else if (mode === "below") {
-      bridge.insertBelowCursor(run.output);
-    } else if (bridge.replace(run.context, run.output) === "changed") {
+      bridge.insertBelowCursor(output);
+    } else if (bridge.replace(run.context, output) === "changed") {
       return void toast.error("요청한 뒤에 그 부분이 바뀌어서 적용하지 않았어요. 결과를 복사하거나 아래에 삽입해 주세요.");
     }
     set({ run: IDLE_RUN });
@@ -235,16 +239,17 @@ function handleEvent(event: AiEvent) {
   } else if (event.type === "status") {
     useAiStore.setState({ run: { ...run, status: event.text } });
   } else if (event.type === "reset") {
-    useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [] } });
+    useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [], suggestions: [] } });
   } else if (event.type === "done") {
     const revision = run.task === "revise" ? parseRevision(event.text) : null;
     const output = tidyOutput(run.task === "continue" ? extractContinuation(event.text) : revision ? revision.revised : event.text);
     const notes = revision?.notes ?? [];
-    useAiStore.setState({ run: { ...run, phase: "done", output, notes } });
+    const suggestions = revision?.suggestions ?? [];
+    useAiStore.setState({ run: { ...run, phase: "done", output, notes, suggestions } });
     // 적용하거나 닫으면 결과가 사라지므로, 끝나는 대로 기록에 남긴다.
     const { history, historyRoot } = useAiStore.getState();
     const next = addHistory(history, {
-      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(), ...(notes.length ? { notes } : {}),
+      id: run.id!, task: run.task!, output, notePath: run.notePath, noteName: run.context?.noteName ?? "", instruction: run.instruction, at: new Date().toISOString(), ...(notes.length ? { notes } : {}), ...(suggestions.length ? { suggestions } : {}),
     });
     useAiStore.setState({ history: next });
     saveHistory(historyRoot, next);

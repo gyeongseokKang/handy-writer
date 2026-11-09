@@ -234,9 +234,21 @@ function Result() {
   const [showDiff, setShowDiff] = useState(true);
 
   if (run.phase === "idle" || !run.task) return null;
+  // 퇴고 결과는 본문 자리의 큰 화면(RevisionView)에서 본다.
+  if (run.task === "revise") {
+    return (
+      <section aria-label="AI 결과" className="px-4 py-3">
+        <p className="flex items-center gap-1.5 text-sm">
+          {run.phase === "running" && <Loader2 className="size-4 animate-spin" />}
+          <span className="font-semibold">퇴고</span>
+          <span className="text-xs text-muted-foreground">{run.phase === "running" ? "본문 화면에서 고치는 중…" : run.phase === "done" ? "본문 화면에서 바뀐 점을 확인하세요" : "실패"}</span>
+        </p>
+      </section>
+    );
+  }
 
   const canReplace = run.task !== "continue";
-  const canDiff = run.task === "proofread" || run.task === "polish" || run.task === "revise";
+  const canDiff = run.task === "proofread" || run.task === "polish";
   const copy = () => void navigator.clipboard.writeText(run.output).then(() => toast.success("결과를 복사했어요."));
 
   return (
@@ -272,14 +284,6 @@ function Result() {
         </div>
       )}
 
-      {run.task === "revise" && run.phase === "done" && run.notes.length > 0 && (
-        <div aria-label="퇴고에서 고친 점" className="space-y-1 rounded-md border bg-muted/40 p-2.5">
-          <p className="flex items-center gap-1 text-xs font-semibold text-muted-foreground"><ListChecks className="size-3.5" /> 고친 점</p>
-          <ol className="list-decimal space-y-0.5 pl-5 text-xs leading-5">
-            {run.notes.map((note, i) => <li key={i}>{note}</li>)}
-          </ol>
-        </div>
-      )}
 
       <div className="flex flex-wrap gap-2">
         {run.phase === "running" && (

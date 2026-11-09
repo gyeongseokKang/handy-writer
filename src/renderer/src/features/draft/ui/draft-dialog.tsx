@@ -1,4 +1,4 @@
-import { DRAFT_GENRES, DRAFT_LENGTHS, DRAFT_TONES, draftGoal, outlineHeadings, type DraftBrief } from "@shared/draft";
+import { DRAFT_GENRES, DRAFT_LENGTHS, DRAFT_STRUCTURES, DRAFT_TONES, draftGoal, outlineHeadings, type DraftBrief } from "@shared/draft";
 import { findYoutubeUrls, formatDuration, youtubeVideoId, type DraftSource } from "@shared/draft-sources";
 import { formatGoal, goalProgress, setFrontmatterLine, textStats } from "@shared/text-stats";
 import { ArrowLeft, Check, FilePlus2, FolderCode, Loader2, MonitorPlay, RefreshCw, RotateCcw, Square, X } from "lucide-react";
@@ -210,6 +210,15 @@ function BriefForm({ submitted }: { submitted: boolean }) {
           <Choice label="분량" options={LENGTH_OPTIONS} value={brief.length} onChange={(length) => setBrief({ length: length as typeof brief.length })} />
           {brief.length === "custom" && <CustomLength brief={brief} onChange={(customGoal) => setBrief({ customGoal })} />}
         </div>
+      </div>
+      <div className="space-y-1">
+        <Choice label="구성" options={DRAFT_STRUCTURES} value={brief.structure ?? "free"} onChange={(structure) => setBrief({ structure: structure as DraftBrief["structure"] })} />
+        {brief.structure === "kiseungjeongyeol" && (
+          <p className="text-xs text-muted-foreground">기(도입) → 승(전개) → 전(전환·반전) → 결(마무리) 순서로 목차를 짜고, 목차에 각 장이 맡는 부분을 [기]처럼 표시해요.</p>
+        )}
+        {brief.structure === "intro-body-conclusion" && (
+          <p className="text-xs text-muted-foreground">서론(문제 제기) → 본론(주장·근거) → 결론(요약·제안) 순서로 목차를 짜요.</p>
+        )}
       </div>
       <label className="block space-y-1">
         <span className="text-sm font-medium">꼭 넣을 내용 <span className="font-normal text-muted-foreground">(선택)</span></span>

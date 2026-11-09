@@ -91,6 +91,9 @@ await dialog.getByLabel("주제 또는 제목").fill("달리기 습관");
 await dialog.getByRole("radio", { name: "에세이" }).click();
 await dialog.getByRole("radio", { name: /^짧게/ }).click();
 await dialog.getByPlaceholder("예: 운동을 안 하는 30대 직장인").fill("30대 직장인");
+await dialog.getByRole("radio", { name: "기승전결" }).click();
+assert(await dialog.getByText(/기\(도입\) → 승\(전개\) → 전\(전환·반전\) → 결\(마무리\)/).isVisible(), "기승전결을 고르면 흐름 설명이 보인다");
+await page.screenshot({ path: path.join(OUT, "draft-structure.png") });
 await dialog.getByRole("button", { name: "목차 만들기" }).click();
 const outlineBox = dialog.getByLabel("목차 편집");
 await page.waitForFunction(() => document.querySelector("[aria-label='목차 편집']")?.value.includes("## 마치며"));
@@ -98,6 +101,7 @@ await sleep(200);
 const outlineCall = aiCalls().at(-1);
 assert(outlineCall.input.includes("- 주제: 달리기 습관") && outlineCall.input.includes("- 글 종류: 에세이") && outlineCall.input.includes("- 독자: 30대 직장인"), "기본정보가 프롬프트에 들어간다");
 assert(outlineCall.args[outlineCall.args.indexOf("--tools") + 1] === "", "초안 만들기에서는 도구를 끈다");
+assert(outlineCall.input.includes("- 구성: 기승전결") && outlineCall.input.includes("기→승→전→결"), "기승전결로 목차를 짜라고 요청한다");
 assert((await outlineBox.inputValue()).startsWith("## 달리기 습관 시작하기"), "AI가 만든 목차가 편집 칸에 나온다");
 await page.screenshot({ path: path.join(OUT, "draft-2-outline.png") });
 
@@ -107,6 +111,7 @@ await dialog.getByRole("button", { name: "이 목차로 초안 쓰기" }).click(
 await page.waitForFunction(() => [...document.querySelectorAll("[role='dialog'] button")].some((b) => b.textContent?.includes("새 글로 만들기") && !b.disabled));
 const draftCall = aiCalls().at(-1);
 assert(draftCall.input.includes("<outline>") && draftCall.input.includes("## 덧붙인 장"), "고친 목차가 초안 요청에 들어간다");
+assert(draftCall.input.includes("[기]·[승]·[전]·[결]") && draftCall.input.includes("[전]에서는"), "초안도 기승전결 흐름을 따르라고 요청한다");
 const draftText = await dialog.getByLabel("생성된 초안").innerText();
 assert(draftText.includes("덧붙인 장에 대한 초안 문단입니다."), "초안이 목차를 따라 만들어진다");
 assert((await dialog.getByLabel("초안 분량").innerText()).includes("/ 목표 1,000자"), "초안 분량을 목표와 비교해 보여준다");

@@ -69,8 +69,8 @@ process.stdin.on("end", async () => {
   // 퇴고: 실제 모델처럼 태그 밖에 생각을 쓰고, 고친 글과 고친 점을 태그로 나눠 답한다. 받은 퇴고 기준의 첫 줄을 고친 점에 드러낸다.
   if (text !== undefined && input.includes("<revise_rules>")) {
     const rule = input.match(/<revise_rules>\n([^\n]*)/)?.[1] ?? "";
-    const revised = text.replace(/정말 /g, "").replace(/사실 /g, "");
-    const answer = `글을 읽어 보니 군더더기가 있다.\n<revised>\n${revised}</revised>\n<notes>\n- 군더더기 삭제: '정말', '사실'을 뺐어요\n- 기준 적용: ${rule.replace(/^[-*]\s*/, "")}\n</notes>`;
+    const revised = text.replace(/정말 /g, "").replace(/사실 /g, "").replace(/^## 둘째$/m, "## 둘째: 매일 쓰는 이유");
+    const answer = `글을 읽어 보니 군더더기가 있다.\n<revised>\n${revised}</revised>\n<notes>\n- 정말 글쓰기가 → 글쓰기가 / 군더더기 '정말'을 뺌\n- 사실 매일 → 매일 / 군더더기 '사실'을 뺌, 기준: ${rule.replace(/^[-*]\s*/, "")}\n</notes>\n<suggestions>\n- 둘째 절이 짧으니 첫 절과 합치기 / 2문단 이하라서\n</suggestions>`;
     delta(answer.slice(0, 20));
     delta(answer.slice(20));
     return out({ type: "result", subtype: "success", is_error: false, result: answer });

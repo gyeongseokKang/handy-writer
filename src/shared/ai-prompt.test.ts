@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { AiRequest } from "./ai";
-import { buildUserPrompt, extractContinuation, fitReferences, parseRevision } from "./ai-prompt";
+import { buildUserPrompt, extractContinuation, fitReferences, parseRevision, parseRevisionNote } from "./ai-prompt";
 import { EMPTY_BRIEF } from "./draft";
 
 const base: AiRequest = {
@@ -177,12 +177,22 @@ describe("revise", () => {
     expect(fallback).toContain("군더더기");
     expect(fallback).toContain("기본 기준");
     expect(fallback).toContain("<revised>");
+    expect(fallback).toContain("`- 원문 → 수정 / 이유`");
+    expect(fallback).toContain("<suggestions>");
   });
   it("splits the answer into the revised text and the notes, dropping thinking outside the tags", () => {
-    const answer = "먼저 살펴보면…\n<revised>\n고친 글입니다.\n\n둘째 문단.</revised>\n<notes>\n- 군더더기 삭제: 같은 말이 반복됨\n- 문단 순서: 결론을 뒤로\n</notes>\n끝";
-    expect(parseRevision(answer)).toEqual({ revised: "고친 글입니다.\n\n둘째 문단.", notes: ["군더더기 삭제: 같은 말이 반복됨", "문단 순서: 결론을 뒤로"] });
+    const answer = "먼저 살펴보면…\n<revised>\n고친 글입니다.\n\n둘째 문단.</revised>\n<notes>\n- 정말 좋다 → 좋다 / 군더더기\n- 문단 순서: 결론을 뒤로\n</notes>\n<suggestions>\n- 둘째 절을 첫 절과 합치기 / 너무 짧음\n</suggestions>\n끝";
+    expect(parseRevision(answer)).toEqual({ revised: "고친 글입니다.\n\n둘째 문단.", notes: ["정말 좋다 → 좋다 / 군더더기", "문단 순서: 결론을 뒤로"], suggestions: ["둘째 절을 첫 절과 합치기 / 너무 짧음"] });
     expect(parseRevision("생각 중 <revised>고친", { streaming: true }).revised).toBe("고친");
     expect(parseRevision("생각 중", { streaming: true }).revised).toBe("");
     expect(parseRevision("태그 없는 답").revised).toBe("태그 없는 답");
+  });
+});
+
+describe("parseRevisionNote", () => {
+  it("splits '원문 → 수정 / 이유', keeping slashes inside the revised text", () => {
+    expect(parseRevisionNote("\"정말 좋다\" → \"좋다\" / 군더더기")).toEqual({ text: "\"정말 좋다\" → \"좋다\" / 군더더기", before: "정말 좋다", after: "좋다", reason: "군더더기" });
+    expect(parseRevisionNote("A/B 테스트 → A/B 시험 / 우리말로").after).toBe("A/B 시험");
+    expect(parseRevisionNote("그냥 설명")).toEqual({ text: "그냥 설명" });
   });
 });

@@ -17,6 +17,7 @@ import { NoteEditor } from "@/features/editor/ui/note-editor";
 import { ExtractDialog } from "@/features/editor/ui/extract-dialog";
 import { StyleSettings } from "@/features/editor/ui/style-settings";
 import { HistoryView } from "@/features/history/ui/history-view";
+import { RevisionView } from "@/features/ai/ui/revision-view";
 import { GraphView } from "@/features/graph/ui/graph-view";
 import { Sidebar } from "@/features/note-list/ui/sidebar";
 import { OutlinePanel } from "@/features/outline/ui/outline-panel";
@@ -303,6 +304,7 @@ export function AppShell() {
       {onboardingOpen && <OnboardingDialog />}
       {helpOpen && <HelpDialog />}
       {manuscriptFolder !== null && <ManuscriptDialog key={manuscriptFolder} folder={manuscriptFolder} />}
+      <RevisionView />
       {historyTarget && <HistoryView key={historyTarget.path} path={historyTarget.path} name={historyTarget.name} />}
     </div>
   );
