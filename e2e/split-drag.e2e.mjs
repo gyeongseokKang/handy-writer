@@ -1,4 +1,4 @@
-// 탭이나 글 목록의 글을 에디터 쪽으로 끌어 나란히 띄우기(최대 3분할), 너비 손잡이의 눈금자,
+// 탭이나 글 목록의 글을 에디터 쪽으로 끌어 나란히 띄우기(최대 3분할), 글 너비 손잡이의 눈금자,
 // 긴 제목 줄바꿈을 실제 앱에서 확인한다.
 // 먼저 `pnpm build`가 필요하다. 리눅스에서는 `xvfb-run -a pnpm test:e2e:split-drag`
 import path from "node:path";
@@ -56,20 +56,35 @@ await page.keyboard.press("Control+\\");
 await sleep(300);
 assert((await sides.count()) === 0, "Ctrl+\\는 분할을 모두 닫는다");
 
-// ── 너비 손잡이: ↔ 표시와 끄는 동안 눈금자 ──
+// ── 너비 손잡이: 사이드 패널은 선만(눈금자 없음), 글 너비는 끄는 동안 눈금자 ──
+const ruler = page.getByTestId("width-ruler");
+const dragFrom = async (locator, dx) => {
+  const box = await locator.boundingBox();
+  const y = box.y + Math.min(box.height / 2, 300);
+  await page.mouse.move(box.x + box.width / 2, y);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + dx, y, { steps: 5 });
+  const text = (await ruler.count()) ? await ruler.innerText() : "";
+  return text;
+};
 const handle = page.getByRole("separator", { name: "오른쪽 패널 너비 조절" });
 assert((await handle.locator("svg").count()) === 0, "사이드 패널 손잡이에는 아이콘 없이 선만 있다");
-const box = await handle.boundingBox();
-await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-await page.mouse.down();
-await page.mouse.move(box.x - 40, box.y + box.height / 2, { steps: 5 });
-const ruler = page.getByTestId("width-ruler");
-const rulerText = (await ruler.count()) ? await ruler.innerText() : "";
+const panelRuler = await dragFrom(handle, -40);
+await page.mouse.up();
+await sleep(200);
+assert(panelRuler === "", "사이드 패널을 끌 때는 눈금자가 뜨지 않는다");
+// 창이 좁으면 글 칸이 에디터 폭을 꽉 채워 패널 손잡이와 겹치므로 넓혀서 본다.
+await page.setViewportSize({ width: 1700, height: 820 });
+await sleep(300);
+const editorHandle = page.getByRole("separator", { name: "글 너비 조절 (오른쪽)" });
+const rulerText = await dragFrom(editorHandle, -30);
 await page.screenshot({ path: path.join(OUT, "width-ruler.png") });
 await page.mouse.up();
 await sleep(200);
-assert(/\d+px/.test(rulerText), `끄는 동안 눈금자에 지금 너비가 보인다 (${rulerText.split("\n").pop()})`);
+assert(/\d+px/.test(rulerText), `글 너비를 끄는 동안 눈금자에 지금 너비가 보인다 (${rulerText.split("\n").pop()})`);
 assert((await ruler.count()) === 0, "놓으면 눈금자가 사라진다");
+await page.setViewportSize({ width: 1280, height: 820 });
+await sleep(300);
 
 // ── 긴 제목은 줄을 넘긴다 ──
 await tree.getByText(long, { exact: true }).click();
