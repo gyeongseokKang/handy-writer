@@ -1,7 +1,7 @@
 {
   "name": "handy-writer",
   "productName": "Handy Writer",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "글쓰기를 도와주는 데스크톱 앱",
   "private": true,
   "license": "MIT",
@@ -55,7 +55,8 @@
     "test:e2e:save-commit": "node e2e/save-commit.e2e.mjs",
     "test:e2e:revise": "node e2e/revise.e2e.mjs",
     "test:e2e:embed-click": "node e2e/embed-click.e2e.mjs",
-    "test:e2e:tab-preview": "node e2e/tab-preview.e2e.mjs"
+    "test:e2e:tab-preview": "node e2e/tab-preview.e2e.mjs",
+    "test:e2e:scroll-peek": "node e2e/scroll-peek.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",

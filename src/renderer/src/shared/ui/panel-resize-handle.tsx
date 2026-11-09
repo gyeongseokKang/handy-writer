@@ -106,8 +106,9 @@ export function PanelResizeHandle({
       onDoubleClick={() => !onCollapse && setWidth(fallback)}
       onKeyDown={onKeyDown}
       className={cn(
-        "group/panel-width absolute top-0 bottom-0 z-20 flex w-3 cursor-col-resize justify-center outline-none",
-        edge === "right" ? "-right-1.5" : "-left-1.5",
+        "group/panel-width absolute top-0 bottom-0 z-20 flex w-3 cursor-col-resize outline-none",
+        // 오른쪽 패널의 손잡이는 패널 안쪽으로 둬서 글 칸 스크롤바를 가리지 않는다.
+        edge === "right" ? "-right-1.5 justify-center" : "-left-px justify-start",
       )}
     >
       {/* 아이콘 없이, 올리면 약간 두꺼운 선이 드러난다 */}
