@@ -41,6 +41,33 @@ const early = await peek.innerText();
 assert(early.includes("1번째 장") || early.includes("글 처음"), `위쪽에 올리면 앞부분이 보인다 (${early.split("\n")[0]})`);
 assert((await page.locator(".ProseMirror").count()) === 1, "미리보기는 편집되는 에디터가 아니다");
 
+// 누르면 미리보기에 보이던 위치로 바로 간다 (한 화면씩 넘어가지 않는다)
+const scrollTop = () => page.locator("[data-note-scroller]").first().evaluate((el) => ({ top: el.scrollTop, max: el.scrollHeight - el.clientHeight }));
+await page.mouse.move(box.x + box.width - 4, box.y + box.height * 0.8);
+await sleep(300);
+const peekHeading = (await peek.innerText()).split("\n")[0];
+await page.mouse.down();
+await page.mouse.up();
+await sleep(300);
+let pos = await scrollTop();
+assert(Math.abs(pos.top - pos.max * 0.8) < 30, `스크롤바를 누르면 그 위치(80%)로 바로 간다 (${Math.round(pos.top)}/${Math.round(pos.max)})`);
+const firstVisible = await page.evaluate(() => {
+  const scroller = document.querySelector("[data-note-scroller]");
+  const top = scroller.getBoundingClientRect().top;
+  const heads = [...document.querySelectorAll(".note-prose h2")].filter((h) => h.getBoundingClientRect().top <= top + 5);
+  return heads.at(-1)?.textContent ?? "";
+});
+assert(firstVisible === peekHeading, `간 자리가 미리보기에서 본 부분이다 (${peekHeading} / ${firstVisible})`);
+
+// 누른 채 끌면 마우스 높이를 따라간다
+await page.mouse.move(box.x + box.width - 4, box.y + box.height * 0.2);
+await page.mouse.down();
+await page.mouse.move(box.x + box.width - 4, box.y + box.height * 0.5, { steps: 6 });
+await sleep(200);
+pos = await scrollTop();
+assert(Math.abs(pos.top - pos.max * 0.5) < 40 && (await peek.isVisible()), `끌면 그 높이로 따라가고 미리보기도 보인다 (${Math.round(pos.top)}/${Math.round(pos.max)})`);
+await page.mouse.up();
+
 await page.mouse.move(box.x + box.width / 2, box.y + 100);
 await sleep(200);
 assert((await peek.count()) === 0, "스크롤바에서 벗어나면 사라진다");
