@@ -1,5 +1,6 @@
 import type { AiEvent, AiStatus, AiTask } from "@shared/ai";
 import { extractContinuation, parseRevision } from "@shared/ai-prompt";
+import { readNoteReviseRules } from "@shared/note-revise-rules";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -190,6 +191,8 @@ export const useAiStore = create<AiState>((set, get) => ({
         before: context.before,
         after: context.after,
         instruction,
+        // 이 글에만 적용하는 퇴고 룰 (글 속성 revise_rules)
+        ...(task === "revise" ? { noteReviseRules: readNoteReviseRules(bridge.getFrontmatter()) } : {}),
         templatePrompt: "",
         web: false,
         groundedOnly: false,

@@ -26,6 +26,7 @@ function parseRequest(value: unknown): AiRequest {
     text: str(v.text),
     before: str(v.before),
     ...(v.task === "continue" ? { after: str(v.after) } : {}),
+    ...(v.task === "revise" ? { noteReviseRules: str(v.noteReviseRules).slice(0, 8000) } : {}),
     instruction: str(v.instruction),
     templatePrompt: str(v.templatePrompt),
     // 웹 검색은 템플릿 작업에서만, 참고 글 기반 모드가 아닐 때만 켠다.

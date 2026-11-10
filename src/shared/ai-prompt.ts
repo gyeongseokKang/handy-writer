@@ -137,6 +137,10 @@ export function buildUserPrompt(request: AiRequest, projectSections: string[] = 
   if (request.task === "revise") {
     const own = request.reviseRules?.trim();
     sections.push(`<revise_rules>\n${own || DEFAULT_REVISE_RULES}\n</revise_rules>\n위 퇴고 기준을 따르세요.${own ? "" : " (글쓴이가 정한 퇴고 룰이 없어 기본 기준이에요.)"}`);
+    const note = request.noteReviseRules?.trim();
+    if (note) {
+      sections.push(`<note_revise_rules>\n${note}\n</note_revise_rules>\n이 글에만 적용하는 퇴고 룰이에요. 위 퇴고 기준과 함께 따르고, 서로 부딪히면 이 글의 룰을 따르세요.`);
+    }
   }
 
   let task: string = TASK_INSTRUCTIONS[request.task];

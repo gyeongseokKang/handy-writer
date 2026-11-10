@@ -14,6 +14,7 @@ import { DEFAULT_REVISE_RULES } from "@shared/ai-prompt";
 
 import { TASK_LABEL, useAiStore } from "../model/use-ai-store";
 import { DiffView } from "./diff-view";
+import { ReviseButton } from "./revise-button";
 
 const RULES_PLACEHOLDER = `예)
 - 존댓말(합니다체)로 쓴다
@@ -449,9 +450,7 @@ export function AiPanel() {
           <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("polish")}>
             <Sparkles /> 다듬기
           </Button>
-          <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("revise")} title="나의 퇴고 룰(없으면 기본 기준)로 글 전체를 다시 보고 빼고 고쳐요. 고친 점도 알려 줘요">
-            <ScanText /> 퇴고
-          </Button>
+          <ReviseButton disabled={disabled} />
           <Button variant="outline" size="sm" disabled={disabled} onClick={() => void start("continue")}>
             <TextCursorInput /> 이어쓰기
           </Button>
