@@ -23,6 +23,18 @@ const late = await peek.innerText();
 assert(/[678]번째 장/.test(late) && /\d+%/.test(late), `아래쪽에 올리면 뒷부분 제목과 위치가 보인다 (${late.split("\n")[0]})`);
 await page.screenshot({ path: path.join(OUT, "scroll-peek.png") });
 
+// 스크롤바 위에서 휠을 굴리면(스크롤바를 끌 때처럼) 미리보기가 지금 위치를 따라간다
+await page.mouse.move(box.x + box.width - 4, box.y + 10);
+await sleep(300);
+const atTop = await peek.innerText();
+const topY = (await peek.boundingBox()).y;
+await page.mouse.wheel(0, 2500);
+await sleep(500);
+assert(await peek.isVisible(), "스크롤해도 미리보기가 사라지지 않는다");
+const scrolled = await peek.innerText();
+assert(scrolled.split("\n")[0] !== atTop.split("\n")[0] || /\d+%/.exec(scrolled)?.[0] !== /\d+%/.exec(atTop)?.[0], `스크롤하면 미리보기 내용이 따라 바뀐다 (${atTop.split("\n")[0]} → ${scrolled.split("\n")[0]})`);
+assert((await peek.boundingBox()).y > topY, "카드도 스크롤바 손잡이를 따라 내려간다");
+await page.locator("[data-note-scroller]").first().evaluate((el) => (el.scrollTop = 0));
 await page.mouse.move(box.x + box.width - 4, box.y + 10);
 await sleep(300);
 const early = await peek.innerText();

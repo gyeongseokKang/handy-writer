@@ -116,3 +116,18 @@ export function linkNotesToChanges(pieces: RevisionPiece[], original: string, re
     return [];
   });
 }
+
+/**
+ * 카드에 보여 줄 수정의 앞뒤 낱말까지 붙인 글. 띄어쓰기만 바뀐 수정도 무엇이 바뀌었는지 보이게 한다.
+ * 예: '되돌아 왔다' → '되돌아왔다'
+ */
+export function changeWithContext(pieces: RevisionPiece[], index: number): { before: string; after: string } {
+  const piece = pieces[index];
+  if (!piece || piece.kind !== "change") return { before: "", after: "" };
+  const prev = pieces[index - 1];
+  const next = pieces[index + 1];
+  const lead = prev?.kind === "same" ? (/(\S*)$/.exec(prev.text)?.[1] ?? "") : "";
+  const tail = next?.kind === "same" ? (/^(\S*)/.exec(next.text)?.[1] ?? "") : "";
+  const tidy = (text: string) => text.replace(/\s+/g, " ").trim();
+  return { before: tidy(lead + piece.removed + tail), after: tidy(lead + piece.added + tail) };
+}

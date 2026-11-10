@@ -242,10 +242,16 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await page.keyboard.press("Home");
   await page.keyboard.press("Shift+End");
   await page.getByRole("button", { name: "맞춤법 교정", exact: true }).click();
-  await page.waitForSelector("[aria-label='변경 내용'] ins", { timeout: 10000 });
-  const added = await page.$$eval("[aria-label='변경 내용'] ins", (els) => els.map((e) => e.textContent?.trim()).join("|"));
-  const removed = await page.$$eval("[aria-label='변경 내용'] del", (els) => els.map((e) => e.textContent?.trim()).join("|"));
-  assert(added.includes("안") && removed.includes("않"), `교정 결과가 변경 내용(diff)으로 보인다 (+${added} / -${removed})`);
+  // 맞춤법 교정도 퇴고처럼 본문 자리 큰 화면에서 바뀐 곳을 보고 고른다
+  const proofView = page.getByRole("dialog", { name: "맞춤법 교정 결과" });
+  await proofView.getByRole("button", { name: "선택 부분에 적용" }).waitFor({ timeout: 10000 });
+  const diffBox = proofView.getByLabel("고를 수 있는 바뀐 점");
+  const added = (await diffBox.locator("ins").allInnerTexts()).join("|");
+  const removed = (await diffBox.locator("del").allInnerTexts()).join("|");
+  assert(added.includes("안") && removed.includes("않"), `교정 결과가 본문 화면에 diff로 보인다 (+${added} / -${removed})`);
+  const proofCards = proofView.getByLabel("퇴고에서 고친 점").getByRole("listitem");
+  assert((await proofCards.count()) >= 1 && (await proofCards.first().getByRole("switch").count()) === 1, "바뀐 곳마다 카드가 생기고 넣기·빼기를 고를 수 있다");
+  assert((await page.getByRole("region", { name: "AI 결과", exact: true }).innerText()).includes("본문 화면에서"), "사이드 패널에는 안내만 남는다");
   await page.screenshot({ path: path.join(OUT, "9-ai-proofread.png") });
 
   const calls = fs.readFileSync(aiLog, "utf8").trim().split("\n").map((line) => JSON.parse(line));
@@ -255,7 +261,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   assert(call.input.includes("<text>\n나는 어제 학교에 갔는데") && !call.input.includes("둘째 문단입니다"), "선택한 문단만 대상으로 보낸다");
   assert(call.args.includes("--tools") && call.args[call.args.indexOf("--tools") + 1] === "", "AI 호출에서 도구를 끈다");
 
-  await page.getByRole("button", { name: "선택 부분에 적용" }).click();
+  await proofView.getByRole("button", { name: "선택 부분에 적용" }).click();
   await sleep(1500);
   assert(
     fs.readFileSync(path.join(ws, "교정 대상.md"), "utf8") === "나는 어제 학교에 갔는데 선생님이 안 계셔서 되돌아왔다.\n\n둘째 문단입니다.\n",
@@ -323,8 +329,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   await page.fill("textarea[aria-label='추가 요청']", "SLOW");
   await page.getByRole("button", { name: "다듬기", exact: true }).click();
-  await page.getByRole("button", { name: "중지" }).click();
-  await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
+  await page.getByRole("dialog", { name: "다듬기 결과" }).getByRole("button", { name: "중지" }).click();
+  await page.waitForSelector("[aria-label='다듬기 결과'] [role='alert']:has-text('취소')", { timeout: 10000 });
   console.log("ok  : 실행 중인 AI 요청을 중지할 수 있다");
   await page.getByRole("button", { name: "닫기", exact: true }).click();
 
@@ -534,6 +540,8 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await card.getByRole("button").first().click();
   assert((await card.locator("input[aria-label='라벨']").inputValue()) === "여행 사진", "펼치면 라벨을 고칠 수 있다");
   assert(!(await card.locator("input[aria-label='너비']").isVisible()), "기본 정보에는 라벨만 있고 크기 입력은 '크기 조정' 안에 접혀 있다");
+  // 원본 크기는 미리보기 그림을 불러온 뒤에 보인다.
+  await card.getByText("120×80").waitFor({ timeout: 5000 }).catch(() => {});
   assert((await card.innerText()).includes("이미지") && (await card.innerText()).includes("120×80"), "종류와 원본 크기가 보인다");
   await card.locator("summary", { hasText: "크기 조정" }).click();
   assert((await card.locator("input[aria-label='너비']").inputValue()) === "240", "크기 조정을 열면 현재 너비가 채워진다");

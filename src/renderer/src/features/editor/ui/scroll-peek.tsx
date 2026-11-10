@@ -35,11 +35,32 @@ export function ScrollPeek({ columnRef }: { columnRef: React.RefObject<HTMLDivEl
       last.current = null;
       setPeek(null);
     };
+    /** 스크롤바 자리에 마우스가 있는지. 스크롤바를 끄는 동안에는 마우스 이벤트가 오지 않아 스크롤로 따라간다. */
+    const active = { current: false };
     const update = (clientX: number, clientY: number) => {
       const rect = scroller.getBoundingClientRect();
+      if (scroller.scrollHeight <= scroller.clientHeight + 1 || clientX < rect.right - BAR_ZONE || clientX > rect.right) {
+        active.current = false;
+        return hide();
+      }
+      active.current = true;
+      render(Math.min(1, Math.max(0, (clientY - rect.top) / rect.height)), clientY);
+    };
+    /** 스크롤이 움직이면(스크롤바를 끌거나 그 위에서 휠) 지금 위치로 다시 그리고, 카드는 스크롤바 손잡이 옆에 붙인다. */
+    const onScroll = () => {
+      if (!active.current) return;
+      const rect = scroller.getBoundingClientRect();
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      if (max <= 0) return hide();
+      const ratio = scroller.scrollTop / max;
+      const thumb = Math.max(24, (scroller.clientHeight * rect.height) / scroller.scrollHeight);
+      render(ratio, rect.top + ratio * (rect.height - thumb) + thumb / 2);
+    };
+    /** ratio: 0(맨 위)~1(맨 아래) 스크롤 위치, anchorY: 카드를 붙일 화면 높이 */
+    const render = (ratio: number, anchorY: number) => {
+      const rect = scroller.getBoundingClientRect();
       const prose = columnRef.current?.querySelector<HTMLElement>(".note-prose");
-      if (!prose || scroller.scrollHeight <= scroller.clientHeight + 1 || clientX < rect.right - BAR_ZONE || clientX > rect.right) return hide();
-      const ratio = Math.min(1, Math.max(0, (clientY - rect.top) / rect.height));
+      if (!prose) return hide();
       // 스크롤바의 그 자리로 옮겼을 때 화면 위쪽에 오는 글의 위치
       const target = ratio * (scroller.scrollHeight - scroller.clientHeight);
       const docY = (el: Element) => el.getBoundingClientRect().top - rect.top + scroller.scrollTop;
@@ -68,7 +89,7 @@ export function ScrollPeek({ columnRef }: { columnRef: React.RefObject<HTMLDivEl
       }
       const width = prose.clientWidth || 600;
       setPeek({
-        y: Math.min(window.innerHeight - CARD_BODY_HEIGHT - 60, Math.max(8, clientY - (CARD_BODY_HEIGHT + 30) / 2)),
+        y: Math.min(window.innerHeight - CARD_BODY_HEIGHT - 60, Math.max(8, anchorY - (CARD_BODY_HEIGHT + 30) / 2)),
         right: window.innerWidth - rect.right + BAR_ZONE + 6,
         start,
         html: last.current.html,
@@ -86,13 +107,37 @@ export function ScrollPeek({ columnRef }: { columnRef: React.RefObject<HTMLDivEl
         update(clientX, clientY);
       });
     };
+    const onScrollFrame = () => {
+      if (frame.current !== null) cancelAnimationFrame(frame.current);
+      frame.current = requestAnimationFrame(() => {
+        frame.current = null;
+        onScroll();
+      });
+    };
+    // 스크롤바를 누른 채 끄는 동안 칸 밖으로 나가도 닫지 않는다.
+    const onLeave = (event: MouseEvent) => {
+      if (event.buttons & 1) return;
+      active.current = false;
+      hide();
+    };
+    // 끌기를 마친 자리가 스크롤바 밖이면 닫는다.
+    const onUp = (event: MouseEvent) => {
+      if (!active.current) return;
+      const rect = scroller.getBoundingClientRect();
+      if (event.clientX < rect.right - BAR_ZONE || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) {
+        active.current = false;
+        hide();
+      }
+    };
     scroller.addEventListener("mousemove", onMove);
-    scroller.addEventListener("mouseleave", hide);
-    scroller.addEventListener("wheel", hide, { passive: true });
+    scroller.addEventListener("mouseleave", onLeave);
+    scroller.addEventListener("scroll", onScrollFrame, { passive: true });
+    window.addEventListener("mouseup", onUp);
     return () => {
       scroller.removeEventListener("mousemove", onMove);
-      scroller.removeEventListener("mouseleave", hide);
-      scroller.removeEventListener("wheel", hide);
+      scroller.removeEventListener("mouseleave", onLeave);
+      scroller.removeEventListener("scroll", onScrollFrame);
+      window.removeEventListener("mouseup", onUp);
       if (frame.current !== null) cancelAnimationFrame(frame.current);
     };
   }, [columnRef]);

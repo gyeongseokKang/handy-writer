@@ -13,7 +13,6 @@ import { Button } from "@/shared/ui/button";
 import { DEFAULT_REVISE_RULES } from "@shared/ai-prompt";
 
 import { TASK_LABEL, useAiStore } from "../model/use-ai-store";
-import { DiffView } from "./diff-view";
 import { ReviseButton } from "./revise-button";
 
 const RULES_PLACEHOLDER = `예)
@@ -232,16 +231,15 @@ function Result() {
   const apply = useAiStore((s) => s.apply);
   const cancel = useAiStore((s) => s.cancel);
   const dismiss = useAiStore((s) => s.dismiss);
-  const [showDiff, setShowDiff] = useState(true);
 
   if (run.phase === "idle" || !run.task) return null;
   // 퇴고 결과는 본문 자리의 큰 화면(RevisionView)에서 본다.
-  if (run.task === "revise") {
+  if (run.task === "revise" || run.task === "proofread" || run.task === "polish") {
     return (
       <section aria-label="AI 결과" className="px-4 py-3">
         <p className="flex items-center gap-1.5 text-sm">
           {run.phase === "running" && <Loader2 className="size-4 animate-spin" />}
-          <span className="font-semibold">퇴고</span>
+          <span className="font-semibold">{TASK_LABEL[run.task]}</span>
           <span className="text-xs text-muted-foreground">{run.phase === "running" ? "본문 화면에서 고치는 중…" : run.phase === "done" ? "본문 화면에서 바뀐 점을 확인하세요" : "실패"}</span>
         </p>
       </section>
@@ -249,7 +247,6 @@ function Result() {
   }
 
   const canReplace = run.task !== "continue";
-  const canDiff = run.task === "proofread" || run.task === "polish";
   const copy = () => void navigator.clipboard.writeText(run.output).then(() => toast.success("결과를 복사했어요."));
 
   return (
@@ -262,11 +259,6 @@ function Result() {
             {run.phase === "running" ? "생성 중…" : run.phase === "done" ? "완료" : "실패"}
           </span>
         </h2>
-        {canDiff && run.phase === "done" && (
-          <button type="button" className="text-xs text-muted-foreground underline" onClick={() => setShowDiff((v) => !v)}>
-            {showDiff ? "결과만 보기" : "변경 보기"}
-          </button>
-        )}
       </div>
 
       {run.phase === "error" ? (
@@ -275,13 +267,9 @@ function Result() {
         </p>
       ) : (
         <div className="max-h-96 overflow-y-auto rounded-md border bg-background p-3">
-          {canDiff && run.phase === "done" && showDiff && run.context ? (
-            <DiffView original={run.context.text} result={run.output} />
-          ) : (
-            <p aria-label="결과 글" className="text-sm leading-7 break-words whitespace-pre-wrap">
-              {run.output || "…"}
-            </p>
-          )}
+          <p aria-label="결과 글" className="text-sm leading-7 break-words whitespace-pre-wrap">
+            {run.output || "…"}
+          </p>
         </div>
       )}
 

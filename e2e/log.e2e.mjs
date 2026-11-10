@@ -27,8 +27,8 @@ assert((await indicator.getAttribute("class")).includes("text-destructive"), "�
 await page.getByRole("button", { name: "닫기", exact: true }).click();
 await page.fill("textarea[aria-label='추가 요청']", "SLOW");
 await page.getByRole("button", { name: "다듬기", exact: true }).click();
-await page.getByRole("button", { name: "중지" }).click();
-await page.waitForSelector("[aria-label='AI 결과'] [role='alert']:has-text('취소')");
+await page.getByRole("dialog", { name: "다듬기 결과" }).getByRole("button", { name: "중지" }).click();
+await page.waitForSelector("[aria-label='다듬기 결과'] [role='alert']:has-text('취소')");
 await sleep(300);
 assert((await indicator.innerText()).trim() === "1", "AI를 직접 멈춘 것은 오류로 남기지 않는다");
 await page.getByRole("button", { name: "닫기", exact: true }).click();
