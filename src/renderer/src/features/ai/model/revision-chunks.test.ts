@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { changeCount, composeRevision, linkNotesToChanges, revisionPieces } from "./revision-chunks";
+import { changeCount, changeWithContext, composeRevision, linkNotesToChanges, revisionPieces } from "./revision-chunks";
 
 const before = "나는 정말 글쓰기가 좋다.\n\n사실 매일 쓴다.\n\n## 둘째\n";
 const after = "나는 글쓰기가 좋다.\n\n매일 쓴다.\n\n## 둘째: 매일 쓰는 이유\n";
@@ -46,5 +46,13 @@ describe("linkNotesToChanges", () => {
     const links = linkNotesToChanges(pieces, before, after, [{ before: "없는 원문", after: "둘째: 매일 쓰는 이유" }, { before: "두 문장으로 분리" }]);
     expect(links[0]!.length).toBe(1);
     expect(links[1]).toEqual([]);
+  });
+});
+
+describe("changeWithContext", () => {
+  it("adds the neighbouring word so a spacing-only fix is readable", () => {
+    const pieces = revisionPieces("되돌아 왔다.", "되돌아왔다.");
+    const index = pieces.findIndex((p) => p.kind === "change");
+    expect(changeWithContext(pieces, index)).toEqual({ before: "되돌아 왔다.", after: "되돌아왔다." });
   });
 });

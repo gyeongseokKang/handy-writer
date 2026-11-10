@@ -7,11 +7,14 @@ import { diffVersions } from "@/shared/lib/text-diff";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
-import { parseRevisionNote } from "@shared/ai-prompt";
+import { parseRevisionNote, type RevisionNote } from "@shared/ai-prompt";
 
-import { changeCount, composeRevision, linkNotesToChanges, revisionPieces, type RevisionPiece } from "../model/revision-chunks";
+import { changeCount, changeWithContext, composeRevision, linkNotesToChanges, revisionPieces, type RevisionPiece } from "../model/revision-chunks";
 import { compareToc } from "../model/revision-toc";
-import { useAiStore } from "../model/use-ai-store";
+import { TASK_LABEL, useAiStore } from "../model/use-ai-store";
+
+/** 본문 자리 큰 화면에서 바뀐 점을 보고 고르는 작업 */
+const REVIEW_TASKS: readonly string[] = ["revise", "proofread", "polish"];
 
 /**
  * 퇴고 결과를 변경 기록처럼 본문 자리에 크게 보여 준다: 원문과 고친 글의 차이(추가 초록·삭제 빨강)와 고친 점 목록.
@@ -21,7 +24,7 @@ export function RevisionView() {
   const run = useAiStore((s) => s.run);
   const activePath = useWorkspaceStore((s) => s.activePath);
   const [collapse, setCollapse] = useState(false);
-  const shown = run.task === "revise" && run.phase !== "idle" && !!run.context && run.notePath === activePath;
+  const shown = !!run.task && REVIEW_TASKS.includes(run.task) && run.phase !== "idle" && !!run.context && run.notePath === activePath;
   const done = run.phase === "done";
   // 수정마다 적용할지 고른다 (처음엔 모두 적용). 고른 것만 넣은 글을 만든다.
   const pieces = useMemo(() => (shown && done && run.context ? revisionPieces(run.context.text, run.output) : []), [shown, done, run.context, run.output]);
@@ -56,15 +59,16 @@ export function RevisionView() {
   if (!shown || !run.context) return null;
   const { apply, cancel, dismiss } = useAiStore.getState();
   const scope = run.context.hasSelection ? "선택 부분" : "본문 전체";
+  const label = TASK_LABEL[run.task!];
   const copy = () => void navigator.clipboard.writeText(chosen).then(() => toast.success("고른 수정을 넣은 글을 복사했어요."));
   const applied = total - rejected.size;
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="퇴고 결과" className="history-view fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm">
+    <div role="dialog" aria-modal="true" aria-label={`${label} 결과`} className="history-view fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm">
       <header className="flex items-center gap-3 border-b px-5 py-2.5">
         <ScanText className="size-4 text-muted-foreground" />
         <h2 className="min-w-0 truncate font-semibold">
-          퇴고 <span className="font-normal text-muted-foreground">· {run.context.noteName} · {scope}</span>
+          {label} <span className="font-normal text-muted-foreground">· {run.context.noteName} · {scope}</span>
         </h2>
         {run.phase === "running" && (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
@@ -91,7 +95,7 @@ export function RevisionView() {
               바뀐 부분만
             </label>
           )}
-          <button type="button" aria-label="퇴고 닫기" title="닫기 (Esc)" onClick={() => (run.phase === "running" ? void cancel() : dismiss())} className="rounded p-1.5 text-muted-foreground hover:bg-accent">
+          <button type="button" aria-label={`${label} 닫기`} title="닫기 (Esc)" onClick={() => (run.phase === "running" ? void cancel() : dismiss())} className="rounded p-1.5 text-muted-foreground hover:bg-accent">
             <X className="size-4" />
           </button>
         </div>
@@ -109,7 +113,7 @@ export function RevisionView() {
             )}
           </div>
         </article>
-        {done && <RevisionSide notes={run.notes} suggestions={run.suggestions} before={run.context.text} after={run.output} pieces={pieces} rejected={rejected} setRejected={setRejected} onFocusChanges={setFlash} />}
+        {done && <RevisionSide notes={run.notes} suggestions={run.suggestions} before={run.context.text} after={run.output} pieces={pieces} rejected={rejected} setRejected={setRejected} onFocusChanges={setFlash} derived={run.task !== "revise"} />}
       </div>
 
       <footer className="flex flex-wrap items-center gap-2 border-t px-5 py-3">
@@ -147,14 +151,24 @@ function Section({ icon, title, count, children, label }: { icon: React.ReactNod
 }
 
 /** 오른쪽 칸: 고친 점(원문 → 수정 / 이유), 제안(적용 안 함), 수정 전·후 목차 */
-function RevisionSide({ notes, suggestions, before, after, pieces, rejected, setRejected, onFocusChanges }: {
+function RevisionSide({ notes, suggestions, before, after, pieces, rejected, setRejected, onFocusChanges, derived }: {
   notes: string[]; suggestions: string[]; before: string; after: string;
   pieces: RevisionPiece[]; rejected: Set<number>; setRejected: (next: Set<number>) => void;
   onFocusChanges: (focus: { ids: number[]; seq: number }) => void;
+  /** 맞춤법 교정·다듬기: AI가 고친 점을 따로 적지 않으므로 바뀐 곳마다 카드를 만든다 */
+  derived: boolean;
 }) {
   const toc = useMemo(() => compareToc(before, after), [before, after]);
-  const parsed = useMemo(() => notes.map(parseRevisionNote), [notes]);
-  const links = useMemo(() => linkNotesToChanges(pieces, before, after, parsed), [pieces, before, after, parsed]);
+  const changes = useMemo(() => pieces.flatMap((p, index) => (p.kind === "change" ? [{ id: p.id, ...changeWithContext(pieces, index) }] : [])), [pieces]);
+  const parsed = useMemo<RevisionNote[]>(
+    () => (derived ? changes.map((c) => ({ text: "", before: c.before, after: c.after })) : notes.map(parseRevisionNote)),
+    [derived, changes, notes],
+  );
+  const links = useMemo(
+    () => (derived ? changes.map((c) => [c.id]) : linkNotesToChanges(pieces, before, after, parsed)),
+    [derived, changes, pieces, before, after, parsed],
+  );
+  notes = parsed.map((n) => n.text);
   const seq = useRef(0);
   const focus = (ids: number[]) => onFocusChanges({ ids, seq: ++seq.current });
   const setCard = (ids: number[], on: boolean) => {
@@ -169,7 +183,7 @@ function RevisionSide({ notes, suggestions, before, after, pieces, rejected, set
   return (
     <aside aria-label="퇴고 보고" className="hidden w-96 shrink-0 space-y-5 overflow-y-auto rounded-xl border bg-card p-4 shadow-sm lg:block">
       {notes.length > 0 && (
-        <Section label="퇴고에서 고친 점" icon={<ListChecks className="size-4" />} title="고친 점" count={notes.length}>
+        <Section label="퇴고에서 고친 점" icon={<ListChecks className="size-4" />} title={derived ? "고친 곳" : "고친 점"} count={notes.length}>
           <ol className="space-y-2">
             {parsed.map((note, i) => {
               const ids = links[i] ?? [];
