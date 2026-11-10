@@ -16,6 +16,8 @@ export interface AiRequest {
   rules: string;
   /** revise: 퇴고 룰(`.handy-writer/revise-rules.md`). 메인 프로세스가 파일에서 읽어 채운다 */
   reviseRules?: string;
+  /** revise: 이 글에만 적용하는 퇴고 룰 (글 속성 revise_rules) */
+  noteReviseRules?: string;
   /** 현재 글의 이름 */
   noteName: string;
   /** 다듬거나 교정할 대상 (continue에서는 쓰지 않는다) */

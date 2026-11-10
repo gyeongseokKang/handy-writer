@@ -196,3 +196,16 @@ describe("parseRevisionNote", () => {
     expect(parseRevisionNote("그냥 설명")).toEqual({ text: "그냥 설명" });
   });
 });
+
+describe("note revise rules in the prompt", () => {
+  const base: AiRequest = { runId: "r", task: "revise", rules: "", noteName: "글", text: "본문", before: "", instruction: "", templatePrompt: "", web: false, groundedOnly: false, references: [] };
+  it("adds this note's revise rules after the common ones, and wins on conflict", () => {
+    const prompt = buildUserPrompt({ ...base, reviseRules: "- 공통", noteReviseRules: "- 이 글은 반말 금지" });
+    expect(prompt.indexOf("<revise_rules>")).toBeLessThan(prompt.indexOf("<note_revise_rules>"));
+    expect(prompt).toContain("<note_revise_rules>\n- 이 글은 반말 금지\n</note_revise_rules>");
+    expect(prompt).toContain("이 글의 룰을 따르세요");
+  });
+  it("leaves it out when the note has none", () => {
+    expect(buildUserPrompt({ ...base, reviseRules: "- 공통", noteReviseRules: "  " })).not.toContain("<note_revise_rules>");
+  });
+});

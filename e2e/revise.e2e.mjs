@@ -60,5 +60,25 @@ const after = read("초고.md");
 assert(after === "## 첫째\n\n나는 정말 글쓰기가 좋다.\n\n## 둘째: 매일 쓰는 이유\n\n매일 쓴다.\n", `고른 수정만 들어가고 뺀 곳은 원문 그대로다 (${JSON.stringify(after)})`);
 assert((await panel.getByLabel("지난 AI 결과").getByRole("button", { name: /퇴고/ }).count()) === 1, "퇴고 결과도 지난 결과에 남는다");
 
+// 이 글의 퇴고 룰: 퇴고 버튼에 올리면 왼쪽에 +가 나타나고, 적은 룰은 글 속성에 남고 공통 룰과 함께 보낸다
+const reviseButton = panel.getByRole("button", { name: /^퇴고/ }).first();
+const plus = panel.getByRole("button", { name: "이 글의 퇴고 룰" });
+assert((await plus.evaluate((el) => getComputedStyle(el).opacity)) === "0", "평소에는 +가 숨어 있다");
+await reviseButton.hover();
+await sleep(300);
+assert((await plus.evaluate((el) => getComputedStyle(el).opacity)) === "1", "퇴고 버튼에 올리면 왼쪽에 +가 나타난다");
+await plus.click();
+const noteRules = page.getByRole("dialog", { name: "이 글의 퇴고 룰" });
+await noteRules.getByLabel("이 글의 퇴고 룰 내용").fill("- 이 글은 소제목을 질문형으로\n- 2장은 줄이지 않는다");
+await page.screenshot({ path: path.join(OUT, "note-revise-rules.png") });
+await noteRules.getByRole("button", { name: "퇴고" }).click();
+await page.getByRole("dialog", { name: "퇴고 결과" }).getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
+const call = aiLog();
+assert(call.input.includes("<revise_rules>\n- 문장은 40자 안으로") && call.input.includes("<note_revise_rules>\n- 이 글은 소제목을 질문형으로\n- 2장은 줄이지 않는다\n</note_revise_rules>"), "공통 퇴고 룰과 이 글의 퇴고 룰을 함께 보낸다");
+await page.keyboard.press("Escape");
+await sleep(1500);
+assert(/revise_rules: \|-?\n {2}- 이 글은 소제목을 질문형으로/.test(read("초고.md")), `이 글의 퇴고 룰이 글 속성에 저장된다 (${JSON.stringify(read("초고.md").slice(0, 80))})`);
+assert((await reviseButton.innerText()).includes("+2") && (await plus.evaluate((el) => getComputedStyle(el).opacity)) === "1", "룰이 있으면 +가 늘 보이고 퇴고 버튼에 줄 수가 보인다");
+
 assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.join(" | ")}`);
 await env.close();
