@@ -49,10 +49,10 @@ await page.screenshot({ path: path.join(OUT, "revise.png") });
 // 고친 점 카드: 눌러서 넣기·빼기, 누르면 본문의 그 자리로 가서 강조
 const card2 = view.getByRole("listitem", { name: "고친 점 2" });
 const card2Switch = card2.getByRole("switch");
-assert((await card2Switch.getAttribute("aria-checked")) === "true" && (await card2Switch.innerText()) === "넣음", "카드마다 넣기·빼기 스위치가 있고 처음엔 넣음");
+assert((await card2Switch.getAttribute("aria-checked")) === "true" && (await card2Switch.innerText()) === "적용", "카드마다 적용·제외 스위치가 있고 처음엔 적용");
 await card2Switch.click();
 const sasil = view.getByLabel("고를 수 있는 바뀐 점").getByRole("checkbox", { name: /사실/ });
-assert((await sasil.getAttribute("aria-checked")) === "false" && (await card2Switch.innerText()) === "뺌", "카드에서 빼면 본문의 그 수정도 빠진다");
+assert((await sasil.getAttribute("aria-checked")) === "false" && (await card2Switch.innerText()) === "제외", "카드에서 제외하면 본문의 그 수정도 빠진다");
 await card2Switch.click();
 assert((await sasil.getAttribute("aria-checked")) === "true", "다시 누르면 넣는다");
 await view.getByRole("listitem", { name: "고친 점 1" }).click();

@@ -218,8 +218,8 @@ function RevisionSide({ notes, suggestions, before, after, pieces, rejected, set
                       type="button"
                       role="switch"
                       aria-checked={on}
-                      aria-label={`고친 점 ${i + 1} ${on ? "빼기" : "넣기"}`}
-                      title={on ? "이 수정을 빼요 (원문 그대로)" : "이 수정을 넣어요"}
+                      aria-label={`고친 점 ${i + 1} ${on ? "제외하기" : "적용하기"}`}
+                      title={on ? "누르면 이 수정을 제외해요 (원문 그대로)" : "누르면 이 수정을 적용해요"}
                       onClick={(event) => {
                         event.stopPropagation();
                         setCard(ids, !on);
@@ -230,7 +230,7 @@ function RevisionSide({ notes, suggestions, before, after, pieces, rejected, set
                         on ? "border-primary bg-primary text-primary-foreground" : partly ? "border-primary/50 text-primary" : "text-muted-foreground hover:bg-accent",
                       )}
                     >
-                      {on ? "넣음" : partly ? "일부" : "뺌"}
+                      {on ? "적용" : partly ? "일부" : "제외"}
                     </button>
                   )}
                 </li>
