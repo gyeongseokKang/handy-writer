@@ -5,6 +5,7 @@ import { useFavoritesStore } from "@/entities/note/model/use-favorites-store";
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
 import { api } from "@/shared/api/handy-api";
+import { absolutePath } from "@/shared/lib/absolute-path";
 import { ContextMenu, type MenuItem } from "@/shared/ui/context-menu";
 
 import { useTreeUi, type TreeTarget } from "../model/use-tree-ui";
@@ -14,6 +15,15 @@ function copy(text: string, what: string) {
     .writeText(text)
     .then(() => toast.success(`${what}를 복사했어요.`))
     .catch(() => toast.error(`${what}를 복사하지 못했어요.`));
+}
+
+/** 옵시디언처럼 경로를 두 가지로: 작업 폴더 기준 상대 경로와 컴퓨터 전체 경로 */
+function pathItems(relative: string): MenuItem[] {
+  const root = useWorkspaceStore.getState().root;
+  return [
+    { label: "상대 경로 복사", icon: <Copy />, onSelect: () => copy(relative, "상대 경로") },
+    { label: "전체 경로 복사", icon: <Copy />, disabled: !root, onSelect: () => root && copy(absolutePath(root, relative), "전체 경로") },
+  ];
 }
 
 async function newFolder(parent: string) {
@@ -48,6 +58,7 @@ function itemsFor(target: TreeTarget): MenuItem[] {
       favoriteItem("folder", target.path),
       "separator",
       { label: "이름 바꾸기", icon: <Pencil />, onSelect: () => ui.startRename("folder", target.path) },
+      ...pathItems(target.path),
       { label: "Finder에서 보기", icon: <FolderOpen />, onSelect: () => void api.notes.reveal(target.path) },
       "separator",
       {
@@ -74,7 +85,7 @@ function itemsFor(target: TreeTarget): MenuItem[] {
     { label: "변경 기록", icon: <History />, onSelect: () => useUiStore.getState().setHistoryTarget({ path: note.path, name: note.name }) },
     "separator",
     { label: "링크 복사", icon: <Link2 />, onSelect: () => copy(`[[${note.name}]]`, "링크") },
-    { label: "경로 복사", icon: <Copy />, onSelect: () => copy(note.path, "경로") },
+    ...pathItems(note.path),
     { label: "Finder에서 보기", icon: <FolderOpen />, onSelect: () => void api.notes.reveal(note.path) },
     "separator",
     {
