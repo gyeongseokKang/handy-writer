@@ -237,6 +237,8 @@
 /* 집중 모드: 지금 쓰는 문단 말고는 옅게 */
 .note-prose .focus-dim { opacity: 0.3; transition: opacity 0.25s ease; }
 .note-prose > :not(.focus-dim) { transition: opacity 0.25s ease; }
+/* 소리 내어 읽기: 지금 읽는 문장 */
+::highlight(read-aloud) { background-color: rgb(56 189 248 / 0.28); }
 
 /* 다른 글 끼워 넣기 (![[글]], ![[글#소제목]]) */
 .note-prose .note-embed {

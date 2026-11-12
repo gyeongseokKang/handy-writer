@@ -22,6 +22,8 @@ import { registerFlusher } from "@/shared/lib/pending-saves";
 import { cn } from "@/shared/lib/utils";
 import { WritingToday } from "@/features/writing-stats/ui/writing-today";
 import { ContinueCard } from "@/features/ai/ui/continue-card";
+import { useReadAloudEditor } from "@/features/read-aloud/model/use-read-aloud";
+import { ReadAloudBar } from "@/features/read-aloud/ui/read-aloud";
 
 import { createExtensions } from "../lib/create-extensions";
 import { createEditorBridge } from "../lib/editor-bridge";
@@ -158,6 +160,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       timerRef.current = window.setTimeout(() => void flushRef.current(), SAVE_DELAY_MS);
     },
   });
+  useReadAloudEditor(editor, isMain);
 
   // 저장 실패와 바깥 변경 충돌. 둘 다 디스크에 쓰지 못한 내용이 남아 있다는 뜻이다.
   const statusRef = useRef<SaveStatus>("loading");
@@ -606,6 +609,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
       {blockMenu && <BlockMenu editor={editor} target={blockMenu.target} x={blockMenu.x} y={blockMenu.y} onClose={() => setBlockMenu(null)} />}
       <TableMenu editor={editor} />
       {isMain && editor && <ContinueCard editor={editor} path={path} />}
+      {isMain && <ReadAloudBar />}
       {spellTarget && (
         <SpellPopover
           target={spellTarget}

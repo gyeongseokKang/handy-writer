@@ -56,7 +56,8 @@
     "test:e2e:revise": "node e2e/revise.e2e.mjs",
     "test:e2e:embed-click": "node e2e/embed-click.e2e.mjs",
     "test:e2e:tab-preview": "node e2e/tab-preview.e2e.mjs",
-    "test:e2e:scroll-peek": "node e2e/scroll-peek.e2e.mjs"
+    "test:e2e:scroll-peek": "node e2e/scroll-peek.e2e.mjs",
+    "test:e2e:read-aloud": "node e2e/read-aloud.e2e.mjs"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
