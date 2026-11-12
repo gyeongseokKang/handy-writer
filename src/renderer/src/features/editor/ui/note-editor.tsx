@@ -592,7 +592,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
           </div>
         </div>
       </div>
-      <BubbleToolbar editor={editor} />
+      <BubbleToolbar editor={editor} ai={isMain} />
       <ScrollPeek columnRef={columnRef} />
       {imageMenu && (
         <ContextMenu

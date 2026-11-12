@@ -18,6 +18,8 @@ export interface AiRequest {
   reviseRules?: string;
   /** revise: 이 글에만 적용하는 퇴고 룰 (글 속성 revise_rules) */
   noteReviseRules?: string;
+  /** revise: text가 글 전체가 아니라 고른 부분들을 `<part n="…">`로 감싼 것인지 */
+  partial?: boolean;
   /** 현재 글의 이름 */
   noteName: string;
   /** 다듬거나 교정할 대상 (continue에서는 쓰지 않는다) */

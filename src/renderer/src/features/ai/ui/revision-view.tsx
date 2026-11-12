@@ -1,4 +1,4 @@
-import { ArrowRight, Check, Copy, CopyPlus, Lightbulb, ListChecks, ListTree, Loader2, ScanText, Square, X } from "lucide-react";
+import { ArrowRight, Check, CircleCheck, Circle, Copy, CopyPlus, Lightbulb, ListChecks, ListTree, Loader2, ScanText, Square, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
 import { parseRevisionNote, type RevisionNote } from "@shared/ai-prompt";
+import { reviseProgress, splitSections, type TextRange, type TextSection } from "@shared/revise-parts";
 
 import { changeCount, changeWithContext, composeRevision, linkNotesToChanges, revisionPieces, type RevisionPiece } from "../model/revision-chunks";
 import { compareToc } from "../model/revision-toc";
@@ -26,6 +27,14 @@ export function RevisionView() {
   const [collapse, setCollapse] = useState(false);
   const shown = !!run.task && REVIEW_TASKS.includes(run.task) && run.phase !== "idle" && !!run.context && run.notePath === activePath;
   const done = run.phase === "done";
+  const setup = run.phase === "setup";
+  // 퇴고할 부분 고르기: 제목마다 나눈 칸 (처음엔 모두 고름)
+  const sections = useMemo(() => (shown && setup && run.context ? splitSections(run.context.text) : []), [shown, setup, run.context]);
+  const [picked, setPicked] = useState<Set<number>>(new Set());
+  useEffect(() => setPicked(new Set(sections.map((_, i) => i))), [sections]);
+  /** 이번 퇴고에만 덧붙일 한 줄 요청 */
+  const [extra, setExtra] = useState("");
+  useEffect(() => setExtra(""), [run.context]);
   // 수정마다 적용할지 고른다 (처음엔 모두 적용). 고른 것만 넣은 글을 만든다.
   const pieces = useMemo(() => (shown && done && run.context ? revisionPieces(run.context.text, run.output) : []), [shown, done, run.context, run.output]);
   const [rejected, setRejected] = useState<Set<number>>(new Set());
@@ -45,7 +54,13 @@ export function RevisionView() {
   useEffect(() => {
     if (!shown) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing) return;
+      if (event.isComposing) return;
+      if (event.key === "Enter" && (event.metaKey || event.ctrlKey) && useAiStore.getState().run.phase === "setup") {
+        event.preventDefault();
+        document.querySelector<HTMLButtonElement>("[data-revise-start]")?.click();
+        return;
+      }
+      if (event.key !== "Escape") return;
       event.preventDefault();
       event.stopPropagation();
       const { run: current, cancel, dismiss } = useAiStore.getState();
@@ -58,7 +73,7 @@ export function RevisionView() {
 
   if (!shown || !run.context) return null;
   const { apply, cancel, dismiss } = useAiStore.getState();
-  const scope = run.context.hasSelection ? "선택 부분" : "본문 전체";
+  const scope = run.context.hasSelection ? "선택 부분" : run.ranges ? "고른 부분" : setup ? "퇴고할 부분 고르기" : "본문 전체";
   const label = TASK_LABEL[run.task!];
   const copy = () => void navigator.clipboard.writeText(chosen).then(() => toast.success("고른 수정을 넣은 글을 복사했어요."));
   const applied = total - rejected.size;
@@ -70,7 +85,7 @@ export function RevisionView() {
         <h2 className="min-w-0 truncate font-semibold">
           {label} <span className="font-normal text-muted-foreground">· {run.context.noteName} · {scope}</span>
         </h2>
-        {run.phase === "running" && (
+        {run.phase === "running" && run.task !== "revise" && (
           <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" /> {run.status || "고치는 중…"}
           </span>
@@ -108,6 +123,10 @@ export function RevisionView() {
               <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm whitespace-pre-wrap">{run.error}</p>
             ) : done ? (
               <ChoosableDiff pieces={pieces} rejected={rejected} onToggle={toggle} collapse={collapse} flash={flash} />
+            ) : setup ? (
+              <SectionPicker text={run.context.text} sections={sections} picked={picked} setPicked={setPicked} extra={extra} setExtra={setExtra} />
+            ) : run.task === "revise" ? (
+              <ReviseProgress />
             ) : (
               <p className="text-sm leading-7 whitespace-pre-wrap text-muted-foreground">{run.output || "글 전체를 다시 읽고 있어요…"}</p>
             )}
@@ -121,6 +140,7 @@ export function RevisionView() {
           <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground lg:hidden">고친 점 {run.notes.length} · 제안 {run.suggestions.length} — 창을 넓히면 오른쪽에 보여요</p>
         )}
         <div className="ml-auto flex flex-wrap gap-2">
+          {setup && <SetupActions text={run.context.text} sections={sections} picked={picked} extra={extra} onCancel={dismiss} />}
           {run.phase === "running" && <Button size="sm" variant="outline" onClick={() => void cancel()}><Square /> 중지</Button>}
           {done && (
             <>
@@ -359,6 +379,144 @@ function ChoosableDiff({ pieces, rejected, onToggle, collapse, flash }: { pieces
           </span>
         );
       })}
+    </div>
+  );
+}
+
+const pickedRanges = (sections: TextSection[], picked: Set<number>): TextRange[] => sections.filter((_, i) => picked.has(i));
+const charCount = (n: number) => `${n.toLocaleString("ko-KR")}자`;
+
+/** 제목 i 아래에 딸린 작은 절들의 번호 (다음 같은 수준 이상의 제목 전까지) */
+function childrenOf(sections: TextSection[], i: number) {
+  const level = sections[i]!.level;
+  const out: number[] = [];
+  if (level === 0) return out;
+  for (let j = i + 1; j < sections.length && sections[j]!.level > level; j++) out.push(j);
+  return out;
+}
+
+/** 퇴고할 부분을 제목마다 고른다. 큰 제목을 고르거나 빼면 그 아래 작은 절도 함께. */
+function SectionPicker({ text, sections, picked, setPicked, extra, setExtra }: { text: string; sections: TextSection[]; picked: Set<number>; setPicked: (next: Set<number>) => void; extra: string; setExtra: (value: string) => void }) {
+  const toggle = (i: number) => {
+    const next = new Set(picked);
+    const on = !picked.has(i);
+    for (const j of [i, ...childrenOf(sections, i)]) {
+      if (on) next.add(j);
+      else next.delete(j);
+    }
+    setPicked(next);
+  };
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <p className="min-w-0 flex-1 text-sm text-muted-foreground">퇴고할 부분을 고르세요. 고른 부분만 보내서 고치고, 나머지는 그대로 둬요. 글이 짧을수록 빨리 끝나요.</p>
+        <button type="button" className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground" onClick={() => setPicked(new Set(sections.map((_, i) => i)))}>모두 고르기</button>
+        <button type="button" className="rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-accent hover:text-foreground" onClick={() => setPicked(new Set())}>모두 빼기</button>
+      </div>
+      <ul aria-label="퇴고할 부분" className="divide-y rounded-lg border">
+        {sections.map((section, i) => {
+          const on = picked.has(i);
+          const length = text.slice(section.start, section.end).length;
+          return (
+            <li key={section.start}>
+              <label className={cn("flex cursor-pointer items-start gap-2.5 px-3 py-2 hover:bg-accent/50", !on && "opacity-55")} style={{ paddingLeft: 12 + Math.max(0, section.level - 1) * 16 }}>
+                <input type="checkbox" className="mt-1" checked={on} onChange={() => toggle(i)} aria-label={`${section.title || "제목 앞 글"} 퇴고하기`} />
+                <span className="min-w-0 flex-1">
+                  <span className={cn("block truncate text-sm", section.level > 0 ? "font-medium" : "text-muted-foreground italic")}>{section.title || "제목 앞 글"}</span>
+                  {section.preview && <span className="block truncate text-xs text-muted-foreground">{section.preview}</span>}
+                </span>
+                <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{charCount(length)}</span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+      <label className="block space-y-1">
+        <span className="text-xs font-medium">추가 요청 <span className="font-normal text-muted-foreground">(선택 · 글쓰기 룰과 퇴고 룰에 더해 이번에만)</span></span>
+        <input
+          value={extra}
+          onChange={(e) => setExtra(e.target.value)}
+          aria-label="퇴고 추가 요청"
+          placeholder="예) 존댓말을 반말로 바꿔 줘 · 도입부를 더 짧게"
+          className="h-8 w-full rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing) document.querySelector<HTMLButtonElement>("[data-revise-start]")?.click(); }}
+        />
+      </label>
+      <p className="text-xs text-muted-foreground">본문에서 글을 선택하면 뜨는 막대의 <b>수정</b>·<b>퇴고</b>로 그 부분만 바로 고칠 수도 있어요.</p>
+    </div>
+  );
+}
+
+function SetupActions({ text, sections, picked, extra, onCancel }: { text: string; sections: TextSection[]; picked: Set<number>; extra: string; onCancel: () => void }) {
+  const all = picked.size === sections.length;
+  const ranges = pickedRanges(sections, picked);
+  const length = ranges.reduce((n, r) => n + text.slice(r.start, r.end).length, 0);
+  const start = () => void useAiStore.getState().start("revise", { ranges: all ? undefined : ranges, instruction: extra });
+  return (
+    <>
+      <span className="self-center text-xs text-muted-foreground tabular-nums">{all ? "글 전체" : `${picked.size}곳`} · {charCount(length)}</span>
+      <Button size="sm" variant="outline" onClick={onCancel}>취소</Button>
+      <Button size="sm" data-revise-start disabled={picked.size === 0} onClick={start} title="퇴고 시작 (⌘/Ctrl+Enter)">
+        <ScanText /> {all ? "전체 퇴고" : `고른 ${picked.size}곳 퇴고`}
+      </Button>
+    </>
+  );
+}
+
+const STAGES = [
+  { key: "reading", label: "글을 읽고 고칠 곳 찾기" },
+  { key: "writing", label: "고친 글 쓰기" },
+  { key: "notes", label: "고친 점 정리" },
+  { key: "suggestions", label: "제안 정리" },
+] as const;
+
+/** 퇴고가 어디까지 왔는지: 단계, 고친 글을 쓴 비율, 걸린 시간. 아래에는 받은 글을 흘려 보여 준다. */
+function ReviseProgress() {
+  const run = useAiStore((s) => s.run);
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const source = run.ranges && run.context ? run.ranges.reduce((n, r) => n + r.end - r.start, 0) : (run.context?.text.length ?? 0);
+  const progress = reviseProgress(run.raw, source);
+  const current = STAGES.findIndex((s) => s.key === progress.stage);
+  const seconds = Math.max(0, Math.floor((now - run.startedAt) / 1000));
+  const elapsed = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+  return (
+    <div className="space-y-4">
+      <div aria-label="퇴고 진행" className="space-y-2 rounded-lg border bg-muted/30 p-3">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{charCount(source)} 퇴고 중</span>
+          <span className="ml-auto tabular-nums" aria-label="걸린 시간">{elapsed}</span>
+        </div>
+        <ol className="space-y-1.5">
+          {STAGES.map((stage, i) => {
+            const state = i < current ? "done" : i === current ? "now" : "todo";
+            const detail =
+              state !== "now" ? "" :
+              stage.key === "reading" ? (run.status || "모델이 글을 읽는 중…") :
+              stage.key === "writing" ? `${progress.percent}%` :
+              stage.key === "notes" ? `${progress.notes}개` : "";
+            return (
+              <li key={stage.key} aria-current={state === "now" ? "step" : undefined} className={cn("flex items-center gap-2 text-sm", state === "todo" && "text-muted-foreground/60")}>
+                {state === "done" ? <CircleCheck className="size-4 text-emerald-600" /> : state === "now" ? <Loader2 className="size-4 animate-spin text-primary" /> : <Circle className="size-4" />}
+                <span className={cn(state === "now" && "font-medium")}>{stage.label}</span>
+                {detail && <span className="text-xs text-muted-foreground tabular-nums">{detail}</span>}
+              </li>
+            );
+          })}
+        </ol>
+        {progress.stage === "writing" && (
+          <div className="h-1.5 overflow-hidden rounded-full bg-muted" role="progressbar" aria-label="고친 글 쓰기" aria-valuenow={progress.percent} aria-valuemin={0} aria-valuemax={100}>
+            <div className="h-full bg-primary transition-[width] duration-500" style={{ width: `${progress.percent}%` }} />
+          </div>
+        )}
+        {progress.stage === "reading" && seconds >= 20 && (
+          <p className="text-xs text-muted-foreground">글 전체를 읽고 판단한 뒤에 고친 글을 쓰기 시작해요. 글이 길면 이 단계가 1~2분 걸릴 수 있어요. 급하면 중지하고 필요한 부분만 골라 퇴고해 보세요.</p>
+        )}
+      </div>
+      <p className="text-sm leading-7 whitespace-pre-wrap text-muted-foreground">{run.output}</p>
     </div>
   );
 }

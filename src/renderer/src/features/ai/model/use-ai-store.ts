@@ -1,6 +1,7 @@
 import type { AiEvent, AiStatus, AiTask } from "@shared/ai";
 import { extractContinuation, parseRevision } from "@shared/ai-prompt";
 import { readNoteReviseRules } from "@shared/note-revise-rules";
+import { mergeRanges, parseParts, partsText, spliceParts, stripPartTags, type TextRange } from "@shared/revise-parts";
 import { toast } from "sonner";
 import { create } from "zustand";
 
@@ -22,7 +23,8 @@ export const TASK_LABEL: Record<AiTask, string> = {
   draft: "초안 쓰기",
 };
 
-type Phase = "idle" | "running" | "done" | "error";
+/** setup: 퇴고할 부분을 고르는 중 (아직 요청 전) */
+type Phase = "idle" | "setup" | "running" | "done" | "error";
 
 interface RunState {
   id: string | null;
@@ -44,9 +46,13 @@ interface RunState {
   notes: string[];
   /** 퇴고: 고치지 않고 제안만 한 것 */
   suggestions: string[];
+  /** 퇴고: 글 전체가 아니라 고른 부분만 보냈을 때 그 범위들 (context.text 기준) */
+  ranges: TextRange[] | null;
+  /** 요청을 보낸 시각 (걸린 시간 표시) */
+  startedAt: number;
 }
 
-const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [], suggestions: [] };
+const IDLE_RUN: RunState = { id: null, task: null, phase: "idle", output: "", error: "", context: null, notePath: null, status: "", instruction: "", raw: "", notes: [], suggestions: [], ranges: null, startedAt: 0 };
 
 interface AiState {
   status: AiStatus | null;
@@ -74,7 +80,13 @@ interface AiState {
   setReviseRules: (rules: string) => void;
   saveReviseRules: () => Promise<void>;
   setInstruction: (instruction: string) => void;
-  start: (task: AiTask) => Promise<void>;
+  /** 퇴고: 선택한 글이 있으면 바로 시작하고, 없으면 퇴고할 부분을 고르는 화면을 연다. */
+  prepare: (task: "revise") => void;
+  /**
+   * ranges: 퇴고에서 고른 부분들 (없으면 선택 부분이나 글 전체)
+   * instruction: 이번에만 덧붙일 한 줄 요청 (주지 않으면 패널의 지시 입력칸)
+   */
+  start: (task: AiTask, options?: { ranges?: TextRange[]; instruction?: string }) => Promise<void>;
   cancel: () => Promise<void>;
   /** text를 주면 결과 대신 그 글을 넣는다 (퇴고에서 고른 수정만 넣을 때) */
   apply: (mode: "replace" | "below" | "cursor", text?: string) => void;
@@ -165,19 +177,33 @@ export const useAiStore = create<AiState>((set, get) => ({
 
   setInstruction: (instruction) => set({ instruction }),
 
-  start: async (task) => {
+  prepare: (task) => {
     if (get().run.phase === "running") return;
     const bridge = useEditorBridge.getState().bridge;
     if (!bridge) return;
-    const { instruction } = get();
     const context = bridge.getContext();
+    if (context.hasSelection) return void get().start(task);
+    if (!context.text.trim()) return void toast.error("퇴고할 글이 비어 있어요.");
+    set({ run: { ...IDLE_RUN, task, phase: "setup", context, notePath: useWorkspaceStore.getState().activePath } });
+  },
+
+  start: async (task, options = {}) => {
+    const picked = options.ranges;
+    if (get().run.phase === "running") return;
+    const bridge = useEditorBridge.getState().bridge;
+    if (!bridge) return;
+    const instruction = options.instruction ?? get().instruction;
+    // 부분을 고르던 화면에서 시작하면 그때 읽은 글을 쓴다 (고른 범위가 그 글 기준이다).
+    const setup = get().run.phase === "setup" && get().run.task === task ? get().run.context : null;
+    const context = setup ?? bridge.getContext();
+    const ranges = task === "revise" && picked?.length ? mergeRanges(context.text, picked) : null;
 
     if (task === "custom" && !instruction.trim()) return void toast.error("어떻게 처리할지 지시를 입력해 주세요.");
     if (task !== "continue" && !context.text.trim()) return void toast.error(task === "revise" ? "퇴고할 글이 비어 있어요." : "다듬거나 교정할 글이 비어 있어요.");
 
     const id = crypto.randomUUID();
     set({
-      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [], suggestions: [] },
+      run: { id, task, phase: "running", output: "", error: "", context, notePath: useWorkspaceStore.getState().activePath, status: "", instruction, raw: "", notes: [], suggestions: [], ranges, startedAt: Date.now() },
     });
 
     try {
@@ -187,12 +213,12 @@ export const useAiStore = create<AiState>((set, get) => ({
         task,
         rules,
         noteName: context.noteName,
-        text: context.text,
+        text: ranges ? partsText(context.text, ranges) : context.text,
         before: context.before,
         after: context.after,
         instruction,
         // 이 글에만 적용하는 퇴고 룰 (글 속성 revise_rules)
-        ...(task === "revise" ? { noteReviseRules: readNoteReviseRules(bridge.getFrontmatter()) } : {}),
+        ...(task === "revise" ? { noteReviseRules: readNoteReviseRules(bridge.getFrontmatter()), partial: !!ranges } : {}),
         templatePrompt: "",
         web: false,
         groundedOnly: false,
@@ -237,7 +263,7 @@ function handleEvent(event: AiEvent) {
   if (event.type === "delta") {
     // 이어쓰기는 받은 글 전체(raw)를 두고, 화면에는 <continuation> 안의 글만 보여 준다.
     const raw = run.raw + event.text;
-    const output = run.task === "continue" ? extractContinuation(raw, { streaming: true }) : run.task === "revise" ? parseRevision(raw, { streaming: true }).revised : raw;
+    const output = run.task === "continue" ? extractContinuation(raw, { streaming: true }) : run.task === "revise" ? stripPartTags(parseRevision(raw, { streaming: true }).revised) : raw;
     useAiStore.setState({ run: { ...run, raw, output } });
   } else if (event.type === "status") {
     useAiStore.setState({ run: { ...run, status: event.text } });
@@ -245,6 +271,15 @@ function handleEvent(event: AiEvent) {
     useAiStore.setState({ run: { ...run, output: "", raw: "", notes: [], suggestions: [] } });
   } else if (event.type === "done") {
     const revision = run.task === "revise" ? parseRevision(event.text) : null;
+    // 고른 부분만 퇴고했으면 고친 부분들을 원문 자리에 끼워 글 전체로 만든다.
+    if (revision && run.ranges && run.context) {
+      const parts = parseParts(revision.revised, run.ranges.length);
+      if (!parts) {
+        useAiStore.setState({ run: { ...run, phase: "error", error: "고른 부분마다 고친 글을 나눠 받지 못했어요. 다시 해 보거나 범위를 줄여 주세요." } });
+        return;
+      }
+      revision.revised = spliceParts(run.context.text, run.ranges, parts);
+    }
     const output = tidyOutput(run.task === "continue" ? extractContinuation(event.text) : revision ? revision.revised : event.text);
     const notes = revision?.notes ?? [];
     const suggestions = revision?.suggestions ?? [];

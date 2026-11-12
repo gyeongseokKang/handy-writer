@@ -2,9 +2,10 @@ import type { Editor } from "@tiptap/core";
 import { TextSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
-import { Bold, Check, ChevronDown, Code, Italic, Strikethrough } from "lucide-react";
+import { Bold, Check, ChevronDown, Code, CornerDownLeft, Italic, ScanText, Strikethrough, WandSparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { useAiStore } from "@/features/ai/model/use-ai-store";
 import { cn } from "@/shared/lib/utils";
 import { shortcutLabel } from "@/shared/lib/shortcut";
 
@@ -165,7 +166,113 @@ function BlockTypeMenu({ editor }: { editor: Editor }) {
   );
 }
 
-export function BubbleToolbar({ editor }: { editor: Editor }) {
+const AI_MODES = {
+  polish: { label: "수정하기", icon: WandSparkles, hint: "글쓰기 룰대로 선택한 부분을 고쳐요" },
+  revise: { label: "퇴고하기", icon: ScanText, hint: "글쓰기 룰과 퇴고 룰대로 선택한 부분을 퇴고해요" },
+} as const;
+type AiMode = keyof typeof AI_MODES;
+
+/**
+ * 선택한 부분을 AI로 수정하거나 퇴고한다. 누르면 아래에 작은 창이 열려 둘 중 하나를 고르고,
+ * 이번에만 덧붙일 요청을 한 줄 적은 뒤 Enter로 시작한다. 결과는 본문 자리의 큰 화면에서 바뀐 점을 보고 고른다.
+ */
+function AiActions({ editor }: { editor: Editor }) {
+  // 아직 확인 전(AI 패널을 안 열었으면)이면 쓸 수 있다고 보고, 안 되면 결과 화면에서 이유를 알려 준다.
+  const available = useAiStore((s) => s.status?.available !== false);
+  const running = useAiStore((s) => s.run.phase === "running");
+  const [mode, setMode] = useState<AiMode | null>(null);
+  const [extra, setExtra] = useState("");
+  const ref = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!mode) return;
+    inputRef.current?.focus();
+    const onMouseDown = (event: MouseEvent) => { if (!ref.current?.contains(event.target as Node)) setMode(null); };
+    document.addEventListener("mousedown", onMouseDown, true);
+    return () => document.removeEventListener("mousedown", onMouseDown, true);
+  }, [mode]);
+  // 선택이 바뀌면(막대가 다른 곳에 뜨면) 창을 닫는다.
+  useEffect(() => {
+    const onSelection = () => { if (!editor.view.hasFocus()) return; setMode(null); };
+    editor.on("selectionUpdate", onSelection);
+    return () => void editor.off("selectionUpdate", onSelection);
+  }, [editor]);
+
+  const run = () => {
+    if (!mode) return;
+    const task = mode;
+    const instruction = extra.trim();
+    setMode(null);
+    setExtra("");
+    void useAiStore.getState().start(task, { instruction });
+  };
+  const disabled = !available || running;
+  const reason = !available ? "AI를 쓸 수 없어요 (AI 패널에서 상태를 확인하세요)" : running ? "AI가 다른 일을 하는 중이에요" : "";
+
+  return (
+    <div ref={ref} className="relative flex items-center gap-0.5">
+      {(Object.keys(AI_MODES) as AiMode[]).map((key) => {
+        const { label, icon: Icon, hint } = AI_MODES[key];
+        return (
+          <span key={key} className="group/hint relative">
+            <button
+              type="button"
+              aria-label={label}
+              aria-expanded={mode === key}
+              disabled={disabled}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => setMode(mode === key ? null : key)}
+              className={cn("flex h-8 items-center gap-1 rounded-md px-2 text-xs whitespace-nowrap hover:bg-accent disabled:opacity-40", mode === key && "bg-accent")}
+            >
+              <Icon className="size-3.5" /> {label.replace("하기", "")}
+            </button>
+            {!mode && <Hint label={reason || hint} keys="" />}
+          </span>
+        );
+      })}
+      {mode && (
+        <div role="dialog" aria-label="선택한 부분 AI로 고치기" className="absolute top-full right-0 z-50 mt-1.5 w-80 space-y-2 rounded-lg border bg-card p-2.5 text-card-foreground shadow-lg">
+          <div role="radiogroup" aria-label="고치는 방식" className="grid grid-cols-2 gap-1 rounded-md bg-muted p-0.5">
+            {(Object.keys(AI_MODES) as AiMode[]).map((key) => (
+              <button
+                key={key}
+                type="button"
+                role="radio"
+                aria-checked={mode === key}
+                onClick={() => { setMode(key); inputRef.current?.focus(); }}
+                className={cn("rounded px-2 py-1 text-xs", mode === key ? "bg-background font-medium shadow-sm" : "text-muted-foreground hover:text-foreground")}
+              >
+                {AI_MODES[key].label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-muted-foreground">{AI_MODES[mode].hint}. 더 바라는 게 있으면 한 줄로 적어 주세요.</p>
+          <div className="flex items-center gap-1">
+            <input
+              ref={inputRef}
+              value={extra}
+              onChange={(e) => setExtra(e.target.value)}
+              aria-label="추가 요청"
+              placeholder="추가 요청 (선택) 예) 더 짧게, 존댓말로"
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === "Enter") { e.preventDefault(); run(); }
+                else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setMode(null); editor.commands.focus(); }
+              }}
+              className="h-8 min-w-0 flex-1 rounded-md border bg-background px-2 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+            <button type="button" onClick={run} aria-label={`${AI_MODES[mode].label} 시작`} title="시작 (Enter)" className="flex h-8 items-center gap-1 rounded-md bg-primary px-2 text-xs text-primary-foreground hover:bg-primary/90">
+              <CornerDownLeft className="size-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function BubbleToolbar({ editor, ai = false }: { editor: Editor; ai?: boolean }) {
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => Object.fromEntries(MARKS.map((mark) => [mark.name, e.isActive(mark.name)])),
@@ -195,6 +302,12 @@ export function BubbleToolbar({ editor }: { editor: Editor }) {
           <Hint label={label} keys={shortcutLabel(shortcut)} />
           </span>
         ))}
+        {ai && (
+          <>
+            <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
+            <AiActions editor={editor} />
+          </>
+        )}
       </div>
     </BubbleMenu>
   );

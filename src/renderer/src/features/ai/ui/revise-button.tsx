@@ -66,8 +66,8 @@ export function ReviseButton({ disabled }: { disabled: boolean }) {
         size="sm"
         className="w-full"
         disabled={disabled}
-        onClick={() => void useAiStore.getState().start("revise")}
-        title={`나의 퇴고 룰${lines ? `과 이 글의 퇴고 룰(${lines}줄)` : "(없으면 기본 기준)"}로 글 전체를 다시 보고 빼고 고쳐요. 고친 점도 알려 줘요`}
+        onClick={() => void useAiStore.getState().prepare("revise")}
+        title={`나의 퇴고 룰${lines ? `과 이 글의 퇴고 룰(${lines}줄)` : "(없으면 기본 기준)"}로 글을 다시 보고 빼고 고쳐요. 글 전체나 고른 절만, 선택한 채 누르면 그 부분만 퇴고해요`}
       >
         <ScanText /> 퇴고
         {lines > 0 && <span className="rounded-full bg-primary/10 px-1.5 text-[10px] font-medium text-primary">+{lines}</span>}
@@ -111,7 +111,7 @@ export function ReviseButton({ disabled }: { disabled: boolean }) {
           <div className="flex items-center gap-2">
             <p className="min-w-0 flex-1 text-[11px] text-muted-foreground">글 속성 <code>revise_rules</code>에 저장돼요</p>
             <Button size="sm" variant="outline" disabled={draft === saved} onClick={() => save() && (setOpen(null), toast.success("이 글의 퇴고 룰을 저장했어요."))}>저장</Button>
-            <Button size="sm" disabled={disabled} onClick={() => { if (save()) { setOpen(null); window.setTimeout(() => void useAiStore.getState().start("revise"), 0); } }}>
+            <Button size="sm" disabled={disabled} onClick={() => { if (save()) { setOpen(null); window.setTimeout(() => void useAiStore.getState().prepare("revise"), 0); } }}>
               <ScanText /> 퇴고
             </Button>
           </div>

@@ -8,9 +8,14 @@ import { loginShellAuthEnv, loginShellPath } from "../shell-env";
 import { SYSTEM_PROMPT } from "../../shared/ai-prompt";
 import type { AiStatus } from "../../shared/ai";
 
+/**
+ * 아무 응답 없이 이만큼 지나면 멈춘다. 글을 쓰거나 생각하는 동안에는 응답이 계속 오므로 끊지 않는다
+ * (긴 글의 퇴고는 몇 분씩 걸린다). 웹 검색·긴 초안·퇴고는 도구를 쓰거나 오래 생각해서 더 기다린다.
+ */
 const RUN_TIMEOUT_MS = 180_000;
-/** 웹 검색(여러 번 검색하고 페이지를 읽는다)과 긴 초안은 더 오래 걸린다. */
 const LONG_RUN_TIMEOUT_MS = 300_000;
+/** 응답이 계속 와도 이보다 오래 걸리면 멈춘다. */
+const MAX_RUN_MS = 1_200_000;
 
 export const WEB_TOOLS = "WebSearch,WebFetch";
 /** 붙인 프로젝트 폴더를 읽기만 하는 도구 */
@@ -21,6 +26,8 @@ export type StreamPiece =
   /** 새 응답 턴이 시작됐다 (도구를 쓴 뒤 이어지는 응답) */
   | { kind: "turn" }
   | { kind: "tool"; name: string }
+  /** 모델이 답을 쓰기 전에 생각하고 있다 */
+  | { kind: "thinking" }
   | { kind: "result"; text: string; isError: boolean };
 
 /** `claude -p --output-format stream-json`가 한 줄씩 내보내는 JSON에서 필요한 조각만 뽑는다. */
@@ -41,6 +48,7 @@ export function parseStreamLine(line: string): StreamPiece | null {
       return { kind: "delta", text: delta.text };
     }
     if (event?.type === "message_start") return { kind: "turn" };
+    if (event?.type === "content_block_start" && event.content_block?.type === "thinking") return { kind: "thinking" };
     if (event?.type === "content_block_start" && event.content_block?.type === "tool_use" && typeof event.content_block.name === "string") {
       return { kind: "tool", name: event.content_block.name };
     }
@@ -209,6 +217,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(cap);
       signal.removeEventListener("abort", onAbort);
       if (error) reject(error);
       else resolve(text);
@@ -220,10 +229,18 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
     };
     signal.addEventListener("abort", onAbort);
 
-    const timer = setTimeout(() => {
+    const idleLimit = web || long || readDirs.length > 0 ? LONG_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS;
+    const stop = (message: string) => {
       child.kill();
-      finish(new Error("시간이 너무 오래 걸려서 중단했어요."));
-    }, web || long || readDirs.length > 0 ? LONG_RUN_TIMEOUT_MS : RUN_TIMEOUT_MS);
+      finish(new Error(message));
+    };
+    let timer = setTimeout(() => stop(`${Math.round(idleLimit / 60_000)}분 동안 AI의 응답이 없어서 중단했어요. 다시 해 보거나, 글이 길면 필요한 부분만 골라 주세요.`), idleLimit);
+    /** 응답이 올 때마다 기다리는 시간을 처음부터 다시 잰다. */
+    const alive = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => stop(`${Math.round(idleLimit / 60_000)}분 동안 AI의 응답이 없어서 중단했어요. 다시 해 보거나, 글이 길면 필요한 부분만 골라 주세요.`), idleLimit);
+    };
+    const cap = setTimeout(() => stop(`${MAX_RUN_MS / 60_000}분이 넘게 걸려서 중단했어요. 글이 길면 필요한 부분만 골라 나눠서 해 주세요.`), MAX_RUN_MS);
 
     const handleLine = (line: string) => {
       const piece = parseStreamLine(line.trim());
@@ -237,6 +254,8 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
           streamed = "";
           onReset?.();
         }
+      } else if (piece.kind === "thinking") {
+        onStatus?.("생각하는 중…");
       } else if (piece.kind === "tool") {
         onStatus?.(TOOL_STATUS[piece.name] ?? `${piece.name} 실행 중…`);
       } else {
@@ -246,6 +265,7 @@ export async function runClaude({ exe, cwd, prompt, signal, onDelta, web = false
 
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
+      alive();
       buffer += chunk;
       let newline: number;
       while ((newline = buffer.indexOf("\n")) !== -1) {

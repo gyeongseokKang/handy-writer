@@ -232,7 +232,7 @@ function Result() {
   const cancel = useAiStore((s) => s.cancel);
   const dismiss = useAiStore((s) => s.dismiss);
 
-  if (run.phase === "idle" || !run.task) return null;
+  if (run.phase === "idle" || run.phase === "setup" || !run.task) return null;
   // 퇴고 결과는 본문 자리의 큰 화면(RevisionView)에서 본다.
   if (run.task === "revise" || run.task === "proofread" || run.task === "polish") {
     return (
