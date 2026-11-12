@@ -41,6 +41,8 @@ await page.keyboard.press("Escape");
 const firstEmbed = page.locator(".note-prose .embed").first();
 await firstEmbed.hover();
 const copyButton = firstEmbed.getByRole("button", { name: "그림 복사" });
+await sleep(300);
+await page.screenshot({ path: path.join(OUT, "image-copy.png") });
 assert((await copyButton.evaluate((el) => getComputedStyle(el).opacity)) === "1", "그림에 올리면 오른쪽 위에 복사 버튼이 보인다");
 await copyButton.click();
 await sleep(500);
