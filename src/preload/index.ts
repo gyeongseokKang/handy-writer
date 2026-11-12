@@ -60,6 +60,7 @@ const api: HandyApi = {
     pick: () => ipcRenderer.invoke(IPC.attachmentsPick),
     save: (name, data) => ipcRenderer.invoke(IPC.attachmentsSave, name, data),
     reveal: (path) => ipcRenderer.invoke(IPC.attachmentsReveal, path),
+    copyImage: (path) => ipcRenderer.invoke(IPC.attachmentsCopyImage, path),
   },
   search: {
     query: (query) => ipcRenderer.invoke(IPC.searchQuery, query),

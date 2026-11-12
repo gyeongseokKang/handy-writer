@@ -277,6 +277,14 @@ export function BubbleToolbar({ editor, ai = false }: { editor: Editor; ai?: boo
     editor,
     selector: ({ editor: e }) => Object.fromEntries(MARKS.map((mark) => [mark.name, e.isActive(mark.name)])),
   });
+  // 그림만 고른 것처럼 글자가 없는 선택에는 수정·퇴고를 띄우지 않는다.
+  const hasText = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const { from, to } = e.state.selection;
+      return e.state.doc.textBetween(from, to, " ", " ").trim().length > 0;
+    },
+  });
 
   return (
     <BubbleMenu editor={editor} options={{ placement: "top" }}>
@@ -302,7 +310,7 @@ export function BubbleToolbar({ editor, ai = false }: { editor: Editor; ai?: boo
           <Hint label={label} keys={shortcutLabel(shortcut)} />
           </span>
         ))}
-        {ai && (
+        {ai && hasText && (
           <>
             <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
             <AiActions editor={editor} />

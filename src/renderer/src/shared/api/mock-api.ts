@@ -282,6 +282,9 @@ export function createMockApi(): HandyApi {
       pick: async () => ({ imported: [], skipped: [] }),
       save: async (name) => ({ path: `attachments/${name}`, name, kind: "image", size: 0, mtime: Date.now() }),
       reveal: async () => {},
+      copyImage: async () => {
+        throw new Error("브라우저 미리보기에서는 그림을 복사할 수 없어요");
+      },
     },
     search: {
       query: async (query) =>

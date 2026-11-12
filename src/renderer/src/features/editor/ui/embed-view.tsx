@@ -1,6 +1,7 @@
 import type { EmbedAttrs } from "@shared/attachments";
 import { NodeViewWrapper, type ReactNodeViewProps } from "@tiptap/react";
-import { ExternalLink, FileQuestion, FileText } from "lucide-react";
+import { Check, Copy, ExternalLink, FileQuestion, FileText } from "lucide-react";
+import { toast } from "sonner";
 import { useEffect, useState } from "react";
 
 import { useEmbedSource } from "@/entities/note/model/use-embed-source";
@@ -57,6 +58,33 @@ function NoteEmbed({ target }: { target: string }) {
   );
 }
 
+/** 그림 오른쪽 위의 복사 버튼: 그림 파일을 찾아 그림 그대로 클립보드에 넣는다. */
+function ImageCopyButton({ path }: { path: string }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  return (
+    <button
+      type="button"
+      className="embed-copy"
+      aria-label="그림 복사"
+      title="그림 복사 (다른 앱에 바로 붙여 넣을 수 있어요)"
+      // 그림이 선택되거나 첨부 설정이 열리지 않게 한다.
+      onMouseDown={(event) => { event.preventDefault(); event.stopPropagation(); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        api.attachments.copyImage(path).then(() => setCopied(true), (error: unknown) => toast.error(`그림을 복사하지 못했어요: ${error instanceof Error ? error.message : String(error)}`));
+      }}
+    >
+      {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+      {copied ? "복사됨" : "복사"}
+    </button>
+  );
+}
+
 export function EmbedView({ node, selected }: ReactNodeViewProps) {
   const { target, label, width, height } = node.attrs as EmbedAttrs;
   const source = useEmbedSource(target);
@@ -109,6 +137,7 @@ export function EmbedView({ node, selected }: ReactNodeViewProps) {
       contentEditable={false}
     >
       {body}
+      {source.type !== "note" && source.type !== "missing" && source.kind === "image" && source.meta && <ImageCopyButton path={source.meta.path} />}
       {label && source.type !== "note" && source.type !== "missing" && <span className="embed-caption">{label}</span>}
     </NodeViewWrapper>
   );

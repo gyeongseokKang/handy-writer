@@ -131,6 +131,8 @@ export interface HandyApi {
     pick: () => Promise<AttachmentImportResult>;
     /** 붙여넣거나 끌어다 놓은 파일의 내용을 attachments/ 에 저장한다. */
     save: (name: string, data: Uint8Array) => Promise<AttachmentMeta>;
+    /** 작업 폴더의 그림 파일을 찾아 그림(PNG)으로 클립보드에 넣는다. */
+    copyImage: (path: string) => Promise<void>;
     reveal: (path: string) => Promise<void>;
   };
   search: {
@@ -302,6 +304,7 @@ export const IPC = {
   attachmentsPick: "attachments:pick",
   attachmentsSave: "attachments:save",
   attachmentsReveal: "attachments:reveal",
+  attachmentsCopyImage: "attachments:copy-image",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
   reviseRulesGet: "rules:get-revise",

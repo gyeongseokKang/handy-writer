@@ -12,7 +12,7 @@ import { scanProject } from "./project-context";
 import { fetchYoutube } from "./youtube";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
 import type { ProjectSource } from "../shared/draft-sources";
-import { importFiles, listAttachments, saveAttachment } from "./attachments";
+import { importFiles, listAttachments, resolveAssetFile, saveAttachment } from "./attachments";
 import { copyNote, exportNote } from "./export";
 import { readStyleDictionary, writeStyleDictionary } from "./style-dictionary";
 import { readManuscripts, remapManuscriptFile, setManuscript } from "./manuscripts";
@@ -164,6 +164,13 @@ export async function registerIpc() {
   ipcMain.handle(IPC.attachmentsSave, (_e, name: string, data: Uint8Array) => saveAttachment(requireRoot(), String(name), data));
   ipcMain.handle(IPC.attachmentsReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
+  });
+  ipcMain.handle(IPC.attachmentsCopyImage, async (_e, path: unknown) => {
+    // 작업 폴더 밖이나 숨김 폴더의 파일은 거부한다 (그림 주소와 같은 규칙).
+    const abs = resolveAssetFile(requireRoot(), String(path ?? ""));
+    const image = nativeImage.createFromPath(abs);
+    if (image.isEmpty()) throw new Error("이 그림 형식은 복사할 수 없어요.");
+    await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(image.toPNG())], { type: "image/png" }) })]);
   });
   ipcMain.handle(IPC.templatesList, () => listTemplates(requireRoot()));
   ipcMain.handle(IPC.templatesSave, (_e, template: Template) => saveTemplate(requireRoot(), template));
