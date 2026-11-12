@@ -34,6 +34,7 @@ import { SPELL_REFRESH, type SpellTarget } from "../lib/spell-check";
 import { ContextMenu } from "@/shared/ui/context-menu";
 import { BlockMenu, selectBlock, type BlockTarget } from "./block-menu";
 import { BubbleToolbar } from "./bubble-toolbar";
+import { ImageRowBar } from "./image-row-bar";
 import { ScrollPeek } from "./scroll-peek";
 import { EditorWidthHandles } from "./editor-width-handles";
 import { ConflictBar } from "./conflict-bar";
@@ -596,6 +597,7 @@ export function NoteEditor({ path, name, pane = "main" }: NoteEditorProps) {
         </div>
       </div>
       <BubbleToolbar editor={editor} ai={isMain} />
+      <ImageRowBar editor={editor} />
       <ScrollPeek columnRef={columnRef} />
       {imageMenu && (
         <ContextMenu

@@ -226,6 +226,10 @@
 .note-prose .image-row .embed { display: block; width: 100%; }
 .note-prose .image-row .embed-media { width: 100% !important; height: auto !important; }
 .note-prose .image-row + p.caption { margin-top: 0.4rem; }
+/* 묶음을 고르면 묶음 전체를 테두리로 보여 준다 */
+.note-prose .image-row.ProseMirror-selectednode { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--radius-md); }
+/* 캡션에 그림 라벨이 모두 들어 있으면 그림마다 붙은 라벨은 숨긴다 */
+.note-prose .image-row.labels-in-caption .embed-caption { display: none; }
 .note-prose .embed-audio { display: block; width: 100%; min-width: 16rem; }
 .note-prose .embed-caption { display: block; margin-top: 0.25rem; font-size: 0.8125rem; color: var(--muted-foreground); }
 .note-prose .embed-selected .embed-media { outline: 2px solid var(--ring); outline-offset: 2px; }

@@ -1,6 +1,6 @@
 import { Extension } from "@tiptap/core";
 import type { Node as PMNode, Schema } from "@tiptap/pm/model";
-import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { kindOfPath } from "@shared/attachments";
 import { rowColumns } from "@shared/image-row";
@@ -44,10 +44,33 @@ function rowParagraph(schema: Schema, embeds: PMNode[]) {
 const CAPTION_END = /(^|\s+)\^(fig|tbl|table)[-_][\w-]*\s*$/i;
 const isCaption = (node: PMNode | null | undefined) => !!node && node.type.name === "paragraph" && CAPTION_END.test(node.textContent);
 
-/** 새 문단으로 쓸 묶음 + 라벨 캡션 문단 */
+/** 그림마다 붙인 라벨을 `aaa | bbb`로 잇는다 (라벨이 없는 그림은 건너뛴다). */
+export function joinedLabels(embeds: PMNode[]) {
+  return embeds.map((embed) => String(embed.attrs["label"] ?? "").trim()).filter(Boolean).join(" | ");
+}
+
+/** 묶음 문단의 그림 임베드들 */
+export function rowEmbeds(node: PMNode) {
+  const embeds: PMNode[] = [];
+  node.forEach((child) => isImageEmbed(child) && embeds.push(child));
+  return embeds;
+}
+
+/**
+ * 새 문단으로 쓸 묶음 + 라벨 캡션 문단. 그림마다 라벨이 있으면 캡션에 `aaa | bbb`로 이어 둔다.
+ * cursor는 캡션 문단 안에서 커서를 둘 곳 (이은 라벨 바로 뒤)
+ */
 export function rowWithCaption(schema: Schema, doc: PMNode, embeds: PMNode[]) {
   const id = nextLabelId(doc, "fig");
-  return { row: rowParagraph(schema, embeds), caption: schema.nodes["paragraph"]!.create(null, schema.text(` ^${id}`)) };
+  const labels = joinedLabels(embeds);
+  return { row: rowParagraph(schema, embeds), caption: schema.nodes["paragraph"]!.create(null, schema.text(`${labels} ^${id}`)), cursor: labels.length };
+}
+
+/** 묶음 전체를 고른 상태(NodeSelection)면 그 묶음 안의 자리를, 아니면 선택의 시작 자리를 준다. */
+function selectionFrom(state: { doc: PMNode; selection: import("@tiptap/pm/state").Selection }) {
+  const { selection, doc } = state;
+  if (selection instanceof NodeSelection && isImageRow(selection.node)) return doc.resolve(selection.from + 1);
+  return selection.$from;
 }
 
 declare module "@tiptap/core" {
@@ -61,6 +84,8 @@ declare module "@tiptap/core" {
       addToImageRow: (targets: string[], pos?: number) => ReturnType;
       /** 이미지 임베드들을 한 줄로 넣고 아래에 라벨 캡션을 만들어 커서를 거기에 둔다. */
       insertImageRow: (targets: string[], pos?: number) => ReturnType;
+      /** pos 자리 묶음의 캡션을 그림 라벨을 이은 글(`aaa | bbb`)로 채운다. 캡션이 없으면 만든다. */
+      fillRowCaption: (pos: number) => ReturnType;
     };
   }
 }
@@ -96,10 +121,10 @@ export const ImageRow = Extension.create({
           let end = start;
           for (let i = lo; i <= hi; i++) end += doc.child(i).nodeSize;
           const hasCaption = isCaption(doc.maybeChild(hi + 1));
-          const { row, caption } = rowWithCaption(schema, doc, embeds);
+          const { row, caption, cursor } = rowWithCaption(schema, doc, embeds);
           tr.replaceWith(start, end, hasCaption ? [row] : [row, caption]);
           // 라벨이 새로 생겼으면 커서를 거기에 두어 바로 쓸 수 있게 한다.
-          tr.setSelection(TextSelection.create(tr.doc, hasCaption ? start + 1 : start + row.nodeSize + 1)).scrollIntoView();
+          tr.setSelection(TextSelection.create(tr.doc, hasCaption ? start + 1 : start + row.nodeSize + 1 + cursor)).scrollIntoView();
           return true;
         },
 
@@ -107,7 +132,7 @@ export const ImageRow = Extension.create({
         (pos) =>
         ({ state, tr, dispatch }) => {
           const { doc, schema, selection } = state;
-          const $from = pos === undefined ? selection.$from : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
+          const $from = pos === undefined ? selectionFrom(state) : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
           if ($from.depth === 0) return false;
           const index = $from.index(0);
           const node = doc.child(index);
@@ -126,7 +151,7 @@ export const ImageRow = Extension.create({
         ({ state, tr, dispatch }) => {
           const { doc, schema, selection } = state;
           if (targets.length === 0) return false;
-          const $at = pos === undefined ? selection.$from : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
+          const $at = pos === undefined ? selectionFrom(state) : doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
           if ($at.depth === 0) return false;
           const index = $at.index(0);
           const block = doc.child(index);
@@ -145,9 +170,9 @@ export const ImageRow = Extension.create({
             tr.replaceWith(start, end, row);
             tr.setSelection(TextSelection.create(tr.doc, start + row.nodeSize - 1)).scrollIntoView();
           } else {
-            const { caption } = rowWithCaption(schema, doc, embeds);
+            const { caption, cursor } = rowWithCaption(schema, doc, embeds);
             tr.replaceWith(start, end, [row, caption]);
-            tr.setSelection(TextSelection.create(tr.doc, start + row.nodeSize + 1)).scrollIntoView();
+            tr.setSelection(TextSelection.create(tr.doc, start + row.nodeSize + 1 + cursor)).scrollIntoView();
           }
           return true;
         },
@@ -164,9 +189,34 @@ export const ImageRow = Extension.create({
           const empty = $at.depth === 1 && $at.parent.type.name === "paragraph" && $at.parent.content.size === 0;
           const from = empty ? $at.before(1) : $at.depth > 0 ? $at.after(1) : $at.pos;
           const to = empty ? $at.after(1) : from;
-          const { row, caption } = rowWithCaption(schema, doc, embeds);
+          const { row, caption, cursor } = rowWithCaption(schema, doc, embeds);
           tr.replaceWith(from, to, [row, caption]);
-          tr.setSelection(TextSelection.create(tr.doc, from + row.nodeSize + 1)).scrollIntoView();
+          tr.setSelection(TextSelection.create(tr.doc, from + row.nodeSize + 1 + cursor)).scrollIntoView();
+          return true;
+        },
+
+      fillRowCaption:
+        (pos) =>
+        ({ state, tr, dispatch }) => {
+          const { doc, schema } = state;
+          const $at = doc.resolve(Math.min(Math.max(pos, 0), doc.content.size));
+          if ($at.depth === 0) return false;
+          const index = $at.index(0);
+          const node = doc.child(index);
+          if (!isImageRow(node)) return false;
+          const labels = joinedLabels(rowEmbeds(node));
+          if (!labels) return false;
+          if (!dispatch) return true;
+          const start = $at.before(1);
+          const after = start + node.nodeSize;
+          const next = doc.maybeChild(index + 1);
+          if (next && isCaption(next)) {
+            // 캡션 끝의 ^fig-n 표시는 그대로 두고 앞의 설명만 바꾼다.
+            const marker = CAPTION_END.exec(next.textContent)?.[0].trim() ?? `^${nextLabelId(doc, "fig")}`;
+            tr.replaceWith(after + 1, after + next.nodeSize - 1, schema.text(`${labels} ${marker}`));
+          } else {
+            tr.insert(after, schema.nodes["paragraph"]!.create(null, schema.text(`${labels} ^${nextLabelId(doc, "fig")}`)));
+          }
           return true;
         },
     };
@@ -175,10 +225,16 @@ export const ImageRow = Extension.create({
   addProseMirrorPlugins() {
     const build = (doc: PMNode) => {
       const decorations: Decoration[] = [];
+      const nextSibling = new Map<number, PMNode | null>();
+      doc.forEach((_node, offset, index) => nextSibling.set(offset, doc.maybeChild(index + 1)));
       doc.forEach((node, offset) => {
         const count = imageCount(node);
         if (count < 2) return;
-        decorations.push(Decoration.node(offset, offset + node.nodeSize, { class: "image-row", style: `--cols:${rowColumns(count)}` }));
+        // 캡션에 그림 라벨이 모두 들어 있으면, 그림마다 붙은 라벨은 숨겨 두 번 보이지 않게 한다.
+        const labels = rowEmbeds(node).map((embed) => String(embed.attrs["label"] ?? "").trim()).filter(Boolean);
+        const next = nextSibling.get(offset);
+        const merged = labels.length > 0 && !!next && isCaption(next) && labels.every((label) => next.textContent.includes(label));
+        decorations.push(Decoration.node(offset, offset + node.nodeSize, { class: merged ? "image-row labels-in-caption" : "image-row", style: `--cols:${rowColumns(count)}` }));
       });
       return DecorationSet.create(doc, decorations);
     };
@@ -190,6 +246,14 @@ export const ImageRow = Extension.create({
           apply: (tr, value) => (tr.docChanged ? build(tr.doc) : value),
         },
         props: { decorations(state) { return this.getState(state); } },
+        // 나란히 놓인 그림 하나를 고르면 묶음 전체를 고른다 (하나만 고를 일이 거의 없다).
+        appendTransaction: (_trs, _old, state) => {
+          const { selection } = state;
+          if (!(selection instanceof NodeSelection) || selection.node.type.name !== "embed") return null;
+          const $pos = selection.$from;
+          if ($pos.depth !== 1 || !isImageRow($pos.parent)) return null;
+          return state.tr.setSelection(NodeSelection.create(state.doc, $pos.before(1)));
+        },
       }),
     ];
   },
