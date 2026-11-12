@@ -1,4 +1,4 @@
-import { AudioLines, Pause, Play, SkipBack, SkipForward, Square } from "lucide-react";
+import { AudioLines, Minus, Pause, Play, Plus, SkipBack, SkipForward, Square } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
@@ -71,19 +71,27 @@ export function ReadAloudBar() {
       <button type="button" aria-label="다음 문장" title="다음 문장" className={iconButton} disabled={index >= total - 1} onClick={() => controller.step(1)}>
         <SkipForward className="size-3.5" />
       </button>
-      <select
-        aria-label="읽는 속도"
-        title="읽는 속도 (다음 문장부터)"
-        value={rate}
-        onChange={(e) => setRate(Number(e.target.value))}
-        className="h-7 rounded-full border-0 bg-transparent px-1.5 text-xs tabular-nums hover:bg-accent"
-      >
-        {RATES.map((r) => <option key={r} value={r}>{r}×</option>)}
-      </select>
+      <RateControl rate={rate} onChange={(next) => { setRate(next); controller.restart(); }} />
       <button type="button" aria-label="그만 읽기" title="그만 읽기 (Esc)" className={iconButton} onClick={() => controller.stop()}>
         <Square className="size-3.5" />
       </button>
     </div>,
     document.body,
+  );
+}
+
+/** 읽는 속도: −/+로 한 단계씩, 바꾸면 지금 문장부터 그 속도로 다시 읽는다. */
+function RateControl({ rate, onChange }: { rate: number; onChange: (rate: number) => void }) {
+  const at = Math.max(0, RATES.findIndex((r) => r === rate));
+  return (
+    <span role="group" aria-label="읽는 속도" className="flex items-center rounded-full bg-muted/60">
+      <button type="button" aria-label="더 느리게" title="더 느리게" className={iconButton} disabled={at === 0} onClick={() => onChange(RATES[at - 1]!)}>
+        <Minus className="size-3.5" />
+      </button>
+      <span aria-label="지금 속도" className="w-9 text-center text-xs tabular-nums">{rate}×</span>
+      <button type="button" aria-label="더 빠르게" title="더 빠르게" className={iconButton} disabled={at === RATES.length - 1} onClick={() => onChange(RATES[at + 1]!)}>
+        <Plus className="size-3.5" />
+      </button>
+    </span>
   );
 }
