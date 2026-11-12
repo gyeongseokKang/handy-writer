@@ -49,6 +49,8 @@ const api: HandyApi = {
     note: (request) => ipcRenderer.invoke(IPC.exportNote, request),
     reveal: (path) => ipcRenderer.invoke(IPC.exportReveal, path),
     copy: (html, text) => ipcRenderer.invoke(IPC.exportCopy, html, text),
+    capture: (rect) => ipcRenderer.invoke(IPC.exportCapture, rect),
+    saveImage: (dataUrl, name) => ipcRenderer.invoke(IPC.exportSaveImage, dataUrl, name),
   },
   index: {
     get: () => ipcRenderer.invoke(IPC.indexGet),

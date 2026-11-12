@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, net, shell } from "electron";
 import type { FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { normalizePageOptions, type ExportRequest } from "../shared/export";
@@ -128,6 +128,25 @@ export async function registerIpc() {
     }),
   );
   ipcMain.handle(IPC.exportCopy, (_e, html: string, text: string) => copyNote(requireRoot(), String(html ?? ""), String(text ?? "")));
+  ipcMain.handle(IPC.exportCapture, async (event, rect: unknown) => {
+    const r = rect as { x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+    const area = { x: n(r?.x), y: n(r?.y), width: n(r?.width), height: n(r?.height) };
+    if (area.width === 0 || area.height === 0) throw new Error("찍을 자리가 비어 있어요.");
+    return (await event.sender.capturePage(area)).toDataURL();
+  });
+  ipcMain.handle(IPC.exportSaveImage, async (event, dataUrl: unknown, name: unknown) => {
+    const image = nativeImage.createFromDataURL(String(dataUrl ?? ""));
+    if (image.isEmpty()) throw new Error("저장할 그림이 비어 있어요.");
+    const safe = String(name ?? "").replace(/[\\/:*?"<>|\n]/g, " ").trim() || "스크린샷.png";
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title: "스크린샷 저장", defaultPath: join(app.getPath("downloads"), safe.endsWith(".png") ? safe : `${safe}.png`), filters: [{ name: "PNG 그림", extensions: ["png"] }] };
+    const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (picked.canceled || !picked.filePath) return { path: null };
+    await writeFile(picked.filePath, image.toPNG());
+    await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(image.toPNG())], { type: "image/png" }) })]);
+    return { path: picked.filePath };
+  });
   ipcMain.handle(IPC.exportReveal, (_e, path: string) => shell.showItemInFolder(String(path)));
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
   ipcMain.handle(IPC.attachmentsList, () => listAttachments(requireRoot()));

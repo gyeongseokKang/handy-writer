@@ -266,6 +266,16 @@ export function createMockApi(): HandyApi {
       copy: async (html, text) => {
         await navigator.clipboard.write([new ClipboardItem({ "text/html": new Blob([html], { type: "text/html" }), "text/plain": new Blob([text], { type: "text/plain" }) })]);
       },
+      capture: async () => {
+        throw new Error("브라우저 미리보기에서는 화면을 찍을 수 없어요");
+      },
+      saveImage: async (dataUrl, name) => {
+        const link = document.createElement("a");
+        link.href = dataUrl;
+        link.download = name;
+        link.click();
+        return { path: name };
+      },
     },
     attachments: {
       list: async () => [],

@@ -115,6 +115,8 @@
 .note-prose .code-block-copy { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 0.25rem; padding: 0.1rem 0.4rem; opacity: 0; transition: opacity 0.15s; }
 .note-prose .code-block-copy:hover { background: var(--background); color: var(--foreground); }
 .note-prose .code-block:hover .code-block-copy, .note-prose .code-block:focus-within .code-block-copy, .note-prose .code-block-copy:focus-visible { opacity: 1; }
+/* 스크린샷을 찍는 동안에는 머리줄 버튼을 숨긴다 */
+.capturing .note-prose .code-block-copy { visibility: hidden; transition: none; }
 
 .note-prose .hljs {
   --hl-comment: oklch(0.55 0.01 260); --hl-keyword: oklch(0.52 0.2 15); --hl-string: oklch(0.42 0.12 250);
