@@ -65,6 +65,11 @@ await bar.getByRole("button", { name: "더 빠르게" }).click();
 const last = await page.evaluate(() => window.__spoken.at(-1));
 assert((await bar.getByLabel("지금 속도").innerText()) === "1.5×" && last.rate === 1.5 && last.lang === "ko-KR", "더 빠르게를 누르면 속도가 오르고 바로 그 속도로 한국어로 읽는다");
 assert((await spoken()).length === sentBefore + 2 && (await spoken()).at(-1) === (await spoken()).at(-3), "속도를 바꾸면 지금 문장을 처음부터 다시 읽는다");
+// 유튜브처럼 Shift + < 느리게, Shift + > 빠르게 (에디터에 글자가 들어가지 않는다)
+await page.keyboard.press("Shift+Comma");
+assert((await bar.getByLabel("지금 속도").innerText()) === "1.2×", "Shift + <로 한 단계 느리게");
+await page.keyboard.press("Shift+Period");
+assert((await bar.getByLabel("지금 속도").innerText()) === "1.5×" && !(await page.locator(".note-prose").innerText()).includes("<"), "Shift + >로 한 단계 빠르게, 글에는 아무것도 들어가지 않는다");
 await bar.getByRole("button", { name: "다음 문장" }).click();
 
 await page.waitForFunction(() => window.__spoken.some((s) => s.text === "마지막 문단이다."), null, { timeout: 5000 });
