@@ -22,6 +22,7 @@ process.stdin.on("end", async () => {
   if (process.env.FAKE_CLAUDE_LOG) appendFileSync(process.env.FAKE_CLAUDE_LOG, JSON.stringify({ args, input }) + "\n");
 
   const out = (obj) => process.stdout.write(JSON.stringify(obj) + "\n");
+  const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const delta = (text) => out({ type: "stream_event", event: { type: "content_block_delta", delta: { type: "text_delta", text } } });
 
   if (input.includes("SLOW")) await new Promise((resolve) => setTimeout(resolve, 60_000));
@@ -71,8 +72,13 @@ process.stdin.on("end", async () => {
     const rule = input.match(/<revise_rules>\n([^\n]*)/)?.[1] ?? "";
     const revised = text.replace(/정말 /g, "").replace(/사실 /g, "").replace(/^## 둘째$/m, "## 둘째: 매일 쓰는 이유");
     const answer = `글을 읽어 보니 군더더기가 있다.\n<revised>\n${revised}</revised>\n<notes>\n- 정말 글쓰기가 → 글쓰기가 / 군더더기 '정말'을 뺌\n- 사실 매일 → 매일 / 군더더기 '사실'을 뺌, 기준: ${rule.replace(/^[-*]\s*/, "")}\n</notes>\n<suggestions>\n- 둘째 절이 짧으니 첫 절과 합치기 / 2문단 이하라서\n</suggestions>`;
-    delta(answer.slice(0, 20));
-    delta(answer.slice(20));
+    // 실제 모델처럼 먼저 생각하고(진행 단계 표시를 시험할 수 있게 잠깐 멈춘다), 고친 글을 조금씩 쓴다.
+    out({ type: "stream_event", event: { type: "content_block_start", content_block: { type: "thinking" } } });
+    await pause(1500);
+    const cut = answer.indexOf("<revised>") + 12;
+    delta(answer.slice(0, cut));
+    await pause(1000);
+    delta(answer.slice(cut));
     return out({ type: "result", subtype: "success", is_error: false, result: answer });
   }
   const result =

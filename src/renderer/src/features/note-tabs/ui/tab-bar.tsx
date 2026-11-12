@@ -4,6 +4,7 @@ import { toast } from "sonner";
 
 import { useUiStore } from "@/entities/note/model/use-ui-store";
 import { useWorkspaceStore } from "@/entities/note/model/use-workspace-store";
+import { ReadAloudButton } from "@/features/read-aloud/ui/read-aloud";
 import { NOTE_DRAG_TYPE } from "@/shared/lib/note-drag";
 import { noteExcerpt } from "@/shared/lib/note-excerpt";
 import { api } from "@/shared/api/handy-api";
@@ -120,6 +121,7 @@ export function TabBar() {
           );
         })}
       </div>
+      <ReadAloudButton />
       <FocusModeButton />
       <RightPanelToggle />
       {preview.state && <TabPreviewCard {...preview.state} name={nameOf(preview.state.path)} />}

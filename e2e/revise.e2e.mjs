@@ -31,8 +31,17 @@ assert((await panel.getByText("문장은 40자 안으로 줄인다 외 1줄").co
 // 퇴고
 await page.locator(".note-prose p").first().click();
 await panel.getByRole("button", { name: "퇴고", exact: true }).click();
-// 결과는 사이드 패널이 아니라 본문 자리에 변경 기록처럼 크게 뜬다
+// 결과는 사이드 패널이 아니라 본문 자리에 변경 기록처럼 크게 뜬다. 먼저 퇴고할 부분을 고른다(처음엔 모두).
 const view = page.getByRole("dialog", { name: "퇴고 결과" });
+const parts = view.getByRole("list", { name: "퇴고할 부분" }).getByRole("checkbox");
+assert((await parts.count()) === 2 && (await parts.nth(1).isChecked()), "제목마다 퇴고할 부분을 고를 수 있고 처음엔 모두 골라져 있다");
+await page.screenshot({ path: path.join(OUT, "revise-setup.png") });
+await view.getByRole("button", { name: "전체 퇴고" }).click();
+// 진행 중에는 지금 어느 단계인지와 걸린 시간을 보여 준다
+const progress = view.getByLabel("퇴고 진행");
+await progress.waitFor({ timeout: 5000 });
+assert((await progress.locator('[aria-current="step"]').innerText()).includes("글을 읽고 고칠 곳 찾기"), "처음엔 글을 읽는 단계라고 보인다");
+await page.screenshot({ path: path.join(OUT, "revise-progress.png") });
 await view.getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
 assert(aiLog().input.includes("<revise_rules>\n- 문장은 40자 안으로 줄인다"), "저장한 퇴고 룰을 AI에 함께 보낸다");
 const notes = view.getByLabel("퇴고에서 고친 점");
@@ -87,6 +96,7 @@ const noteRules = page.getByRole("dialog", { name: "이 글의 퇴고 룰" });
 await noteRules.getByLabel("이 글의 퇴고 룰 내용").fill("- 이 글은 소제목을 질문형으로\n- 2장은 줄이지 않는다");
 await page.screenshot({ path: path.join(OUT, "note-revise-rules.png") });
 await noteRules.getByRole("button", { name: "퇴고" }).click();
+await page.getByRole("dialog", { name: "퇴고 결과" }).getByRole("button", { name: "전체 퇴고" }).click();
 await page.getByRole("dialog", { name: "퇴고 결과" }).getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
 const call = aiLog();
 assert(call.input.includes("<revise_rules>\n- 문장은 40자 안으로") && call.input.includes("<note_revise_rules>\n- 이 글은 소제목을 질문형으로\n- 2장은 줄이지 않는다\n</note_revise_rules>"), "공통 퇴고 룰과 이 글의 퇴고 룰을 함께 보낸다");
@@ -94,6 +104,57 @@ await page.keyboard.press("Escape");
 await sleep(1500);
 assert(/revise_rules: \|-?\n {2}- 이 글은 소제목을 질문형으로/.test(read("초고.md")), `이 글의 퇴고 룰이 글 속성에 저장된다 (${JSON.stringify(read("초고.md").slice(0, 80))})`);
 assert((await reviseButton.innerText()).includes("+2") && (await plus.evaluate((el) => getComputedStyle(el).opacity)) === "1", "룰이 있으면 +가 늘 보이고 퇴고 버튼에 줄 수가 보인다");
+
+// 고른 부분만 퇴고: 둘째 절을 빼고 첫째 절만 보내고, 결과는 원문 자리에 끼워 넣는다
+await page.locator(".note-prose p").first().click();
+await reviseButton.click();
+const partView = page.getByRole("dialog", { name: "퇴고 결과" });
+await partView.getByRole("checkbox", { name: /둘째.*퇴고하기/ }).click();
+assert((await partView.getByRole("button", { name: "고른 1곳 퇴고" }).count()) === 1, "고른 곳 수가 버튼에 보인다");
+await partView.getByLabel("퇴고 추가 요청").fill("도입은 더 짧게");
+await partView.getByRole("button", { name: "고른 1곳 퇴고" }).click();
+await partView.getByRole("progressbar", { name: "고친 글 쓰기" }).waitFor({ timeout: 5000 });
+assert(true, "고친 글을 쓰는 동안 얼마나 썼는지 막대로 보인다");
+await partView.getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
+const partCall = aiLog();
+assert(partCall.input.includes("추가 요청: 도입은 더 짧게"), "고르는 화면에서 적은 추가 요청을 함께 보낸다");
+assert(partCall.input.includes('<part n="1">\n## 첫째\n\n나는 정말 글쓰기가 좋다.\n</part>') && !partCall.input.includes("매일 쓴다"), "고른 부분만 part로 감싸 보낸다");
+await partView.getByRole("button", { name: /에 적용/ }).click();
+await sleep(1500);
+const partAfter = read("초고.md");
+assert(partAfter.includes("## 첫째\n\n나는 글쓰기가 좋다.\n\n## 둘째: 매일 쓰는 이유\n\n매일 쓴다.\n"), `고친 부분만 원문 자리에 들어가고 나머지는 그대로다 (${JSON.stringify(partAfter)})`);
+
+// 글을 선택하면 뜨는 막대에서 수정하기·퇴고하기를 고르고, 한 줄 추가 요청과 함께 바로 그 부분만 고친다
+const selectPara = async () => {
+  await page.locator(".note-prose p").first().click();
+  await page.keyboard.press("End");
+  await page.keyboard.press("Shift+Home");
+  await sleep(500);
+};
+await selectPara();
+const bubbleRevise = page.getByRole("button", { name: "퇴고하기" });
+await bubbleRevise.click();
+const aiBox = page.getByRole("dialog", { name: "선택한 부분 AI로 고치기" });
+assert((await aiBox.getByRole("radio", { name: "퇴고하기" }).getAttribute("aria-checked")) === "true", "선택 막대의 퇴고를 누르면 퇴고하기가 골라진 창이 열린다");
+await page.screenshot({ path: path.join(OUT, "bubble-ai.png") });
+await aiBox.getByLabel("추가 요청").fill("더 담백하게");
+await aiBox.getByLabel("추가 요청").press("Enter");
+const selView = page.getByRole("dialog", { name: "퇴고 결과" });
+await selView.getByRole("button", { name: /선택 부분에 적용/ }).waitFor({ timeout: 10000 });
+const selCall = aiLog();
+assert(selCall.input.includes("<revise_rules>") && selCall.input.includes("추가 요청: 더 담백하게") && !selCall.input.includes("매일 쓴다"), "선택한 부분만 퇴고 룰과 추가 요청을 함께 보내고, 고르는 화면 없이 바로 시작한다");
+await page.keyboard.press("Escape");
+await sleep(500);
+await selectPara();
+await page.getByRole("button", { name: "퇴고하기" }).click({ timeout: 5000 });
+await aiBox.getByRole("radio", { name: "수정하기" }).click();
+await aiBox.getByLabel("추가 요청").fill("존댓말로");
+await aiBox.getByRole("button", { name: "수정하기 시작" }).click();
+await page.getByRole("dialog", { name: /다듬기 결과/ }).getByRole("button", { name: /에 적용/ }).waitFor({ timeout: 10000 });
+const fixCall = aiLog();
+assert(!fixCall.input.includes("<revise_rules>") && fixCall.input.includes("추가 요청: 존댓말로") && fixCall.input.includes("글쓰기 룰에 맞게"), "수정하기는 글쓰기 룰대로 고치고 추가 요청을 함께 보낸다");
+await page.keyboard.press("Escape");
+await sleep(300);
 
 assert(logs.length === 0, `콘솔 오류/경고 없음 ${logs.join(" | ")}`);
 await env.close();

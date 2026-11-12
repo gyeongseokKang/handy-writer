@@ -144,6 +144,10 @@ export function buildUserPrompt(request: AiRequest, projectSections: string[] = 
   }
 
   let task: string = TASK_INSTRUCTIONS[request.task];
+  if (request.task === "revise" && request.partial) {
+    task +=
+      "\n<text>에는 글 전체가 아니라 글쓴이가 고른 부분만 <part n=\"…\">로 나뉘어 들어 있습니다. 각 part만 퇴고하고, <revised> 안에는 받은 part를 모두 같은 번호의 <part n=\"…\">와 </part>로 감싸 같은 순서로 씁니다. part 밖의 글을 새로 쓰거나 part를 합치지 마세요.";
+  }
   const instruction = request.instruction.trim();
   if (instruction) task += request.task === "custom" ? `\n지시: ${instruction}` : `\n추가 요청: ${instruction}`;
   sections.push(task);

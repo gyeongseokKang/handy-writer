@@ -26,7 +26,7 @@ function parseRequest(value: unknown): AiRequest {
     text: str(v.text),
     before: str(v.before),
     ...(v.task === "continue" ? { after: str(v.after) } : {}),
-    ...(v.task === "revise" ? { noteReviseRules: str(v.noteReviseRules).slice(0, 8000) } : {}),
+    ...(v.task === "revise" ? { noteReviseRules: str(v.noteReviseRules).slice(0, 8000), partial: v.partial === true } : {}),
     instruction: str(v.instruction),
     templatePrompt: str(v.templatePrompt),
     // 웹 검색은 템플릿 작업에서만, 참고 글 기반 모드가 아닐 때만 켠다.
@@ -82,7 +82,8 @@ export function registerAiIpc(requireRoot: () => string, isPickedProject: (path:
       signal: controller.signal,
       web: request.web,
       // 긴 초안은 글을 쓰는 데만 몇 분이 걸린다.
-      long: request.task === "draft",
+      // 퇴고는 고친 글 전체와 고친 점을 함께 써서 긴 글이면 몇 분이 걸린다.
+      long: request.task === "draft" || request.task === "revise",
       onDelta: (text) => send({ runId, type: "delta", text }),
       onStatus: (text) => send({ runId, type: "status", text }),
       onReset: () => send({ runId, type: "reset" }),
