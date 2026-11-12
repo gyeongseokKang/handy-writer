@@ -1,6 +1,6 @@
-import { app, BrowserWindow, dialog, ipcMain, net, shell } from "electron";
+import { app, BrowserWindow, clipboard, ClipboardItem, dialog, ipcMain, nativeImage, net, shell } from "electron";
 import type { FSWatcher } from "node:fs";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { normalizePageOptions, type ExportRequest } from "../shared/export";
@@ -12,7 +12,7 @@ import { scanProject } from "./project-context";
 import { fetchYoutube } from "./youtube";
 import { ATTACHMENT_EXTENSIONS } from "../shared/attachments";
 import type { ProjectSource } from "../shared/draft-sources";
-import { importFiles, listAttachments, saveAttachment } from "./attachments";
+import { importFiles, listAttachments, resolveAssetFile, saveAttachment } from "./attachments";
 import { copyNote, exportNote } from "./export";
 import { readStyleDictionary, writeStyleDictionary } from "./style-dictionary";
 import { readManuscripts, remapManuscriptFile, setManuscript } from "./manuscripts";
@@ -128,6 +128,25 @@ export async function registerIpc() {
     }),
   );
   ipcMain.handle(IPC.exportCopy, (_e, html: string, text: string) => copyNote(requireRoot(), String(html ?? ""), String(text ?? "")));
+  ipcMain.handle(IPC.exportCapture, async (event, rect: unknown) => {
+    const r = rect as { x?: unknown; y?: unknown; width?: unknown; height?: unknown } | null;
+    const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? Math.max(0, Math.round(v)) : 0);
+    const area = { x: n(r?.x), y: n(r?.y), width: n(r?.width), height: n(r?.height) };
+    if (area.width === 0 || area.height === 0) throw new Error("찍을 자리가 비어 있어요.");
+    return (await event.sender.capturePage(area)).toDataURL();
+  });
+  ipcMain.handle(IPC.exportSaveImage, async (event, dataUrl: unknown, name: unknown) => {
+    const image = nativeImage.createFromDataURL(String(dataUrl ?? ""));
+    if (image.isEmpty()) throw new Error("저장할 그림이 비어 있어요.");
+    const safe = String(name ?? "").replace(/[\\/:*?"<>|\n]/g, " ").trim() || "스크린샷.png";
+    const win = BrowserWindow.fromWebContents(event.sender);
+    const options = { title: "스크린샷 저장", defaultPath: join(app.getPath("downloads"), safe.endsWith(".png") ? safe : `${safe}.png`), filters: [{ name: "PNG 그림", extensions: ["png"] }] };
+    const picked = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options);
+    if (picked.canceled || !picked.filePath) return { path: null };
+    await writeFile(picked.filePath, image.toPNG());
+    await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(image.toPNG())], { type: "image/png" }) })]);
+    return { path: picked.filePath };
+  });
   ipcMain.handle(IPC.exportReveal, (_e, path: string) => shell.showItemInFolder(String(path)));
   ipcMain.handle(IPC.indexGet, () => indexer.build(requireRoot()));
   ipcMain.handle(IPC.attachmentsList, () => listAttachments(requireRoot()));
@@ -145,6 +164,13 @@ export async function registerIpc() {
   ipcMain.handle(IPC.attachmentsSave, (_e, name: string, data: Uint8Array) => saveAttachment(requireRoot(), String(name), data));
   ipcMain.handle(IPC.attachmentsReveal, (_e, path: string) => {
     shell.showItemInFolder(resolveInside(requireRoot(), String(path)));
+  });
+  ipcMain.handle(IPC.attachmentsCopyImage, async (_e, path: unknown) => {
+    // 작업 폴더 밖이나 숨김 폴더의 파일은 거부한다 (그림 주소와 같은 규칙).
+    const abs = resolveAssetFile(requireRoot(), String(path ?? ""));
+    const image = nativeImage.createFromPath(abs);
+    if (image.isEmpty()) throw new Error("이 그림 형식은 복사할 수 없어요.");
+    await clipboard.write([new ClipboardItem({ "image/png": new Blob([new Uint8Array(image.toPNG())], { type: "image/png" }) })]);
   });
   ipcMain.handle(IPC.templatesList, () => listTemplates(requireRoot()));
   ipcMain.handle(IPC.templatesSave, (_e, template: Template) => saveTemplate(requireRoot(), template));

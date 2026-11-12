@@ -1,4 +1,4 @@
-import { AudioLines, Pause, Play, SkipBack, SkipForward, Square } from "lucide-react";
+import { AudioLines, Minus, Pause, Play, Plus, SkipBack, SkipForward, Square } from "lucide-react";
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
@@ -27,8 +27,17 @@ export function ReadAloudButton() {
         active && "bg-sky-500/10 text-sky-600",
       )}
     >
-      <AudioLines className={cn("size-4", active && "animate-pulse")} />
+      {active ? <SoundBars playing className="text-sky-600" /> : <AudioLines className="size-4" />}
     </button>
+  );
+}
+
+/** 소리 막대: 읽는 동안 막대들이 서로 다른 박자로 오르내리고, 멈추면 낮게 멈춘다. */
+export function SoundBars({ playing, className }: { playing: boolean; className?: string }) {
+  return (
+    <span aria-hidden data-playing={playing || undefined} className={cn("sound-bars", className)}>
+      {[0, 1, 2, 3, 4].map((i) => <span key={i} />)}
+    </span>
   );
 }
 
@@ -41,12 +50,22 @@ export function ReadAloudBar() {
   useEffect(() => {
     if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing || event.defaultPrevented) return;
+      if (event.isComposing || event.defaultPrevented) return;
+      // 유튜브처럼 Shift + > 빠르게, Shift + < 느리게 (읽는 동안에는 글자 대신 속도를 바꾼다)
+      const step = event.shiftKey && !event.metaKey && !event.ctrlKey && !event.altKey ? (event.key === ">" || event.code === "Period" ? 1 : event.key === "<" || event.code === "Comma" ? -1 : 0) : 0;
+      if (step) {
+        event.preventDefault();
+        event.stopPropagation();
+        changeRate(step);
+        return;
+      }
+      if (event.key !== "Escape") return;
       event.preventDefault();
       useReadAloud.getState().controller?.stop();
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    // 에디터가 글자를 넣기 전에 받는다.
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [active]);
 
   if (!active || !controller) return null;
@@ -58,7 +77,7 @@ export function ReadAloudBar() {
       onMouseDown={(event) => event.preventDefault()}
       className="fixed bottom-14 left-1/2 z-40 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/95 py-1 pr-1.5 pl-3 text-card-foreground shadow-lg backdrop-blur"
     >
-      <AudioLines className={cn("size-4 text-sky-600", !paused && "animate-pulse")} />
+      <SoundBars playing={!paused} className="text-sky-600" />
       <span className="mr-1 text-xs whitespace-nowrap text-muted-foreground tabular-nums" aria-label="읽는 문장">
         {paused ? "멈춤" : selection ? "선택 부분 읽는 중" : "읽는 중"} · {index + 1}/{total}
       </span>
@@ -71,19 +90,37 @@ export function ReadAloudBar() {
       <button type="button" aria-label="다음 문장" title="다음 문장" className={iconButton} disabled={index >= total - 1} onClick={() => controller.step(1)}>
         <SkipForward className="size-3.5" />
       </button>
-      <select
-        aria-label="읽는 속도"
-        title="읽는 속도 (다음 문장부터)"
-        value={rate}
-        onChange={(e) => setRate(Number(e.target.value))}
-        className="h-7 rounded-full border-0 bg-transparent px-1.5 text-xs tabular-nums hover:bg-accent"
-      >
-        {RATES.map((r) => <option key={r} value={r}>{r}×</option>)}
-      </select>
+      <RateControl rate={rate} onChange={(next) => { setRate(next); controller.restart(); }} />
       <button type="button" aria-label="그만 읽기" title="그만 읽기 (Esc)" className={iconButton} onClick={() => controller.stop()}>
         <Square className="size-3.5" />
       </button>
     </div>,
     document.body,
+  );
+}
+
+/** 속도를 한 단계 올리거나(1) 내린다(-1). 바꾸면 지금 문장부터 그 속도로 다시 읽는다. */
+function changeRate(step: number) {
+  const { rate, setRate, controller } = useReadAloud.getState();
+  const at = Math.max(0, RATES.findIndex((r) => r === rate));
+  const next = RATES[Math.min(RATES.length - 1, Math.max(0, at + step))]!;
+  if (next === rate) return;
+  setRate(next);
+  controller?.restart();
+}
+
+/** 읽는 속도: −/+로 한 단계씩, 바꾸면 지금 문장부터 그 속도로 다시 읽는다. */
+function RateControl({ rate, onChange }: { rate: number; onChange: (rate: number) => void }) {
+  const at = Math.max(0, RATES.findIndex((r) => r === rate));
+  return (
+    <span role="group" aria-label="읽는 속도" className="flex items-center rounded-full bg-muted/60">
+      <button type="button" aria-label="더 느리게" title="더 느리게 (Shift + <)" className={iconButton} disabled={at === 0} onClick={() => onChange(RATES[at - 1]!)}>
+        <Minus className="size-3.5" />
+      </button>
+      <span aria-label="지금 속도" className="w-9 text-center text-xs tabular-nums">{rate}×</span>
+      <button type="button" aria-label="더 빠르게" title="더 빠르게 (Shift + >)" className={iconButton} disabled={at === RATES.length - 1} onClick={() => onChange(RATES[at + 1]!)}>
+        <Plus className="size-3.5" />
+      </button>
+    </span>
   );
 }

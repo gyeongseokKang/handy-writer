@@ -15,6 +15,8 @@ interface Controller {
   pause: () => void;
   resume: () => void;
   step: (delta: number) => void;
+  /** 지금 문장을 처음부터 다시 읽는다 (속도를 바꿨을 때) */
+  restart: () => void;
 }
 
 interface ReadAloudState {
@@ -57,9 +59,16 @@ export const useReadAloud = create<ReadAloudState>((set) => ({
   },
 }));
 
-function koreanVoice() {
+function voiceFor(lang: "ko" | "en") {
   const voices = window.speechSynthesis?.getVoices() ?? [];
-  return voices.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith("ko") && v.localService) ?? voices.find((v) => v.lang.replace("_", "-").toLowerCase().startsWith("ko")) ?? null;
+  const match = (v: SpeechSynthesisVoice) => v.lang.replace("_", "-").toLowerCase().startsWith(lang);
+  return voices.find((v) => match(v) && v.localService) ?? voices.find(match) ?? null;
+}
+const koreanVoice = () => voiceFor("ko");
+
+/** 한글이 하나도 없고 로마자가 있는 문장은 영어 음성으로 읽는다 (한국어 음성은 영어를 어색하게 읽는다). */
+export function sentenceLang(text: string): "ko" | "en" {
+  return !/[\u3131-\u318e\uac00-\ud7a3]/.test(text) && /[A-Za-z]/.test(text) ? "en" : "ko";
 }
 
 /**
@@ -124,8 +133,9 @@ export function useReadAloudEditor(editor: Editor | null, enabled: boolean) {
       highlight(sentence);
       const text = editor.state.doc.textBetween(sentence.from, sentence.to, " ");
       const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "ko-KR";
-      const voice = koreanVoice();
+      const lang = sentenceLang(text);
+      utterance.lang = lang === "en" ? "en-US" : "ko-KR";
+      const voice = voiceFor(lang);
       if (voice) utterance.voice = voice;
       utterance.rate = useReadAloud.getState().rate;
       const token = ++seq;
@@ -167,6 +177,10 @@ export function useReadAloudEditor(editor: Editor | null, enabled: boolean) {
       // 다시 들으면 멈춘 문장의 처음부터 읽는다.
       resume: () => speakAt(index),
       step: (delta) => speakAt(Math.min(sentences.length - 1, Math.max(0, index + delta))),
+      restart: () => {
+        const { active, paused } = useReadAloud.getState();
+        if (active && !paused) speakAt(index);
+      },
     };
 
     // 읽는 중에 글을 고치면 남은 문장의 위치를 옮긴다.

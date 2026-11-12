@@ -1,5 +1,5 @@
 import type { Editor } from "@tiptap/core";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { useEditorState } from "@tiptap/react";
 import { BubbleMenu } from "@tiptap/react/menus";
 import { Bold, Check, ChevronDown, Code, CornerDownLeft, Italic, ScanText, Strikethrough, WandSparkles } from "lucide-react";
@@ -10,6 +10,7 @@ import { cn } from "@/shared/lib/utils";
 import { shortcutLabel } from "@/shared/lib/shortcut";
 
 import { BLOCK_TYPES, blockShortcut, currentBlockType } from "../lib/block-types";
+import { isImageRow } from "../lib/image-row";
 
 /** shortcut은 tiptap 기본 단축키 */
 const MARKS = [
@@ -272,14 +273,34 @@ function AiActions({ editor }: { editor: Editor }) {
   );
 }
 
+/**
+ * tiptap 기본 조건에 더해, 그림이나 나란히 놓은 그림 묶음을 고른 때는 띄우지 않는다
+ * (글자 서식이 쓸모없고, 묶음에는 따로 묶음 막대가 뜬다).
+ */
+function shouldShowBubble({ editor, element, view, state, from, to }: { editor: Editor; element: HTMLElement; view: Editor["view"]; state: Editor["state"]; from: number; to: number }) {
+  const { doc, selection } = state;
+  if (selection instanceof NodeSelection && (selection.node.type.name === "embed" || isImageRow(selection.node))) return false;
+  const emptyTextBlock = !doc.textBetween(from, to).length && selection instanceof TextSelection;
+  const focused = view.hasFocus() || element.contains(document.activeElement);
+  return focused && !selection.empty && !emptyTextBlock && editor.isEditable;
+}
+
 export function BubbleToolbar({ editor, ai = false }: { editor: Editor; ai?: boolean }) {
   const active = useEditorState({
     editor,
     selector: ({ editor: e }) => Object.fromEntries(MARKS.map((mark) => [mark.name, e.isActive(mark.name)])),
   });
+  // 그림만 고른 것처럼 글자가 없는 선택에는 수정·퇴고를 띄우지 않는다.
+  const hasText = useEditorState({
+    editor,
+    selector: ({ editor: e }) => {
+      const { from, to } = e.state.selection;
+      return e.state.doc.textBetween(from, to, " ", " ").trim().length > 0;
+    },
+  });
 
   return (
-    <BubbleMenu editor={editor} options={{ placement: "top" }}>
+    <BubbleMenu editor={editor} options={{ placement: "top" }} shouldShow={shouldShowBubble}>
       <div className="flex items-center gap-0.5 rounded-lg border bg-card p-1 shadow-lg">
         <BlockTypeMenu editor={editor} />
         <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
@@ -302,7 +323,7 @@ export function BubbleToolbar({ editor, ai = false }: { editor: Editor; ai?: boo
           <Hint label={label} keys={shortcutLabel(shortcut)} />
           </span>
         ))}
-        {ai && (
+        {ai && hasText && (
           <>
             <span aria-hidden className="mx-0.5 h-5 w-px bg-border" />
             <AiActions editor={editor} />

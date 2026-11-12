@@ -9,6 +9,7 @@ import { Button } from "@/shared/ui/button";
 
 import { SidebarResizeHandle } from "./sidebar-resize-handle";
 import { WorkspaceSection } from "./workspace-section";
+import { useTreeUi } from "../model/use-tree-ui";
 import { ReviewSection } from "@/features/review/ui/review-section";
 
 export function Sidebar() {
@@ -95,7 +96,15 @@ export function Sidebar() {
       </div>
 
       {/* 저장소마다 머리줄(Git) + 파일 트리. 길어지면 이 칸 전체가 스크롤되고 머리줄은 위에 붙는다. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto"
+        // 목록 아래 빈 곳을 우클릭해도 맨 위에 새 글·새 폴더를 만드는 메뉴가 뜬다.
+        onContextMenu={(event) => {
+          if (sidebarView !== "notes" || event.target !== event.currentTarget) return;
+          event.preventDefault();
+          useTreeUi.getState().openMenu(event.clientX, event.clientY, { kind: "root" });
+        }}
+      >
         {sidebarView === "notes" ? (
           <>
             <WorkspaceSection />

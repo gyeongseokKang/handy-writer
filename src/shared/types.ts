@@ -117,6 +117,10 @@ export interface HandyApi {
     reveal: (path: string) => Promise<void>;
     /** 글을 서식 있는 HTML과 일반 글로 클립보드에 넣는다. 작업 폴더 이미지는 HTML 안에 넣는다. */
     copy: (html: string, text: string) => Promise<void>;
+    /** 창의 화면 기준 사각형을 보이는 그대로 찍어 PNG data URL로 돌려준다. */
+    capture: (rect: { x: number; y: number; width: number; height: number }) => Promise<string>;
+    /** PNG(data URL)를 저장 위치를 물어 저장하고 클립보드에도 넣는다. 취소하면 path가 null */
+    saveImage: (dataUrl: string, name: string) => Promise<ExportResult>;
   };
   index: {
     get: () => Promise<NoteIndexEntry[]>;
@@ -127,6 +131,8 @@ export interface HandyApi {
     pick: () => Promise<AttachmentImportResult>;
     /** 붙여넣거나 끌어다 놓은 파일의 내용을 attachments/ 에 저장한다. */
     save: (name: string, data: Uint8Array) => Promise<AttachmentMeta>;
+    /** 작업 폴더의 그림 파일을 찾아 그림(PNG)으로 클립보드에 넣는다. */
+    copyImage: (path: string) => Promise<void>;
     reveal: (path: string) => Promise<void>;
   };
   search: {
@@ -277,6 +283,8 @@ export const IPC = {
   exportNote: "export:note",
   exportReveal: "export:reveal",
   exportCopy: "export:copy",
+  exportCapture: "export:capture",
+  exportSaveImage: "export:save-image",
   indexGet: "index:get",
   searchQuery: "search:query",
   spellCheck: "spell:check",
@@ -296,6 +304,7 @@ export const IPC = {
   attachmentsPick: "attachments:pick",
   attachmentsSave: "attachments:save",
   attachmentsReveal: "attachments:reveal",
+  attachmentsCopyImage: "attachments:copy-image",
   rulesGet: "rules:get",
   rulesSet: "rules:set",
   reviseRulesGet: "rules:get-revise",

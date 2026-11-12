@@ -28,7 +28,8 @@ await editorHas("리드미 본문");
 
 // 빈 곳 우클릭 → 새 폴더 → 바로 이름 입력
 const box = await tree.boundingBox();
-await page.mouse.click(box.x + 60, box.y + box.height + 80, { button: "right" });
+// 목록 아래(핸디 리뷰 칸보다도 아래)의 빈 곳
+await page.mouse.click(box.x + 60, (page.viewportSize()?.height ?? 800) - 60, { button: "right" });
 await menu.waitFor();
 assert((await menu.getAttribute("aria-label")) === "글 목록 메뉴", "빈 곳을 우클릭하면 목록 메뉴가 뜬다");
 assert(JSON.stringify(await menu.getByRole("menuitem").allInnerTexts()) === JSON.stringify(["새 글", "새 폴더"]), "목록 메뉴에는 새 글과 새 폴더가 있다");
@@ -59,6 +60,18 @@ await row("메모").click({ button: "right" });
 await menu.getByRole("menuitem", { name: "링크 복사" }).click();
 await sleep(200);
 assert((await app.evaluate(({ clipboard }) => clipboard.readText())) === "[[메모]]", "링크 복사는 [[이름]]을 복사한다");
+
+// 경로 복사: 작업 폴더 기준 상대 경로와 컴퓨터 전체 경로 두 가지
+await row("메모").click({ button: "right" });
+await menu.getByRole("menuitem", { name: "상대 경로 복사" }).click();
+await sleep(200);
+const relative = await app.evaluate(({ clipboard }) => clipboard.readText());
+assert(relative.endsWith("메모.md") && !relative.startsWith("/"), `상대 경로 복사는 작업 폴더 기준 경로를 복사한다 (${relative})`);
+await row("메모").click({ button: "right" });
+await menu.getByRole("menuitem", { name: "전체 경로 복사" }).click();
+await sleep(200);
+const full = await app.evaluate(({ clipboard }) => clipboard.readText());
+assert(full === path.join(fs.realpathSync(ws), relative) || full === path.join(ws, relative), `전체 경로 복사는 컴퓨터 루트부터의 경로를 복사한다 (${full})`);
 
 // 열어 둔 글이 든 폴더의 이름 바꾸기 → 열린 글이 따라간다
 await row("글쓰기").click({ button: "right" });

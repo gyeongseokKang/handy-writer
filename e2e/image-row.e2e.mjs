@@ -112,5 +112,33 @@ const html = fs.readFileSync(out, "utf8");
 assert(/<p class="image-row" style="--cols:2;">(<img[^>]*> ?){4}<\/p>/.test(html), "내보낸 HTML에도 나란히 놓인 묶음이 나온다");
 assert(html.includes("그림 1. </strong>제주 풍경 세 장") || /그림 1\.\s*<\/strong>\s*제주 풍경 세 장/.test(html), "묶음 라벨이 '그림 1. 제주 풍경 세 장'으로 나온다");
 
+// 묶음 안의 그림 하나를 눌러도 묶음 전체가 골라지고, 서식 막대 대신 묶음 막대가 뜬다
+await page.locator(".note-prose p.image-row img.embed-media").nth(1).click();
+await sleep(400);
+const rowBar = page.getByRole("toolbar", { name: "나란히 놓은 그림" });
+assert((await page.locator(".note-prose p.image-row.ProseMirror-selectednode").count()) === 1, "그림 하나를 눌러도 묶음 전체가 골라진다");
+assert((await rowBar.isVisible()) && (await rowBar.innerText()).includes("그림 4장 나란히"), "묶음 위에 몇 장인지와 풀기·캡션 버튼이 있는 막대가 뜬다");
+assert(!(await page.getByRole("button", { name: "굵게" }).isVisible()) && (await page.getByRole("button", { name: "퇴고하기" }).count()) === 0, "그림 묶음에는 글자 서식·수정·퇴고 막대가 뜨지 않는다");
+assert(await rowBar.getByRole("button", { name: "라벨로 캡션 채우기" }).isDisabled(), "그림에 라벨이 없으면 캡션 채우기는 꺼져 있다");
+await page.screenshot({ path: path.join(OUT, "image-row-bar.png") });
+
+// 그림마다 라벨을 달면 캡션을 `전 | 후`처럼 이어서 채우고, 그림 밑의 라벨은 숨긴다
+await page.keyboard.press("Escape");
+await page.locator(".note-prose p", { hasText: "앞 글입니다." }).click();
+await sleep(1500);
+fs.writeFileSync(path.join(ws, "사진글.md"), note().replace("![[풍경1.png]]", "![[풍경1.png|수정 전]]").replace("![[풍경2.png]]", "![[풍경2.png|수정 후]]"));
+await page.waitForFunction(() => [...document.querySelectorAll(".note-prose .embed-caption")].some((el) => el.textContent === "수정 전"), null, { timeout: 8000 });
+await page.locator(".note-prose p.image-row img.embed-media").first().click();
+await sleep(300);
+await rowBar.getByRole("button", { name: "라벨로 캡션 채우기" }).click();
+assert(await waitNote((t) => t.includes("수정 전 | 수정 후 ^fig-1")), "캡션이 그림 라벨을 이은 `수정 전 | 수정 후`로 바뀌고 ^fig-1 표시는 그대로다");
+const labelShown = await page.locator(".note-prose p.image-row .embed-caption").first().evaluate((el) => getComputedStyle(el).display);
+assert(labelShown === "none", "캡션에 라벨이 모두 들어가면 그림 밑의 라벨은 숨긴다");
+await page.screenshot({ path: path.join(OUT, "image-row-labels.png") });
+await page.locator(".note-prose p.image-row img.embed-media").first().click();
+await sleep(300);
+await rowBar.getByRole("button", { name: "나란히 풀기" }).click();
+assert((await page.locator(".note-prose p.image-row").count()) === 0 && (await rowBar.count()) === 0, "막대의 나란히 풀기로 묶음을 푼다");
+
 assert(logs.length === 0, `콘솔 오류 없음 ${logs.join(" | ")}`);
 await env.close();

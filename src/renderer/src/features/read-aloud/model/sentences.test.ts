@@ -18,3 +18,12 @@ describe("splitSentences", () => {
     expect(parts("")).toEqual([]);
   });
 });
+
+describe("sentenceLang", () => {
+  it("한글이 없고 로마자가 있으면 영어", async () => {
+    const { sentenceLang } = await import("./use-read-aloud");
+    expect(sentenceLang("be able to take all of the knowledge")).toBe("en");
+    expect(sentenceLang("PR이 쏟아지는 속도")).toBe("ko");
+    expect(sentenceLang("2024.")).toBe("ko");
+  });
+});

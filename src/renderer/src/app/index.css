@@ -115,6 +115,8 @@
 .note-prose .code-block-copy { display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 0.25rem; padding: 0.1rem 0.4rem; opacity: 0; transition: opacity 0.15s; }
 .note-prose .code-block-copy:hover { background: var(--background); color: var(--foreground); }
 .note-prose .code-block:hover .code-block-copy, .note-prose .code-block:focus-within .code-block-copy, .note-prose .code-block-copy:focus-visible { opacity: 1; }
+/* 스크린샷을 찍는 동안에는 머리줄 버튼을 숨긴다 */
+.capturing .note-prose .code-block-copy { visibility: hidden; transition: none; }
 
 .note-prose .hljs {
   --hl-comment: oklch(0.55 0.01 260); --hl-keyword: oklch(0.52 0.2 15); --hl-string: oklch(0.42 0.12 250);
@@ -209,7 +211,12 @@
 .block-handle:hover { background: var(--accent); color: var(--accent-foreground); }
 
 /* 첨부(이미지, 영상, 오디오, PDF) 임베드 */
-.note-prose .embed { display: inline-block; max-width: 100%; vertical-align: bottom; line-height: 1.4; }
+.note-prose .embed { position: relative; display: inline-block; max-width: 100%; vertical-align: bottom; line-height: 1.4; }
+/* 그림 오른쪽 위의 복사 버튼: 올리거나 선택하면 보인다 */
+.note-prose .embed-copy { position: absolute; top: 0.5rem; right: 0.5rem; z-index: 1; display: inline-flex; align-items: center; gap: 0.25rem; border-radius: 0.375rem; border: 1px solid var(--border); background: color-mix(in oklab, var(--background) 92%, transparent); color: var(--muted-foreground); padding: 0.15rem 0.45rem; font-size: 0.75rem; line-height: 1.2; box-shadow: 0 1px 2px rgb(0 0 0 / 0.08); opacity: 0; transition: opacity 0.15s; cursor: pointer; }
+.note-prose .embed-copy:hover { color: var(--foreground); }
+.note-prose .embed:hover .embed-copy, .note-prose .embed-selected .embed-copy, .note-prose .embed-copy:focus-visible { opacity: 1; }
+.capturing .note-prose .embed-copy { visibility: hidden; transition: none; }
 .note-prose .embed-media { display: block; max-width: 100%; height: auto; border-radius: var(--radius-md); }
 .note-prose video.embed-media { background: black; }
 /* 이미지 나란히 놓기: 이미지만 둘 이상 든 문단은 칸을 나눠 한 줄(묶음)로 보여 준다. */
@@ -219,6 +226,10 @@
 .note-prose .image-row .embed { display: block; width: 100%; }
 .note-prose .image-row .embed-media { width: 100% !important; height: auto !important; }
 .note-prose .image-row + p.caption { margin-top: 0.4rem; }
+/* 묶음을 고르면 묶음 전체를 테두리로 보여 준다 */
+.note-prose .image-row.ProseMirror-selectednode { outline: 2px solid var(--ring); outline-offset: 3px; border-radius: var(--radius-md); }
+/* 캡션에 그림 라벨이 모두 들어 있으면 그림마다 붙은 라벨은 숨긴다 */
+.note-prose .image-row.labels-in-caption .embed-caption { display: none; }
 .note-prose .embed-audio { display: block; width: 100%; min-width: 16rem; }
 .note-prose .embed-caption { display: block; margin-top: 0.25rem; font-size: 0.8125rem; color: var(--muted-foreground); }
 .note-prose .embed-selected .embed-media { outline: 2px solid var(--ring); outline-offset: 2px; }
@@ -237,6 +248,18 @@
 /* 집중 모드: 지금 쓰는 문단 말고는 옅게 */
 .note-prose .focus-dim { opacity: 0.3; transition: opacity 0.25s ease; }
 .note-prose > :not(.focus-dim) { transition: opacity 0.25s ease; }
+/* 소리 내어 읽기: 소리 막대 (읽는 동안 오르내린다) */
+.sound-bars { display: inline-flex; align-items: center; gap: 2px; height: 16px; width: 16px; justify-content: center; }
+.sound-bars > span { display: block; width: 2px; height: 100%; border-radius: 1px; background: currentColor; transform: scaleY(0.3); transform-origin: center; transition: transform 0.2s ease; }
+.sound-bars > span:nth-child(odd) { transform: scaleY(0.45); }
+.sound-bars[data-playing] > span { animation: sound-bar 0.9s ease-in-out infinite; }
+.sound-bars[data-playing] > span:nth-child(1) { animation-delay: -0.2s; animation-duration: 0.8s; }
+.sound-bars[data-playing] > span:nth-child(2) { animation-delay: -0.5s; animation-duration: 1.05s; }
+.sound-bars[data-playing] > span:nth-child(3) { animation-delay: -0.1s; animation-duration: 0.7s; }
+.sound-bars[data-playing] > span:nth-child(4) { animation-delay: -0.65s; animation-duration: 0.95s; }
+.sound-bars[data-playing] > span:nth-child(5) { animation-delay: -0.35s; animation-duration: 0.85s; }
+@keyframes sound-bar { 0%, 100% { transform: scaleY(0.25); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .sound-bars[data-playing] > span { animation: none; transform: scaleY(0.6); } }
 /* 소리 내어 읽기: 지금 읽는 문장 */
 ::highlight(read-aloud) { background-color: rgb(56 189 248 / 0.28); }
 
